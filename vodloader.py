@@ -24,9 +24,16 @@ def webhook_setup():
     success, uuid = hook.subscribe_stream_changed(user_id, callback_stream_changed)
 
 
-def get_stream(streamer):
+def get_stream(streamer, quality='best'):
     url = 'https://www.twitch.tv/' + streamer
-    return streamlink.streams(url)['best']
+    return streamlink.streams(url)[quality]
+
+def download_stream(streamer, path):
+    stream = get_stream(streamer).open()
+    with open(path, 'wb') as f:
+        while stream:
+            f.write(stream.read(1024))
+    stream.close()
 
 
 clientID = ":)"
@@ -35,9 +42,4 @@ users = ['rlly']
 host = ":)"
 port = 42069
 
-path = '/mnt/media/test'
-stream = get_stream('rlly')
-with open(path+".part", 'wb') as f:
-    for i in range(1000000):
-        f.write(stream.read(1024))
-stream.close()
+download_stream('rlly', '/mnt/media/test.ts')
