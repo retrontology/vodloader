@@ -28,11 +28,18 @@ def get_stream(streamer, quality='best'):
     url = 'https://www.twitch.tv/' + streamer
     return streamlink.streams(url)[quality]
 
-def download_stream(streamer, path):
+
+def download_stream(streamer, path, chunk_size=8192):
     stream = get_stream(streamer).open()
     with open(path, 'wb') as f:
-        while stream:
-            f.write(stream.read(1024))
+        data = stream.read(chunk_size)
+        while data:
+            try:
+                f.write(data)
+            except OSError as err:
+                print(err)
+                break
+            data = stream.read(chunk_size)
     stream.close()
 
 
