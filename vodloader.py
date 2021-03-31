@@ -18,7 +18,7 @@ class vod_watcher(object):
         self.twitch = twitch
         self.hook = hook
         self.user_id = self.get_user_id()
-        self.check_live()
+        self.get_live()
         self.webhook_subscribe()
 
 
@@ -37,8 +37,11 @@ class vod_watcher(object):
             self.live = False
 
 
-    def check_live(self):
-        if self.twitch.get_streams(user_id=self.user_id)['data'][0]['type'] == 'live':
+    def get_live(self):
+        data = self.twitch.get_streams(user_id=self.user_id)
+        if not data['data']:
+            self.live = False
+        elif data['data'][0]['type'] == 'live':
             self.live = True
         else:
             self.live = False
