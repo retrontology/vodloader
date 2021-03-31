@@ -3,14 +3,14 @@ from twitchAPI.webhook import TwitchWebHook
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.types import AuthScope
 import streamlink
-import vodloader_config
+from vodloader_config import vodloader_config
 import os
 import _thread
 import time
 import json
 
 
-class vod_watcher(object):
+class vodloader(object):
 
     def __init__(self, streamer, twitch, hook, download_dir, quality='best'):
         self.streamer = streamer
@@ -88,9 +88,17 @@ class vod_watcher(object):
 
 
 def load_config(filename):
-    config = vodloader_config.vodloader_config(filename)
+    config = vodloader_config(filename)
     if not config['download']['directory'] or config['download']['directory'] == "":
         config['download']['directory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'videos')
+    jdata = {}
+    jdata["installed"] = {}
+    jdata["installed"]["client_id"] = config['youtube']['client_id']
+    jdata["installed"]["client_secret"] = config['youtube']['client_secret']
+    jdata["installed"]["auth_uri"] = config['youtube']['auth_uri']
+    jdata["installed"]["token_uri"] = config['youtube']['token_uri']
+    jdata = json.dumps(jdata)
+    config['youtube']['json'] = jdata
     return config
 
 
@@ -111,7 +119,7 @@ def main():
     config = load_config('config.yaml')
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
     hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['client_id'], config['twitch']['webhook']['port'], twitch)
-    vodw = vod_watcher(config['twitch']['streamer'], twitch, hook, config['download']['directory'])
+    vodw = vodloader(config['twitch']['streamer'], twitch, hook, config['download']['directory'])
     try:
         while True:
             time.sleep(600)
