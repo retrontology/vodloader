@@ -111,8 +111,12 @@ def main():
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
     hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['client_id'], config['twitch']['webhook']['port'], twitch)
     vodw = vod_watcher(config['twitch']['streamer'], twitch, hook, config['download']['directory'])
-    while True:
-        time.sleep(600)
+    try:
+        while True:
+            time.sleep(600)
+    except:
+        vodw.webhook_unsubscribe()
+        hook.stop()
 
 
 if __name__ == '__main__':
