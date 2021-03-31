@@ -5,3 +5,5 @@ twitch:
   webhook:
     host: ":)"
     port: ":)"
+download:
+  directory: ":)"
