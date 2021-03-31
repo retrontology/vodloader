@@ -106,7 +106,7 @@ def setup_webhook(host, client_id, port, twitch):
 def main():
     config = load_config('config.yaml')
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
-    hook = setup_webhook(config['webhook']['host'], config['twitch']['client_id'], config['webhook']['port'], twitch)
+    hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['client_id'], config['twitch']['webhook']['port'], twitch)
     vodw = vod_watcher(config['twitch']['streamer'], twitch, hook, config['download']['directory'])
     while True:
         time.sleep(600)
