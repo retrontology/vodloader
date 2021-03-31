@@ -7,6 +7,7 @@ import vodloader_config
 import os
 import _thread
 import time
+import json
 
 
 class vod_watcher(object):
