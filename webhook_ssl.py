@@ -11,19 +11,24 @@ class proxy_request_handler(BaseHTTPRequestHandler):
 
 
     def do_GET(self, body=True):
-        self.forward()
+        self.forward("GET")
 
 
     def do_POST(self, body=True):
-        self.forward()
+        self.forward("POST")
+    
 
-
-    def forward(self):
+    def forward(self, req_type):
         try:
             url = 'https://{}{}'.format('127.0.0.1:' + self.target_port, self.path)
             req_header = self.parse_headers()
-            resp = requests.get(url)
-            #self.send_resp_headers(req_header, 11)
+            if req_type == "POST":
+                req_body = self.rfile.read(int(self.headers.get('Content-Length')))
+                resp = requests.post(url, headers=req_header, json=req_body, verify=False)
+            elif req_type == "GET":
+                resp = requests.get(url, headers=req_header, verify=False)
+            self.send_response(resp.status_code)
+            self.wfile.write(resp.content)
             return
         finally:
             self.finish()

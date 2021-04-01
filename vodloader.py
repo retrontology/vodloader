@@ -4,7 +4,7 @@ from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.types import AuthScope
 import streamlink
 from functools import partial
-from google.oauth2 import service_account
+#from google.oauth2 import service_account
 from vodloader_config import vodloader_config
 from webhook_ssl import proxy_request_handler
 import os
