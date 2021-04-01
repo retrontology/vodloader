@@ -27,9 +27,10 @@ class proxy_request_handler(BaseHTTPRequestHandler):
                 resp = requests.post(url, headers=req_header, json=req_body, verify=False)
             elif req_type == "GET":
                 resp = requests.get(url, headers=req_header, verify=False)
-            for key in resp.headers.keys():
-                self.send_header(key, resp.headers[key])
             self.send_response(resp.status_code)
+            for key in resp.headers.keys():
+                if not key in ['Date', 'Server']:
+                    self.send_header(key, resp.headers[key])
             self.end_headers()
             self.wfile.write(resp.content)
         finally:
