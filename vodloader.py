@@ -122,7 +122,7 @@ def setup_ssl_reverse_proxy(host, ssl_port, http_port, certfile):
 
 def setup_webhook(host, client_id, port, twitch):
     hook = TwitchWebHook(host, client_id, port)
-    hook.authenticate(twitch)
+    hook.authenticate(twitch) 
     hook.start()
     return hook
 

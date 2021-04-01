@@ -20,7 +20,7 @@ class proxy_request_handler(BaseHTTPRequestHandler):
 
     def forward(self, req_type):
         try:
-            url = 'https://{}{}'.format('127.0.0.1:' + self.target_port, self.path)
+            url = 'https://{}{}'.format('127.0.0.1:' + str(self.target_port), self.path)
             req_header = self.parse_headers()
             if req_type == "POST":
                 req_body = self.rfile.read(int(self.headers.get('Content-Length')))
