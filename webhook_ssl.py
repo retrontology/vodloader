@@ -36,7 +36,7 @@ class proxy_request_handler(BaseHTTPRequestHandler):
 
     def parse_headers(self):
         req_header = {}
-        for line in self.headers.headers:
+        for line in self.headers._headers:
             line_parts = [o.strip() for o in line.split(':', 1)]
             if len(line_parts) == 2:
                 req_header[line_parts[0]] = line_parts[1]
