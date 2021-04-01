@@ -20,8 +20,8 @@ class proxy_request_handler(BaseHTTPRequestHandler):
 
     def forward(self, req_type):
         try:
-            url = 'https://{}{}'.format('127.0.0.1:' + str(self.target_port), self.path)
-            req_header = self.parse_headers()
+            url = 'http://{}{}'.format('127.0.0.1:' + str(self.target_port), self.path)
+            req_header = self.headers
             if req_type == "POST":
                 req_body = self.rfile.read(int(self.headers.get('Content-Length')))
                 resp = requests.post(url, headers=req_header, json=req_body, verify=False)
@@ -31,7 +31,8 @@ class proxy_request_handler(BaseHTTPRequestHandler):
             self.wfile.write(resp.content)
             return
         finally:
-            self.finish()
+            pass
+            #self.finish()
 
 
     def parse_headers(self):
