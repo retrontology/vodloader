@@ -3,11 +3,15 @@ from twitchAPI.webhook import TwitchWebHook
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.types import AuthScope
 import streamlink
+from google.oauth2 import service_account
 from vodloader_config import vodloader_config
+from webhook_ssl import proxy_request_handler
 import os
 import _thread
 import time
 import json
+import http.server
+import ssl
 
 
 class vodloader(object):
@@ -108,11 +112,22 @@ def setup_twitch(client_id, client_secret):
     return twitch
 
 
+def setup_ssl_reverse_proxy(host, ssl_port, http_port, certfile):
+    httpd = http.server.HTTPServer((host, ssl_port), proxy_request_handler)
+    httpd.socket = ssl.wrap_socket(httpd.socket, certfile=certfile, server_side=True)
+    httpd.serve_forever()
+
+
 def setup_webhook(host, client_id, port, twitch):
     hook = TwitchWebHook(host, client_id, port)
     hook.authenticate(twitch)
     hook.start()
     return hook
+
+
+def setup_youtube(jdata, ):
+    #oauth2client.clientsecrets.loads(jdata)
+    pass
 
 
 def main():
