@@ -27,19 +27,11 @@ class proxy_request_handler(BaseHTTPRequestHandler):
                 resp = requests.post(url, headers=req_header, json=req_body, verify=False)
             elif req_type == "GET":
                 resp = requests.get(url, headers=req_header, verify=False)
+            for key in resp.headers.keys():
+                self.send_header(key, resp.headers[key])
             self.send_response(resp.status_code)
+            self.end_headers()
             self.wfile.write(resp.content)
-            return
         finally:
             pass
             #self.finish()
-
-
-    def parse_headers(self):
-        req_header = {}
-        for line in self.headers._headers:
-            line_parts = [o.strip() for o in line.split(':', 1)]
-            if len(line_parts) == 2:
-                req_header[line_parts[0]] = line_parts[1]
-        #req_header = self.strip_auth(req_header)
-        return req_header
