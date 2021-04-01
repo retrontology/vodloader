@@ -22,8 +22,10 @@ class proxy_request_handler(BaseHTTPRequestHandler):
         try:
             url = 'http://{}{}'.format('127.0.0.1:' + str(self.target_port), self.path)
             req_header = self.headers
+            print(req_header)
             if req_type == "POST":
                 req_body = self.rfile.read(int(self.headers.get('Content-Length')))
+                print(req_body)
                 resp = requests.post(url, headers=req_header, json=req_body, verify=False)
             elif req_type == "GET":
                 resp = requests.get(url, headers=req_header, verify=False)
