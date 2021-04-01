@@ -3,6 +3,7 @@ from twitchAPI.webhook import TwitchWebHook
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.types import AuthScope
 import streamlink
+from functools import partial
 from google.oauth2 import service_account
 from vodloader_config import vodloader_config
 from webhook_ssl import proxy_request_handler
@@ -113,7 +114,8 @@ def setup_twitch(client_id, client_secret):
 
 
 def setup_ssl_reverse_proxy(host, ssl_port, http_port, certfile):
-    httpd = http.server.HTTPServer((host, ssl_port), proxy_request_handler)
+    handler = partial(proxy_request_handler, http_port)
+    httpd = http.server.HTTPServer((host, ssl_port), handler)
     httpd.socket = ssl.wrap_socket(httpd.socket, certfile=certfile, server_side=True)
     httpd.serve_forever()
 
@@ -132,6 +134,7 @@ def setup_youtube(jdata, ):
 
 def main():
     config = load_config('config.yaml')
+    setup_ssl_reverse_proxy(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['webhook']['port'], config['twitch']['webhook']['ssl_cert'])
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
     hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['client_id'], config['twitch']['webhook']['port'], twitch)
     vodw = vodloader(config['twitch']['streamer'], twitch, hook, config['download']['directory'])

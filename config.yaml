@@ -4,7 +4,9 @@ twitch:
   streamer: ":)"
   webhook:
     host: ":)"
-    port: ":)"
+    port: "42069"
+    ssl_port: "42070"
+    ssl_cert: ":)"
 youtube:
   client_id: ":)"
   client_secret: ":)"
