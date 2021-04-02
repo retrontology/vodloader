@@ -4,14 +4,14 @@ twitch:
   streamer: ":)"
   webhook:
     host: ":)"
-    port: "42069"
-    ssl_port: "42070"
+    port: 42069
+    ssl_port: 42070
     ssl_cert: ":)"
 youtube:
   client_id: ":)"
   client_secret: ":)"
   redirect_uris: []
   auth_uri: "https://accounts.google.com/o/oauth2/auth"
-  token_uri: "https://accounts.google.com/o/oauth2/auth"
+  token_uri: "https://oauth2.googleapis.com/token"
 download:
   directory: ":)"

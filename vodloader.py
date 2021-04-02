@@ -17,14 +17,15 @@ import ssl
 
 class vodloader(object):
 
-    def __init__(self, streamer, twitch, hook, download_dir, quality='best'):
+    def __init__(self, streamer, twitch, webhook, download_dir, quality='best'):
         self.streamer = streamer
         self.quality = quality
         self.download_dir = download_dir
         self.twitch = twitch
-        self.hook = hook
+        self.webhook = webhook
         self.user_id = self.get_user_id()
         self.get_live()
+        self.webhook_uuid = ''
         self.webhook_subscribe()
 
 
@@ -56,15 +57,14 @@ class vodloader(object):
 
     def webhook_unsubscribe(self):
         if self.webhook_uuid:
-            self.hook.unsubscribe(self.webhook_uuid)
+            success = self.webhook.unsubscribe(self.webhook_uuid)
+            if success: self.webhook_uuid = ''
+            return success
 
 
-    def webhook_subscribe(self, retry=3):
-        for i in range(retry):
-            success, uuid = self.hook.subscribe_stream_changed(self.user_id, self.callback_stream_changed)
-            if success:
-                self.webhook_uuid = uuid
-                break
+    def webhook_subscribe(self):
+        success, uuid = self.webhook.subscribe_stream_changed(self.user_id, self.callback_stream_changed)
+        if success: self.webhook_uuid = uuid
         return success
 
 
@@ -96,14 +96,6 @@ def load_config(filename):
     config = vodloader_config(filename)
     if not config['download']['directory'] or config['download']['directory'] == "":
         config['download']['directory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'videos')
-    jdata = {}
-    jdata["installed"] = {}
-    jdata["installed"]["client_id"] = config['youtube']['client_id']
-    jdata["installed"]["client_secret"] = config['youtube']['client_secret']
-    jdata["installed"]["auth_uri"] = config['youtube']['auth_uri']
-    jdata["installed"]["token_uri"] = config['youtube']['token_uri']
-    jdata = json.dumps(jdata)
-    config['youtube']['json'] = jdata
     return config
 
 
@@ -117,33 +109,40 @@ def setup_ssl_reverse_proxy(host, ssl_port, http_port, certfile):
     handler = partial(proxy_request_handler, http_port)
     httpd = http.server.HTTPServer((host, ssl_port), handler)
     httpd.socket = ssl.wrap_socket(httpd.socket, certfile=certfile, server_side=True)
-    httpd.serve_forever()
+    _thread.start_new_thread(httpd.serve_forever, ())
+    return httpd
 
 
-def setup_webhook(host, client_id, port, twitch):
-    hook = TwitchWebHook(host, client_id, port)
+def setup_webhook(host, ssl_port, client_id, port, twitch):
+    hook = TwitchWebHook('https://' + host + ":" + str(ssl_port), client_id, port)
     hook.authenticate(twitch) 
     hook.start()
     return hook
 
 
-def setup_youtube(jdata, ):
-    #oauth2client.clientsecrets.loads(jdata)
-    pass
+def setup_youtube(config):
+    jdata = {}
+    jdata["installed"] = {}
+    jdata["installed"]["client_id"] = config['youtube']['client_id']
+    jdata["installed"]["client_secret"] = config['youtube']['client_secret']
+    jdata["installed"]["auth_uri"] = config['youtube']['auth_uri']
+    jdata["installed"]["token_uri"] = config['youtube']['token_uri']
+    jdata = json.dumps(jdata)
 
 
 def main():
     config = load_config('config.yaml')
-    setup_ssl_reverse_proxy(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['webhook']['port'], config['twitch']['webhook']['ssl_cert'])
+    ssl_httpd = setup_ssl_reverse_proxy(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['webhook']['port'], config['twitch']['webhook']['ssl_cert'])
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
-    hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['client_id'], config['twitch']['webhook']['port'], twitch)
-    vodw = vodloader(config['twitch']['streamer'], twitch, hook, config['download']['directory'])
+    hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['client_id'], config['twitch']['webhook']['port'], twitch)
+    vodl = vodloader(config['twitch']['streamer'], twitch, hook, config['download']['directory'])
     try:
         while True:
             time.sleep(600)
     except:
-        vodw.webhook_unsubscribe()
+        vodl.webhook_unsubscribe()
         hook.stop()
+        ssl_httpd.shutdown()
 
 
 if __name__ == '__main__':
