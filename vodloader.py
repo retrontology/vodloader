@@ -143,6 +143,7 @@ def main():
         vodl.webhook_unsubscribe()
         hook.stop()
         ssl_httpd.shutdown()
+        ssl_httpd.socket.close()
 
 
 if __name__ == '__main__':
