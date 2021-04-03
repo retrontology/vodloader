@@ -4,30 +4,31 @@ from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.types import AuthScope
 import streamlink
 from functools import partial
-from apiclient.discovery import build
+from googleapiclient.discovery import build
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
 from oauth2client.tools import run_flow
 import httplib2
+import sys
+# import google_auth_oauthlib
+import os
 from vodloader_config import vodloader_config
 from webhook_ssl import proxy_request_handler
-import os
 import _thread
 import time
 import http.server
 import ssl
-import sys
-
 
 
 class vodloader(object):
 
-    def __init__(self, streamer, twitch, webhook, download_dir, quality='best'):
+    def __init__(self, streamer, twitch, webhook, youtube, download_dir, quality='best'):
         self.streamer = streamer
         self.quality = quality
         self.download_dir = download_dir
         self.twitch = twitch
         self.webhook = webhook
+        self.youtube = youtube
         self.user_id = self.get_user_id()
         self.get_live()
         self.webhook_uuid = ''
@@ -105,7 +106,6 @@ def load_config(filename):
     config = vodloader_config(filename)
     if not config['download']['directory'] or config['download']['directory'] == "":
         config['download']['directory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'videos')
-    config['youtube']['json'] = setup_youtube_json(config)
     return config
 
 
@@ -160,7 +160,7 @@ def main():
     ssl_httpd = setup_ssl_reverse_proxy(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['webhook']['port'], config['twitch']['webhook']['ssl_cert'])
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
     hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['client_id'], config['twitch']['webhook']['port'], twitch)
-    vodl = vodloader(config['twitch']['streamer'], twitch, hook, config['download']['directory'])
+    vodl = vodloader(config['twitch']['streamer'], twitch, hook, youtube, config['download']['directory'])
     try:
         while True:
             time.sleep(600)

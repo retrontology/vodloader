@@ -1,4 +1,6 @@
+oauth2client
 google-api-python-client
 twitchAPI
 streamlink
 pyyaml
+httplib2
