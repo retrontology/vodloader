@@ -5,7 +5,8 @@ from twitchAPI.types import AuthScope
 import streamlink
 from functools import partial
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseUpload
+#from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.http import MediaFileUpload
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
 from oauth2client.tools import run_flow
@@ -46,13 +47,12 @@ class vodloader(object):
         if data['type'] == 'live':
             if not self.live:
                 self.live = True
-                #name = data['started_at'] + '.ts'
-                #path = os.path.join(self.download_dir, name)
-                #_thread.start_new_thread(self.stream_download, (path, ))
+                filename = data['started_at'] + '.ts'
+                path = os.path.join(self.download_dir, filename)
                 date = datetime.datetime.strptime(data['started_at'], '%Y-%m-%dT%H:%M:%SZ')
                 name = self.streamer + " " + date.strftime("%m/%d/%Y") + " VOD"
                 body = self.get_youtube_body(name)
-                _thread.start_new_thread(self.stream_to_youtube, (body, ))
+                _thread.start_new_thread(self.stream_buffload, (path, body, ))
             self.live = True
         else:
             self.live = False
@@ -93,12 +93,12 @@ class vodloader(object):
 
 
     def get_youtube_body(self, title):
-        body: {
+        body = {
             'snippet': {
                 'title': title,
                 'description': self.youtube_args['description'],
                 'tags': self.youtube_args['tags'],
-                'categoryId': self.youtube_args['category']
+                'categoryId': self.youtube_args['categoryId']
         },
             'status': {
                 'privacyStatus': self.youtube_args['privacy'],
@@ -110,7 +110,7 @@ class vodloader(object):
 
     def stream_download(self, path, chunk_size=8192):
         stream = self.get_stream().open()
-        with open(path, 'wb') as f:
+        with open(path, 'rb') as f:
             data = stream.read(chunk_size)
             while data:
                 try:
@@ -120,13 +120,25 @@ class vodloader(object):
                     break
                 data = stream.read(chunk_size)
         stream.close()
+    
 
-
-    def stream_to_youtube(self, body, chunk_size=8192):
-        stream = self.get_stream().open()
-        media = MediaIoBaseUpload(stream, mimetype='video/mp2t', chunksize=chunk_size, resumable=True)
+    def stream_upload(self, path, body, chunk_size=8192):
+        media = MediaFileUpload(path)
         upload = self.youtube.videos().insert(",".join(body.keys()), body=body, media_body=media)
         upload.execute()
+
+    
+    def stream_buffload(self, path, body, chunk_size=8192):
+        self.stream_download(path, chunk_size=chunk_size)
+        self.stream_upload(path, body, chunk_size=chunk_size)
+        os.remove(path)
+
+
+    # def stream_to_youtube(self, body, chunk_size=8192):
+    #     stream = self.get_stream().open()
+    #     media = MediaIoBaseUpload(stream, mimetype='video/mp2t', chunksize=chunk_size, resumable=True)
+    #     upload = self.youtube.videos().insert(",".join(body.keys()), body=body, media_body=media)
+    #     upload.execute()
 
 
 def load_config(filename):
