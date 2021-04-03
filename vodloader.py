@@ -22,13 +22,14 @@ import ssl
 
 class vodloader(object):
 
-    def __init__(self, streamer, twitch, webhook, youtube, download_dir, quality='best'):
+    def __init__(self, streamer, twitch, webhook, youtube, youtube_args, download_dir, quality='best'):
         self.streamer = streamer
         self.quality = quality
         self.download_dir = download_dir
         self.twitch = twitch
         self.webhook = webhook
         self.youtube = youtube
+        self.youtube_args = youtube_args
         self.user_id = self.get_user_id()
         self.get_live()
         self.webhook_uuid = ''
@@ -42,6 +43,7 @@ class vodloader(object):
     def callback_stream_changed(self, uuid, data):
         if data['type'] == 'live':
             if not self.live:
+                self.live = True
                 name = data['started_at'] + '.ts'
                 path = os.path.join(self.download_dir, name)
                 _thread.start_new_thread(self.stream_download, (path, ))
@@ -74,14 +76,29 @@ class vodloader(object):
         return success
 
 
-    def get_stream(self, quality='best'):
+    def get_stream(self):
         url = 'https://www.twitch.tv/' + self.streamer
-        return streamlink.streams(url)[quality]
+        return streamlink.streams(url)[self.quality]
 
 
     def get_user_id(self):
         user_info = self.twitch.get_users(logins=[self.streamer])
         return user_info['data'][0]['id']
+
+
+    def get_youtube_body(self, title, description):
+        body=dict(
+            snippet=dict(
+                title=title,
+                description=description,
+                tags=self.youtube_args['tags'],
+                categoryId=self.youtube_args['category']
+            ),
+            status=dict(
+                privacyStatus=self.youtube_args['privacy']
+            )
+        )
+        return body
 
 
     def stream_download(self, path, chunk_size=8192):
@@ -144,8 +161,7 @@ https://console.developers.google.com/
 
 For more information about the client_secrets.json file format, please visit:
 https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
-""" % os.path.abspath(os.path.join(os.path.dirname(__file__),
-                                   jsonfile))
+""" % os.path.abspath(os.path.join(os.path.dirname(__file__), jsonfile))
     storage = Storage("%s-oauth2.json" % sys.argv[0])
     creds = storage.get()
     if creds is None or creds.invalid:
@@ -160,7 +176,7 @@ def main():
     ssl_httpd = setup_ssl_reverse_proxy(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['webhook']['port'], config['twitch']['webhook']['ssl_cert'])
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
     hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['client_id'], config['twitch']['webhook']['port'], twitch)
-    vodl = vodloader(config['twitch']['streamer'], twitch, hook, youtube, config['download']['directory'])
+    vodl = vodloader(config['twitch']['streamer'], twitch, hook, youtube, config['youtube']['arguments'], config['download']['directory'])
     try:
         while True:
             time.sleep(600)

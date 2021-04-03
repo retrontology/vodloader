@@ -9,5 +9,12 @@ twitch:
     ssl_cert: "server.pem"
 youtube:
   json: "secrets.json"
+  arguments:
+    description: ""
+    categoryId: ""
+    privacy: "private"
+    tags:
+      - "GTA RP"
+      - "nopixel"
 download:
   directory: ""
