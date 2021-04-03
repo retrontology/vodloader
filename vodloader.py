@@ -5,6 +5,7 @@ from twitchAPI.types import AuthScope
 import streamlink
 from functools import partial
 from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
 from oauth2client.tools import run_flow
@@ -18,6 +19,7 @@ import _thread
 import time
 import http.server
 import ssl
+import datetime
 
 
 class vodloader(object):
@@ -44,9 +46,13 @@ class vodloader(object):
         if data['type'] == 'live':
             if not self.live:
                 self.live = True
-                name = data['started_at'] + '.ts'
-                path = os.path.join(self.download_dir, name)
-                _thread.start_new_thread(self.stream_download, (path, ))
+                #name = data['started_at'] + '.ts'
+                #path = os.path.join(self.download_dir, name)
+                #_thread.start_new_thread(self.stream_download, (path, ))
+                date = datetime.datetime.strptime(data['started_at'], '%Y-%m-%dT%H:%M:%SZ')
+                name = self.streamer + " " + date.strftime("%m/%d/%Y") + " VOD"
+                body = self.get_youtube_body(name)
+                _thread.start_new_thread(self.stream_to_youtube, (body, ))
             self.live = True
         else:
             self.live = False
@@ -86,18 +92,19 @@ class vodloader(object):
         return user_info['data'][0]['id']
 
 
-    def get_youtube_body(self, title, description):
-        body=dict(
-            snippet=dict(
-                title=title,
-                description=description,
-                tags=self.youtube_args['tags'],
-                categoryId=self.youtube_args['category']
-            ),
-            status=dict(
-                privacyStatus=self.youtube_args['privacy']
-            )
-        )
+    def get_youtube_body(self, title):
+        body: {
+            'snippet': {
+                'title': title,
+                'description': self.youtube_args['description'],
+                'tags': self.youtube_args['tags'],
+                'categoryId': self.youtube_args['category']
+        },
+            'status': {
+                'privacyStatus': self.youtube_args['privacy'],
+                'selfDeclaredMadeForKids': False
+            }
+        }
         return body
 
 
@@ -115,8 +122,11 @@ class vodloader(object):
         stream.close()
 
 
-    def stream_upload(self, video_data, chunk_size=8192):
+    def stream_to_youtube(self, body, chunk_size=8192):
         stream = self.get_stream().open()
+        media = MediaIoBaseUpload(stream, mimetype='video/mp2t', chunksize=chunk_size, resumable=True)
+        upload = self.youtube.videos().insert(",".join(body.keys()), body=body, media_body=media)
+        upload.execute()
 
 
 def load_config(filename):
