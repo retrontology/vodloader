@@ -4,15 +4,20 @@ from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.types import AuthScope
 import streamlink
 from functools import partial
-#from google.oauth2 import service_account
+from apiclient.discovery import build
+from oauth2client.client import flow_from_clientsecrets
+from oauth2client.file import Storage
+from oauth2client.tools import run_flow
+import httplib2
 from vodloader_config import vodloader_config
 from webhook_ssl import proxy_request_handler
 import os
 import _thread
 import time
-import json
 import http.server
 import ssl
+import sys
+
 
 
 class vodloader(object):
@@ -38,7 +43,7 @@ class vodloader(object):
             if not self.live:
                 name = data['started_at'] + '.ts'
                 path = os.path.join(self.download_dir, name)
-                _thread.start_new_thread(self.download_stream, (path, ))
+                _thread.start_new_thread(self.stream_download, (path, ))
             self.live = True
         else:
             self.live = False
@@ -78,7 +83,7 @@ class vodloader(object):
         return user_info['data'][0]['id']
 
 
-    def download_stream(self, path, chunk_size=8192):
+    def stream_download(self, path, chunk_size=8192):
         stream = self.get_stream().open()
         with open(path, 'wb') as f:
             data = stream.read(chunk_size)
@@ -92,10 +97,15 @@ class vodloader(object):
         stream.close()
 
 
+    def stream_upload(self, video_data, chunk_size=8192):
+        stream = self.get_stream().open()
+
+
 def load_config(filename):
     config = vodloader_config(filename)
     if not config['download']['directory'] or config['download']['directory'] == "":
         config['download']['directory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'videos')
+    config['youtube']['json'] = setup_youtube_json(config)
     return config
 
 
@@ -120,18 +130,33 @@ def setup_webhook(host, ssl_port, client_id, port, twitch):
     return hook
 
 
-def setup_youtube(config):
-    jdata = {}
-    jdata["installed"] = {}
-    jdata["installed"]["client_id"] = config['youtube']['client_id']
-    jdata["installed"]["client_secret"] = config['youtube']['client_secret']
-    jdata["installed"]["auth_uri"] = config['youtube']['auth_uri']
-    jdata["installed"]["token_uri"] = config['youtube']['token_uri']
-    jdata = json.dumps(jdata)
+def setup_youtube(jsonfile):
+    MISSING_CLIENT_SECRETS_MESSAGE = """
+WARNING: Please configure OAuth 2.0
+
+To make this sample run you will need to populate the client_secrets.json file
+found at:
+
+   %s
+
+with information from the API Console
+https://console.developers.google.com/
+
+For more information about the client_secrets.json file format, please visit:
+https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
+""" % os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                   jsonfile))
+    storage = Storage("%s-oauth2.json" % sys.argv[0])
+    creds = storage.get()
+    if creds is None or creds.invalid:
+        flow = flow_from_clientsecrets(jsonfile, scope="https://www.googleapis.com/auth/youtube.upload", message=MISSING_CLIENT_SECRETS_MESSAGE)
+        creds = run_flow(flow, storage)
+    return build('youtube', 'v3', http=creds.authorize(httplib2.Http()))
 
 
 def main():
     config = load_config('config.yaml')
+    youtube = setup_youtube(config['youtube']['json'])
     ssl_httpd = setup_ssl_reverse_proxy(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['webhook']['port'], config['twitch']['webhook']['ssl_cert'])
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
     hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['client_id'], config['twitch']['webhook']['port'], twitch)

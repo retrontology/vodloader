@@ -1,17 +1,13 @@
 twitch:
-  client_id: ":)"
-  client_secret: ":)"
-  streamer: ":)"
+  client_id: ""
+  client_secret: ""
+  streamer: ""
   webhook:
-    host: ":)"
+    host: ""
     port: 42069
     ssl_port: 42070
-    ssl_cert: ":)"
+    ssl_cert: "server.pem"
 youtube:
-  client_id: ":)"
-  client_secret: ":)"
-  redirect_uris: []
-  auth_uri: "https://accounts.google.com/o/oauth2/auth"
-  token_uri: "https://oauth2.googleapis.com/token"
+  json: "secrets.json"
 download:
-  directory: ":)"
+  directory: ""
