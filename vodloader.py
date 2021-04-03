@@ -110,7 +110,7 @@ class vodloader(object):
 
     def stream_download(self, path, chunk_size=8192):
         stream = self.get_stream().open()
-        with open(path, 'rb') as f:
+        with open(path, 'wb') as f:
             data = stream.read(chunk_size)
             while data:
                 try:
