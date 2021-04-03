@@ -124,7 +124,7 @@ class vodloader(object):
 
     def stream_upload(self, path, body, chunk_size=8192):
         media = MediaFileUpload(path)
-        upload = self.youtube.videos().insert(",".join(body.keys()), body=body, media_body=media)
+        upload = self.youtube.videos().insert(part=",".join(body.keys()), body=body, media_body=media)
         upload.execute()
 
     
