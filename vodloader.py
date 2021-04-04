@@ -106,7 +106,7 @@ class vodloader(object):
         return body
 
 
-    def stream_download(self, path, chunk_size=1048576):
+    def stream_download(self, path, chunk_size=8192):
         stream = self.get_stream().open()
         with open(path, 'wb') as f:
             data = stream.read(chunk_size)
@@ -131,9 +131,9 @@ class vodloader(object):
 
 
     
-    def stream_buffload(self, path, body, chunk_size=1048576):
-        self.stream_download(path, chunk_size=chunk_size)
-        self.stream_upload(path, body, chunk_size=chunk_size)
+    def stream_buffload(self, path, body):
+        self.stream_download(path)
+        self.stream_upload(path, body)
         os.remove(path)
 
 
