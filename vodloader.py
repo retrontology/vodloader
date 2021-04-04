@@ -177,6 +177,7 @@ def setup_youtube(jsonfile):
     api_version = 'v3'
     scopes = ['https://www.googleapis.com/auth/youtube.upload']
     pickle_file = os.path.join(os.path.dirname(__file__), f'token_{api_name}_{api_version}.pickle')
+    creds = None
     if os.path.exists(pickle_file):
         with open(pickle_file, 'rb') as token:
             creds = pickle.load(token)
