@@ -6,14 +6,10 @@ import streamlink
 from functools import partial
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-# from googleapiclient.http import MediaIoBaseUpload
 from googleapiclient.http import MediaFileUpload
-from oauth2client.client import flow_from_clientsecrets
-from oauth2client.file import Storage
-from oauth2client.tools import run_flow
-import httplib2
+from google.auth.transport.requests import Request
+from google_auth_oauthlib.flow import Flow, InstalledAppFlow
 import sys
-# import google_auth_oauthlib
 import os
 from vodloader_config import vodloader_config
 from webhook_ssl import proxy_request_handler
@@ -22,6 +18,7 @@ import time
 import http.server
 import ssl
 import datetime
+import pickle
 
 
 class vodloader(object):
@@ -176,26 +173,22 @@ def setup_webhook(host, ssl_port, client_id, port, twitch):
 
 
 def setup_youtube(jsonfile):
-    MISSING_CLIENT_SECRETS_MESSAGE = """
-WARNING: Please configure OAuth 2.0
-
-To make this sample run you will need to populate the client_secrets.json file
-found at:
-
-   %s
-
-with information from the API Console
-https://console.developers.google.com/
-
-For more information about the client_secrets.json file format, please visit:
-https://developers.google.com/api-client-library/python/guide/aaa_client_secrets
-""" % os.path.abspath(os.path.join(os.path.dirname(__file__), jsonfile))
-    storage = Storage("%s-oauth2.json" % sys.argv[0])
-    creds = storage.get()
-    if creds is None or creds.invalid:
-        flow = flow_from_clientsecrets(jsonfile, scope="https://www.googleapis.com/auth/youtube.upload", message=MISSING_CLIENT_SECRETS_MESSAGE)
-        creds = run_flow(flow, storage)
-    return build('youtube', 'v3', http=creds.authorize(httplib2.Http()))
+    api_name = 'youtube'
+    api_version = 'v3'
+    scopes = ['https://www.googleapis.com/auth/youtube.upload']
+    pickle_file = os.path.join(os.path.dirname(__file__), f'token_{api_name}_{api_version}.pickle')
+    if os.path.exists(pickle_file):
+        with open(pickle_file, 'rb') as token:
+            creds = pickle.load(token)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(jsonfile, scopes)
+            creds = flow.run_console()
+        with open(pickle_file, 'wb') as token:
+            pickle.dump(creds, token)
+    return build(api_name, api_version, credentials=creds)
 
 
 def main():
