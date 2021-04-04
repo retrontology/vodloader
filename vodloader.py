@@ -5,7 +5,8 @@ from twitchAPI.types import AuthScope
 import streamlink
 from functools import partial
 from googleapiclient.discovery import build
-#from googleapiclient.http import MediaIoBaseUpload
+from googleapiclient.errors import HttpError
+# from googleapiclient.http import MediaIoBaseUpload
 from googleapiclient.http import MediaFileUpload
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.file import Storage
@@ -125,7 +126,12 @@ class vodloader(object):
     def stream_upload(self, path, body, chunk_size=8192):
         media = MediaFileUpload(path, mimetype='video/mpegts', chunksize=chunk_size, resumable=True)
         upload = self.youtube.videos().insert(part=",".join(body.keys()), body=body, media_body=media)
-        upload.execute()
+        try:
+            upload.execute()
+        except HttpError as e:
+            print(e)
+            print(e._get_reason())
+
 
     
     def stream_buffload(self, path, body, chunk_size=8192):
