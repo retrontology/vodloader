@@ -129,8 +129,8 @@ class vodloader(object):
         try:
             upload.execute()
         except HttpError as e:
-            print(e)
-            print(e._get_reason())
+            print(e.resp)
+            print(e.content)
 
 
     
