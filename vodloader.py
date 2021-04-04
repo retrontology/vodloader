@@ -109,7 +109,7 @@ class vodloader(object):
         return body
 
 
-    def stream_download(self, path, chunk_size=8192):
+    def stream_download(self, path, chunk_size=1048576):
         stream = self.get_stream().open()
         with open(path, 'wb') as f:
             data = stream.read(chunk_size)
@@ -123,7 +123,7 @@ class vodloader(object):
         stream.close()
     
 
-    def stream_upload(self, path, body, chunk_size=8192):
+    def stream_upload(self, path, body, chunk_size=1048576):
         media = MediaFileUpload(path, mimetype='video/mpegts', chunksize=chunk_size, resumable=True)
         upload = self.youtube.videos().insert(part=",".join(body.keys()), body=body, media_body=media)
         try:
@@ -134,7 +134,7 @@ class vodloader(object):
 
 
     
-    def stream_buffload(self, path, body, chunk_size=8192):
+    def stream_buffload(self, path, body, chunk_size=1048576):
         self.stream_download(path, chunk_size=chunk_size)
         self.stream_upload(path, body, chunk_size=chunk_size)
         os.remove(path)
