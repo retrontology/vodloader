@@ -82,7 +82,7 @@ class vodloader(object):
 
     def get_stream(self):
         url = 'https://www.twitch.tv/' + self.streamer
-        return streamlink.streams(url)[self.quality]
+        return streamlink.streams(url, force_restart=True)[self.quality]
 
 
     def get_user_id(self):
@@ -117,6 +117,8 @@ class vodloader(object):
                     print(err)
                     break
                 data = stream.read(chunk_size)
+                if not self.live:
+                    break
         stream.close()
     
 
