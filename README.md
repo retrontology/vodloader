@@ -28,7 +28,7 @@ You need to set up your config file before you run the program so it knows what 
    * **webhook**
      * **host**: The domain/address of the host machine.
      * **port**: Some arbitrary port that the webhook client will listen on. Ideally >= 1024
-     * **ssl_port**: Some arbitrary port that the HTTPS server will listen on to reverse proxy back to the webhook port. Needs to be different than the webhook client port and also ideally >=1024
+     * **ssl_port**: Some arbitrary port that the HTTPS server will listen on to reverse proxy back to the webhook port. Needs to be different than the webhook client port and also ideally >=1024. If you're behind a router you will need to forward this port to your host machine.
      * **ssl_cert**: The ssl certificate file for your HTTPS server. **It needs to not be self-signed and for the correct domain/address or the webhook will not work!** I recommend using [Let's Encrypt](https://letsencrypt.org/) to obtain a free certificate.
 * **youtube**:
   * **json**: The json file that holds the OAuth 2 secrets generated from the [Google Developer Console](https://console.cloud.google.com/apis/credentials)
