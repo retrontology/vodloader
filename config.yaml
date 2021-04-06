@@ -2,7 +2,7 @@ twitch:
   client_id: "cxlvasdfualsdm"
   client_secret: "dfalsdfusdofoiiulx"
   channels:
-    Ludwig:
+    Rlly:
       youtube_param:
         description: "A good looking chunk of word salad"
         categoryId: "20"
