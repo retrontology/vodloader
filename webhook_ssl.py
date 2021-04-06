@@ -1,14 +1,17 @@
 from http.server import BaseHTTPRequestHandler
 import requests
 import json
+import logging
 
 class proxy_request_handler(BaseHTTPRequestHandler):
 
     protocol_version = 'HTTP/1.0'
 
     def __init__(self, target_port, *args, **kwargs):
+        self.logger = logging.getLogger('vodloader.ssl')
         self.target_port = target_port
         super(proxy_request_handler, self).__init__(*args, **kwargs)
+        self.logger.info(f'Set up HTTPS reverse proxy on port {self.server.server_port} pointing to port {self.target_port}')
 
 
     def do_HEAD(self):
@@ -39,3 +42,15 @@ class proxy_request_handler(BaseHTTPRequestHandler):
                 self.send_header(key, resp.headers[key])
         self.end_headers()
         self.wfile.write(resp.content)
+
+    
+    def log_message(self, format, **args):
+        self.logger.info("%s - - %s\n" %
+                         (self.address_string(),
+                          format%args))
+
+
+    def log_error(self, format, **args):
+        self.logger.error("%s - - %s\n" %
+                         (self.address_string(),
+                          format%args))

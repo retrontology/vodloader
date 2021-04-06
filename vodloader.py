@@ -1,35 +1,27 @@
-from twitchAPI.twitch import Twitch
-from twitchAPI.webhook import TwitchWebHook
-from twitchAPI.oauth import UserAuthenticator
-from twitchAPI.types import AuthScope
-import streamlink
-from functools import partial
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
-import sys
 import os
-from vodloader_config import vodloader_config
-from webhook_ssl import proxy_request_handler
 import _thread
-import time
-import http.server
-import ssl
 import datetime
 import pickle
+import logging
+import streamlink
 
 
 class vodloader(object):
 
-    def __init__(self, streamer, twitch, webhook, youtube, youtube_args, download_dir, quality='best'):
-        self.streamer = streamer
+    def __init__(self, channel, twitch, webhook, youtube_json, youtube_args, download_dir, quality='best'):
+        self.logger = logging.getLogger(f'vodloader.twitch.{channel}')
+        self.logger.info(f'Setting up vodloader for {channel}')
+        self.channel = channel
         self.quality = quality
         self.download_dir = download_dir
         self.twitch = twitch
         self.webhook = webhook
-        self.youtube = youtube
+        self.youtube = self.setup_youtube(youtube_json)
         self.youtube_args = youtube_args
         self.user_id = self.get_user_id()
         self.get_live()
@@ -37,22 +29,55 @@ class vodloader(object):
         self.webhook_subscribe()
 
 
+    def setup_youtube(self, jsonfile):
+        self.logger.info(f'Building YouTube flow for {self.channel}')
+        api_name = 'youtube'
+        api_version = 'v3'
+        scopes = ['https://www.googleapis.com/auth/youtube.upload']
+        pickle_dir = os.path.join(os.path.dirname(__file__), 'pickles')
+        if not os.path.exists(pickle_dir):
+            self.logger.info(f'Creating pickle directory')
+            os.mkdir(pickle_dir)
+        pickle_file = os.path.join(pickle_dir, f'token_{self.channel}.pickle')
+        creds = None
+        if os.path.exists(pickle_file):
+            with open(pickle_file, 'rb') as token:
+                creds = pickle.load(token)
+        if not creds or not creds.valid:
+            if creds and creds.expired and creds.refresh_token:
+                self.logger.info(f'YouTube credential pickle file for {self.channel} is expired. Attempting to refresh now')
+                creds.refresh(Request())
+            else:
+                print(f'Please log into the YouTube account that will host the vods of {self.channel} below')
+                flow = InstalledAppFlow.from_client_secrets_file(jsonfile, scopes)
+                creds = flow.run_console()
+            with open(pickle_file, 'wb') as token:
+                pickle.dump(creds, token)
+                self.logger.info(f'YouTube credential pickle file for {self.channel} has been written to {pickle_file}')
+        else:
+            self.logger.info(f'YouTube credential pickle file for {self.channel} found!')
+        return build(api_name, api_version, credentials=creds)
+
+
     def __del__(self):
         self.webhook_unsubscribe()
 
 
     def callback_stream_changed(self, uuid, data):
+        self.logger.info(f'Received webhook callback for {self.channel}')
         if data['type'] == 'live':
             if not self.live:
+                self.logger.info(f'{self.channel} has gone live!')
                 self.live = True
-                filename = data['started_at'] + '.ts'
+                filename = f'{self.channel}_{data["started_at"]}.ts'
                 path = os.path.join(self.download_dir, filename)
                 date = datetime.datetime.strptime(data['started_at'], '%Y-%m-%dT%H:%M:%SZ')
-                name = self.streamer + " " + date.strftime("%m/%d/%Y") + " VOD"
+                name = f'{self.channel} {date.strftime("%m/%d/%Y")} VOD'
                 body = self.get_youtube_body(name)
                 _thread.start_new_thread(self.stream_buffload, (path, body, ))
             self.live = True
         else:
+            self.logger.info(f'{self.channel} has gone offline')
             self.live = False
 
 
@@ -70,23 +95,27 @@ class vodloader(object):
     def webhook_unsubscribe(self):
         if self.webhook_uuid:
             success = self.webhook.unsubscribe(self.webhook_uuid)
-            if success: self.webhook_uuid = ''
+            if success:
+                self.webhook_uuid = ''
+                self.logger.info(f'Unsubscribed from webhook for {self.channel}')
             return success
 
 
     def webhook_subscribe(self):
         success, uuid = self.webhook.subscribe_stream_changed(self.user_id, self.callback_stream_changed)
-        if success: self.webhook_uuid = uuid
+        if success:
+            self.webhook_uuid = uuid
+            self.logger.info(f'Subscribed to webhook for {self.channel}')
         return success
 
 
     def get_stream(self):
-        url = 'https://www.twitch.tv/' + self.streamer
+        url = 'https://www.twitch.tv/' + self.channel
         return streamlink.streams(url)[self.quality]
 
 
     def get_user_id(self):
-        user_info = self.twitch.get_users(logins=[self.streamer])
+        user_info = self.twitch.get_users(logins=[self.channel])
         return user_info['data'][0]['id']
 
 
@@ -107,6 +136,7 @@ class vodloader(object):
 
 
     def stream_download(self, path, chunk_size=8192):
+        self.logger.info(f'Downloading stream from {self.channel} to {path}')
         stream = self.get_stream().open()
         with open(path, 'wb') as f:
             data = stream.read(chunk_size)
@@ -114,23 +144,24 @@ class vodloader(object):
                 try:
                     f.write(data)
                 except OSError as err:
-                    print(err)
+                    self.logger.error(err)
                     break
                 data = stream.read(chunk_size)
                 if not self.live:
                     break
         stream.close()
+        self.logger.info(f'Finished downloading stream from {self.channel}')
     
 
-    def stream_upload(self, path, body, chunk_size=1048576):
+    def stream_upload(self, path, body, chunk_size=4194304):
+        self.logger.info(f'Uploading file {path} to YouTube account for {self.channel}')
         media = MediaFileUpload(path, mimetype='video/mpegts', chunksize=chunk_size, resumable=True)
         upload = self.youtube.videos().insert(part=",".join(body.keys()), body=body, media_body=media)
         try:
-            upload.execute()
+            self.logger.info(upload.execute())
         except HttpError as e:
-            print(e.resp)
-            print(e.content)
-
+            self.logger.error(e.resp)
+            self.logger.error(e.content)
 
     
     def stream_buffload(self, path, body):
@@ -144,72 +175,3 @@ class vodloader(object):
     #     media = MediaIoBaseUpload(stream, mimetype='video/mp2t', chunksize=chunk_size, resumable=True)
     #     upload = self.youtube.videos().insert(",".join(body.keys()), body=body, media_body=media)
     #     upload.execute()
-
-
-def load_config(filename):
-    config = vodloader_config(filename)
-    if not config['download']['directory'] or config['download']['directory'] == "":
-        config['download']['directory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'videos')
-    return config
-
-
-def setup_twitch(client_id, client_secret):
-    twitch = Twitch(client_id, client_secret)
-    twitch.authenticate_app([])
-    return twitch
-
-
-def setup_ssl_reverse_proxy(host, ssl_port, http_port, certfile):
-    handler = partial(proxy_request_handler, http_port)
-    httpd = http.server.HTTPServer((host, ssl_port), handler)
-    httpd.socket = ssl.wrap_socket(httpd.socket, certfile=certfile, server_side=True)
-    _thread.start_new_thread(httpd.serve_forever, ())
-    return httpd
-
-
-def setup_webhook(host, ssl_port, client_id, port, twitch):
-    hook = TwitchWebHook('https://' + host + ":" + str(ssl_port), client_id, port)
-    hook.authenticate(twitch) 
-    hook.start()
-    return hook
-
-
-def setup_youtube(jsonfile):
-    api_name = 'youtube'
-    api_version = 'v3'
-    scopes = ['https://www.googleapis.com/auth/youtube.upload']
-    pickle_file = os.path.join(os.path.dirname(__file__), f'token_{api_name}_{api_version}.pickle')
-    creds = None
-    if os.path.exists(pickle_file):
-        with open(pickle_file, 'rb') as token:
-            creds = pickle.load(token)
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(jsonfile, scopes)
-            creds = flow.run_console()
-        with open(pickle_file, 'wb') as token:
-            pickle.dump(creds, token)
-    return build(api_name, api_version, credentials=creds)
-
-
-def main():
-    config = load_config('config.yaml')
-    youtube = setup_youtube(config['youtube']['json'])
-    ssl_httpd = setup_ssl_reverse_proxy(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['webhook']['port'], config['twitch']['webhook']['ssl_cert'])
-    twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
-    hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['client_id'], config['twitch']['webhook']['port'], twitch)
-    vodl = vodloader(config['twitch']['streamer'], twitch, hook, youtube, config['youtube']['arguments'], config['download']['directory'])
-    try:
-        while True:
-            time.sleep(600)
-    except:
-        vodl.webhook_unsubscribe()
-        hook.stop()
-        ssl_httpd.shutdown()
-        ssl_httpd.socket.close()
-
-
-if __name__ == '__main__':
-    main()

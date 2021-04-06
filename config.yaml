@@ -1,7 +1,15 @@
 twitch:
   client_id: ""
   client_secret: ""
-  streamer: ""
+  channel:
+    name:
+    youtube_param:
+      description: ""
+      categoryId: ""
+      privacy: "private"
+      tags:
+        - "GTA RP"
+        - "nopixel"
   webhook:
     host: ""
     port: 42069
@@ -9,12 +17,5 @@ twitch:
     ssl_cert: "server.pem"
 youtube:
   json: "secrets.json"
-  arguments:
-    description: ""
-    categoryId: ""
-    privacy: "private"
-    tags:
-      - "GTA RP"
-      - "nopixel"
 download:
   directory: ""

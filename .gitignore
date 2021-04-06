@@ -132,3 +132,7 @@ dmypy.json
 secrets
 secrets.json
 *-oauth2.json
+
+# log files
+*.log
+log/
