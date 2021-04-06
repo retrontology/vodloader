@@ -44,7 +44,7 @@ class proxy_request_handler(BaseHTTPRequestHandler):
 
     
     def log_message(self, format, *args):
-        self.logger.info("%s - - %s" %
+        self.logger.debug("%s - - %s" %
                          (self.address_string(),
                           format%args))
 
