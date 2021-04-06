@@ -34,9 +34,11 @@ def setup_logger(logname, logpath=""):
     logger = logging.getLogger(logname)
     file_handler = logging.handlers.TimedRotatingFileHandler(os.path.join(logpath, logname), when='midnight')
     stream_handler = logging.StreamHandler()
-    file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
-    stream_handler.setLevel(logging.INFO)
+    form = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+    file_handler.setFormatter(form)
+    stream_handler.setFormatter(form)
     file_handler.setLevel(logging.INFO)
+    stream_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.addHandler(stream_handler)
     return logger
