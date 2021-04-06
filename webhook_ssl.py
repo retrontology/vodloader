@@ -45,12 +45,12 @@ class proxy_request_handler(BaseHTTPRequestHandler):
 
     
     def log_message(self, format, *args):
-        self.logger.info("%s - - %s\n" %
+        self.logger.info("%s - - %s" %
                          (self.address_string(),
                           format%args))
 
 
     def log_error(self, format, *args):
-        self.logger.error("%s - - %s\n" %
+        self.logger.error("%s - - %s" %
                          (self.address_string(),
                           format%args))
