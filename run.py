@@ -78,7 +78,7 @@ def main():
     logger.info(f'Initiating vodloaders')
     vodloaders = []
     for channel in config['twitch']['channels']:
-        vodloaders.append(vodloader(config['twitch']['channels'][channel]['name'], twitch, hook, config['youtube']['json'], config['twitch']['channels'][channel]['youtube_param'], config['download']['directory']))
+        vodloaders.append(vodloader(channel, twitch, hook, config['youtube']['json'], config['twitch']['channels'][channel]['youtube_param'], config['download']['directory']))
     try:
         while True:
             time.sleep(600)
