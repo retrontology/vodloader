@@ -1,15 +1,15 @@
 twitch:
   client_id: ""
   client_secret: ""
-  channel:
-    name:
-    youtube_param:
-      description: ""
-      categoryId: ""
-      privacy: "private"
-      tags:
-        - "GTA RP"
-        - "nopixel"
+  channels:
+    Rlly:
+      youtube_param:
+        description: ""
+        categoryId: ""
+        privacy: "private"
+        tags:
+          - "GTA RP"
+          - "nopixel"
   webhook:
     host: ""
     port: 42069

@@ -71,8 +71,8 @@ def main():
     hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['client_id'], config['twitch']['webhook']['port'], twitch)
     logger.info(f'Initiating vodloaders')
     vodloaders = []
-    for channel in config['twitch']['channel']:
-        vodloaders.append(vodloader(channel['name'], twitch, hook, config['youtube']['json'], channel['youtube_param'], config['download']['directory']))
+    for channel in config['twitch']['channels']:
+        vodloaders.append(vodloader(config['twitch']['channels'][channel]['name'], twitch, hook, config['youtube']['json'], config['twitch']['channels'][channel]['youtube_param'], config['download']['directory']))
     try:
         while True:
             time.sleep(600)
