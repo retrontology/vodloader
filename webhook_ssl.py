@@ -44,13 +44,13 @@ class proxy_request_handler(BaseHTTPRequestHandler):
         self.wfile.write(resp.content)
 
     
-    def log_message(self, format, **args):
+    def log_message(self, format, *args):
         self.logger.info("%s - - %s\n" %
                          (self.address_string(),
                           format%args))
 
 
-    def log_error(self, format, **args):
+    def log_error(self, format, *args):
         self.logger.error("%s - - %s\n" %
                          (self.address_string(),
                           format%args))
