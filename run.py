@@ -15,6 +15,7 @@ import http.server
 import ssl
 import time
 
+config_file = os.path.join(os.path.dirname('__file__'), 'config.yaml')
 
 def load_config(filename):
     config = vodloader_config(filename)
@@ -61,8 +62,8 @@ def setup_webhook(host, ssl_port, client_id, port, twitch):
 
 def main():
     logger = setup_logger('vodloader')
-    logger.info(f'Loading configuration from config.yaml')
-    config = load_config('config.yaml')
+    logger.info(f'Loading configuration from {config_file}')
+    config = load_config(config_file)
     logger.info(f'Setting up HTTPS server for reverse proxy to webhook')
     ssl_httpd = setup_ssl_reverse_proxy(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['webhook']['port'], config['twitch']['webhook']['ssl_cert'])
     logger.info(f'Logging into Twitch and initiating webhook')
