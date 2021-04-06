@@ -11,7 +11,6 @@ class proxy_request_handler(BaseHTTPRequestHandler):
         self.logger = logging.getLogger('vodloader.ssl')
         self.target_port = target_port
         super(proxy_request_handler, self).__init__(*args, **kwargs)
-        self.logger.info(f'Set up HTTPS reverse proxy on port {self.server.server_port} pointing to port {self.target_port}')
 
 
     def do_HEAD(self):
