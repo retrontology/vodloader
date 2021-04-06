@@ -32,10 +32,13 @@ def setup_logger(logname, logpath=""):
     if not os.path.exists(logpath):
         os.mkdir(logpath)
     logger = logging.getLogger(logname)
-    handler = logging.handlers.TimedRotatingFileHandler(os.path.join(logpath, logname), when='midnight')
-    handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
+    file_handler = logging.handlers.TimedRotatingFileHandler(os.path.join(logpath, logname), when='midnight')
+    stream_handler = logging.StreamHandler()
+    file_handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+    stream_handler.setLevel(logging.INFO)
+    file_handler.setLevel(logging.INFO)
+    logger.addHandler(file_handler)
+    logger.addHandler(stream_handler)
     return logger
 
 
