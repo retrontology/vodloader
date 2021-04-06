@@ -1,17 +1,17 @@
 twitch:
-  client_id: ""
-  client_secret: ""
+  client_id: "cxlvasdfualsdm"
+  client_secret: "dfalsdfusdofoiiulx"
   channels:
-    Rlly:
+    Ludwig:
       youtube_param:
-        description: ""
-        categoryId: ""
+        description: "A good looking chunk of word salad"
+        categoryId: "20"
         privacy: "private"
         tags:
           - "GTA RP"
           - "nopixel"
   webhook:
-    host: ""
+    host: "mysupersecretdomain.com"
     port: 42069
     ssl_port: 42070
     ssl_cert: "server.pem"
