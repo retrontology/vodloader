@@ -3,13 +3,14 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
+from twitchAPI.types import VideoType
 import os
 import _thread
 import datetime
 import pickle
 import logging
 import streamlink
-
+from vodloader_streamlink import FixedStreamlink
 
 class vodloader(object):
 
@@ -110,13 +111,32 @@ class vodloader(object):
 
 
     def get_stream(self):
+        fs = FixedStreamlink()
         url = 'https://www.twitch.tv/' + self.channel
-        return streamlink.streams(url)[self.quality]
+        ft = fs.resolve_url(url)
+        ft.bind(fs, 'FixedTwitch')
+        return ft.streams()[self.quality]
 
 
     def get_user_id(self):
         user_info = self.twitch.get_users(logins=[self.channel])
         return user_info['data'][0]['id']
+
+
+    def get_channel_videos(self, video_type=VideoType.ARCHIVE):
+        cursor = None
+        videos = []
+        while True:
+            data = self.twitch.get_videos(user_id=self.user_id, first=100, after=cursor)
+            for video in data['data']:
+                if video['type'] == video_type:
+                    videos.append(video)
+            if not 'cursor' in data['pagination']:
+                break
+            else:
+                cursor = data['pagination']['cursor']
+        return videos
+        
 
 
     def get_youtube_body(self, title):
