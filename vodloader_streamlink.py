@@ -36,7 +36,8 @@ class FixedTwitchHLSStreamWorker(twitch.TwitchHLSStreamWorker):
                 except StreamError as err:
                     log.warning(f"Failed to reload playlist: {err}")
                     error_count += 1
-                    if error_count >= 20:
+                    log.warning(f"Error #{error_count}")
+                    if error_count > 8:
                         self.close()
 
 class FixedTwitchHLSStreamReader(twitch.TwitchHLSStreamReader):
