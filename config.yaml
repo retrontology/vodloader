@@ -7,6 +7,7 @@ twitch:
         description: "A good looking chunk of word salad"
         categoryId: "20"
         privacy: "private"
+        playlistId: "PLRV-ewmAAe9rHVKkhr3hz3eSzME__G0si"
         tags:
           - "GTA RP"
           - "nopixel"

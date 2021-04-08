@@ -145,7 +145,8 @@ class vodloader(object):
                 'title': title,
                 'description': self.youtube_args['description'],
                 'tags': self.youtube_args['tags'],
-                'categoryId': self.youtube_args['categoryId']
+                'categoryId': self.youtube_args['categoryId'],
+                'playlistId': self.youtube_args['playlistId']
         },
             'status': {
                 'privacyStatus': self.youtube_args['privacy'],
