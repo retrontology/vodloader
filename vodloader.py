@@ -173,15 +173,24 @@ class vodloader(object):
         self.logger.info(f'Finished downloading stream from {self.channel}')
     
 
-    def stream_upload(self, path, body, chunk_size=4194304):
+    def stream_upload(self, path, body, chunk_size=4194304, retry=3):
         self.logger.info(f'Uploading file {path} to YouTube account for {self.channel}')
-        media = MediaFileUpload(path, mimetype='video/mpegts', chunksize=chunk_size, resumable=True)
-        upload = self.youtube.videos().insert(part=",".join(body.keys()), body=body, media_body=media)
-        try:
-            self.logger.info(upload.execute())
-        except HttpError as e:
-            self.logger.error(e.resp)
-            self.logger.error(e.content)
+        uploaded = False
+        attempts = 0
+        while uploaded == False:
+            media = MediaFileUpload(path, mimetype='video/mpegts', chunksize=chunk_size, resumable=True)
+            upload = self.youtube.videos().insert(part=",".join(body.keys()), body=body, media_body=media)
+            try:
+                response = upload.execute()
+            except HttpError as e:
+                self.logger.error(e.resp)
+                self.logger.error(e.content)
+            self.logger.debug(response)
+            uploaded = response['status']['uploadStatus'] == 'uploaded'
+            if not uploaded:
+                attempts += 1
+            if attempts >= retry:
+                break
 
     
     def stream_buffload(self, path, body):
