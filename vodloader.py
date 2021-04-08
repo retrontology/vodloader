@@ -115,7 +115,7 @@ class vodloader(object):
         url = 'https://www.twitch.tv/' + self.channel
         ft = fs.resolve_url(url)
         ft.bind(fs, 'FixedTwitch')
-        return ft.streams()[self.quality]
+        return fs.streams(url)[self.quality]
 
 
     def get_user_id(self):
