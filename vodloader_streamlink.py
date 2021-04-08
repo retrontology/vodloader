@@ -48,6 +48,9 @@ class FixedTwitchHLSStream(twitch.TwitchHLSStream):
     __reader__ = FixedTwitchHLSStreamReader
 
 class FixedTwitch(twitch.Twitch):
+    def __init__(self, url):
+        super().__init__(url)
+        
     def _get_hls_streams(self, url, restricted_bitrates, **extra_params):
         time_offset = self.params.get("t", 0)
         if time_offset:
