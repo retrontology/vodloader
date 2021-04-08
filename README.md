@@ -21,6 +21,7 @@ You need to set up your config file before you run the program so it knows what 
       * **youtube_param**: These are details that are sent to YouTube to help define and classify your upload.
         * **description**: A description to be listed below the video.
         * **categoryId**: A number that designates what YouTube category the video belongs in.
+        * **playlistId**: The ID of a playlist that the uploaded video will be inserted into.
         * **privacy**: The privacy status the video will be listed as. The current possible values are "private", "unlisted", and "public".
         * **tags**: Tags that will aid in searching for the video.
           * "Some Tag"
