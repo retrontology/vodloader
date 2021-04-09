@@ -212,17 +212,12 @@ class vodloader(object):
 
 
     def archive_buffload(self):
-        for video in self.get_channel_videos():
+        videos = self.get_channel_videos()
+        videos.sort(reverse=True, key=lambda x: x['id'])
+        for video in videos:
             filename = f'{self.channel}_{video["created_at"]}.ts'
             path = os.path.join(self.download_dir, filename)
             date = datetime.datetime.strptime(video['created_at'], '%Y-%m-%dT%H:%M:%SZ')
             name = f'{self.channel} {date.strftime("%m/%d/%Y")} VOD'
             body = self.get_youtube_body(name)
             self.stream_buffload(video['url'], path, body)
-
-
-    # def stream_to_youtube(self, body, chunk_size=8192):
-    #     stream = self.get_stream().open()
-    #     media = MediaIoBaseUpload(stream, mimetype='video/mp2t', chunksize=chunk_size, resumable=True)
-    #     upload = self.youtube.videos().insert(",".join(body.keys()), body=body, media_body=media)
-    #     upload.execute()
