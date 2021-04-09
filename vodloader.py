@@ -172,11 +172,9 @@ class vodloader(object):
             while data:
                 try:
                     f.write(data)
+                    data = stream.read(chunk_size)
                 except OSError as err:
                     self.logger.error(err)
-                    break
-                data = stream.read(chunk_size)
-                if not self.live:
                     break
         stream.close()
         self.logger.info(f'Finished downloading stream from {self.channel}')
