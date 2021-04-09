@@ -14,20 +14,29 @@ from vodloader_streamlink import FixedStreamlink
 
 class vodloader(object):
 
-    def __init__(self, channel, twitch, webhook, youtube_json, youtube_args, download_dir, quality='best'):
+    def __init__(self, channel, twitch, webhook, youtube_json, youtube_args, download_dir, upload=True, keep=False, archive=False, quality='best'):
         self.logger = logging.getLogger(f'vodloader.twitch.{channel}')
         self.logger.info(f'Setting up vodloader for {channel}')
         self.channel = channel
         self.quality = quality
         self.download_dir = download_dir
+        self.keep = keep
         self.twitch = twitch
         self.webhook = webhook
-        self.youtube = self.setup_youtube(youtube_json)
-        self.youtube_args = youtube_args
+        self.upload = upload
+        if self.upload:
+            self.youtube = self.setup_youtube(youtube_json)
+            self.youtube_args = youtube_args
+        else:
+            self.youtube = None
+            self.youtube_args = None
         self.user_id = self.get_user_id()
         self.get_live()
         self.webhook_uuid = ''
         self.webhook_subscribe()
+        self.archive = archive
+        if self.archive:
+            _thread.start_new_thread(self.archive_buffload, ())
 
 
     def setup_youtube(self, jsonfile):
@@ -70,12 +79,13 @@ class vodloader(object):
             if not self.live:
                 self.logger.info(f'{self.channel} has gone live!')
                 self.live = True
+                url = 'https://www.twitch.tv/' + self.channel
                 filename = f'{self.channel}_{data["started_at"]}.ts'
                 path = os.path.join(self.download_dir, filename)
                 date = datetime.datetime.strptime(data['started_at'], '%Y-%m-%dT%H:%M:%SZ')
                 name = f'{self.channel} {date.strftime("%m/%d/%Y")} VOD'
                 body = self.get_youtube_body(name)
-                _thread.start_new_thread(self.stream_buffload, (path, body, ))
+                _thread.start_new_thread(self.stream_buffload, (url, path, body, ))
             self.live = True
         else:
             self.logger.info(f'{self.channel} has gone offline')
@@ -110,12 +120,11 @@ class vodloader(object):
         return success
 
 
-    def get_stream(self):
+    def get_stream(self, url, quality):
         fs = FixedStreamlink()
-        url = 'https://www.twitch.tv/' + self.channel
         ft = fs.resolve_url(url)
         ft.bind(fs, 'FixedTwitch')
-        return fs.streams(url)[self.quality]
+        return fs.streams(url)[quality]
 
 
     def get_user_id(self):
@@ -136,7 +145,6 @@ class vodloader(object):
             else:
                 cursor = data['pagination']['cursor']
         return videos
-        
 
 
     def get_youtube_body(self, title):
@@ -156,9 +164,9 @@ class vodloader(object):
         return body
 
 
-    def stream_download(self, path, chunk_size=8192):
-        self.logger.info(f'Downloading stream from {self.channel} to {path}')
-        stream = self.get_stream().open()
+    def stream_download(self, url, path, chunk_size=8192):
+        self.logger.info(f'Downloading stream from {url} to {path}')
+        stream = self.get_stream(url, self.quality).open()
         with open(path, 'wb') as f:
             data = stream.read(chunk_size)
             while data:
@@ -191,13 +199,26 @@ class vodloader(object):
             if not uploaded:
                 attempts += 1
             if attempts >= retry:
+                self.logger.error(f'Number of retry attempt exceeded for {path}')
                 break
 
     
-    def stream_buffload(self, path, body):
-        self.stream_download(path)
-        self.stream_upload(path, body)
-        os.remove(path)
+    def stream_buffload(self, url, path, body):
+        self.stream_download(url, path)
+        if self.upload:
+            self.stream_upload(path, body)
+        if not self.keep:
+            os.remove(path)
+
+
+    def archive_buffload(self):
+        for video in self.get_channel_videos():
+            filename = f'{self.channel}_{video["created_at"]}.ts'
+            path = os.path.join(self.download_dir, filename)
+            date = datetime.datetime.strptime(video['created_at'], '%Y-%m-%dT%H:%M:%SZ')
+            name = f'{self.channel} {date.strftime("%m/%d/%Y")} VOD'
+            body = self.get_youtube_body(name)
+            self.stream_buffload(video['url'], path, body)
 
 
     # def stream_to_youtube(self, body, chunk_size=8192):

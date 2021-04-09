@@ -3,6 +3,7 @@ twitch:
   client_secret: "dfalsdfusdofoiiulx"
   channels:
     Rlly:
+      archive: True
       youtube_param:
         description: "A good looking chunk of word salad"
         categoryId: "20"
@@ -17,6 +18,8 @@ twitch:
     ssl_port: 42070
     ssl_cert: "server.pem"
 youtube:
+  upload: True
   json: "secrets.json"
 download:
+  keep: False
   directory: ""
