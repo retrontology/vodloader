@@ -9,7 +9,6 @@ import _thread
 import datetime
 import pickle
 import logging
-import streamlink
 from vodloader_streamlink import FixedStreamlink
 
 class vodloader(object):
@@ -150,17 +149,17 @@ class vodloader(object):
     def get_youtube_body(self, title):
         body = {
             'snippet': {
-                'title': title,
-                'description': self.youtube_args['description'],
-                'tags': self.youtube_args['tags'],
-                'categoryId': self.youtube_args['categoryId'],
-                'playlistId': self.youtube_args['playlistId']
+                'title': title
         },
             'status': {
                 'privacyStatus': self.youtube_args['privacy'],
                 'selfDeclaredMadeForKids': False
             }
         }
+        if 'description' in self.youtube_args: body['snippet']['description'] = self.youtube_args['description'],
+        if 'tags' in self.youtube_args: body['snippet']['tags'] = self.youtube_args['tags'],
+        if 'categoryId' in self.youtube_args: body['snippet']['categoryId'] = self.youtube_args['categoryId'],
+        if 'playlistId' in self.youtube_args: body['snippet']['playlistId'] = self.youtube_args['playlistId']
         return body
 
 
