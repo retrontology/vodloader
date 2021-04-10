@@ -197,7 +197,7 @@ class vodloader(object):
         if self.upload and self.status[video_id] != 'uploaded':
             self.stream_upload(path, body)
             self.status[video_id] = 'uploaded'
-        if not self.keep:
+        if os.path.exists(path) and not self.keep:
             os.remove(path)
 
 
