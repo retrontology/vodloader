@@ -18,7 +18,7 @@ You need to set up your config file before you run the program so it knows what 
   * **client_secret**: The client secret of your registered Twitch application to interface with the Twitch API. This is received from the [Twitch Developer Portal](https://dev.twitch.tv/console/apps).
   * **channels**:
     * **Some_Channel_Name**: This is where you put the name of the Twitch channel you want to archive. You may make multiple entries for multiple channels, but there must be a youtube_param child for each one.
-      * **archive**: (True/False) Whether you want to upload the current VOD backlog available on Twitch
+      * **backlog**: (True/False) Whether you want to upload the current VOD backlog available on Twitch
       * **youtube_param**: These are details that are sent to YouTube to help define and classify your upload.
         * **description**: A description to be listed below the video.
         * **categoryId**: A number that designates what YouTube category the video belongs in.

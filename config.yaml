@@ -3,7 +3,7 @@ twitch:
   client_secret: "dfalsdfusdofoiiulx"
   channels:
     Rlly:
-      archive: True
+      backlog: True
       youtube_param:
         description: "A good looking chunk of word salad"
         categoryId: "20"

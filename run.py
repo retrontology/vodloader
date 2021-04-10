@@ -21,6 +21,9 @@ def load_config(filename):
     config = vodloader_config(filename)
     if not config['download']['directory'] or config['download']['directory'] == "":
         config['download']['directory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'videos')
+    if not os.path.isdir(config['download']['directory']):
+        os.mkdir(config['download']['directory'])
+    config.save()
     return config
 
 
@@ -78,7 +81,7 @@ def main():
     logger.info(f'Initiating vodloaders')
     vodloaders = []
     for channel in config['twitch']['channels']:
-        vodloaders.append(vodloader(channel, twitch, hook, config['youtube']['json'], config['twitch']['channels'][channel]['youtube_param'], config['download']['directory'], config['youtube']['upload'], config['download']['keep'], config['twitch']['channels'][channel]['archive']))
+        vodloaders.append(vodloader(channel, twitch, hook, config))
     try:
         while True:
             time.sleep(600)

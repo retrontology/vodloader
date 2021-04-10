@@ -10,22 +10,25 @@ import datetime
 import pickle
 import logging
 from vodloader_streamlink import FixedStreamlink
+from vodloader_status import vodloader_status
 
 class vodloader(object):
 
-    def __init__(self, channel, twitch, webhook, youtube_json, youtube_args, download_dir, upload=True, keep=False, archive=False, quality='best'):
+    def __init__(self, channel, twitch, webhook, config, quality='best'):
         self.logger = logging.getLogger(f'vodloader.twitch.{channel}')
         self.logger.info(f'Setting up vodloader for {channel}')
+        self.config = config
+        self.status = vodloader_status(self)
         self.channel = channel
         self.quality = quality
-        self.download_dir = download_dir
-        self.keep = keep
+        self.download_dir = config['download']['directory']
+        self.keep = config['download']['keep']
         self.twitch = twitch
         self.webhook = webhook
-        self.upload = upload
+        self.upload = config['youtube']['upload']
         if self.upload:
-            self.youtube = self.setup_youtube(youtube_json)
-            self.youtube_args = youtube_args
+            self.youtube = self.setup_youtube(self.config['youtube']['json'])
+            self.youtube_args = self.config['twitch']['channels'][self.channel]['youtube_param']
         else:
             self.youtube = None
             self.youtube_args = None
@@ -33,9 +36,9 @@ class vodloader(object):
         self.get_live()
         self.webhook_uuid = ''
         self.webhook_subscribe()
-        self.archive = archive
-        if self.archive:
-            _thread.start_new_thread(self.archive_buffload, ())
+        self.backlog = self.config['twitch']['channels'][self.channel]['backlog']
+        if self.backlog:
+            _thread.start_new_thread(self.backlog_buffload, ())
 
 
     def setup_youtube(self, jsonfile):
@@ -84,7 +87,8 @@ class vodloader(object):
                 date = datetime.datetime.strptime(data['started_at'], '%Y-%m-%dT%H:%M:%SZ')
                 name = f'{self.channel} {date.strftime("%m/%d/%Y")} VOD'
                 body = self.get_youtube_body(name)
-                _thread.start_new_thread(self.stream_buffload, (url, path, body, ))
+                video_id = data["id"]
+                _thread.start_new_thread(self.stream_buffload, (url, path, body, video_id, ))
             self.live = True
         else:
             self.logger.info(f'{self.channel} has gone offline')
@@ -129,21 +133,6 @@ class vodloader(object):
     def get_user_id(self):
         user_info = self.twitch.get_users(logins=[self.channel])
         return user_info['data'][0]['id']
-
-
-    def get_channel_videos(self, video_type=VideoType.ARCHIVE):
-        cursor = None
-        videos = []
-        while True:
-            data = self.twitch.get_videos(user_id=self.user_id, first=100, after=cursor)
-            for video in data['data']:
-                if video['type'] == video_type:
-                    videos.append(video)
-            if not 'cursor' in data['pagination']:
-                break
-            else:
-                cursor = data['pagination']['cursor']
-        return videos
 
 
     def get_youtube_body(self, title):
@@ -200,15 +189,33 @@ class vodloader(object):
                 break
 
     
-    def stream_buffload(self, url, path, body):
-        self.stream_download(url, path)
-        if self.upload:
+    def stream_buffload(self, url, path, body, video_id):
+        if not video_id in self.status:
+            self.stream_download(url, path)
+            self.status[video_id] = 'downloaded'
+        if self.upload and self.status[video_id] != 'uploaded':
             self.stream_upload(path, body)
+            self.status[video_id] = 'uploaded'
         if not self.keep:
             os.remove(path)
 
 
-    def archive_buffload(self):
+    def get_channel_videos(self, video_type=VideoType.ARCHIVE):
+        cursor = None
+        videos = []
+        while True:
+            data = self.twitch.get_videos(user_id=self.user_id, first=100, after=cursor)
+            for video in data['data']:
+                if video['type'] == video_type:
+                    videos.append(video)
+            if not 'cursor' in data['pagination']:
+                break
+            else:
+                cursor = data['pagination']['cursor']
+        return videos
+    
+
+    def backlog_buffload(self):
         videos = self.get_channel_videos()
         videos.sort(reverse=True, key=lambda x: x['id'])
         for video in videos:
@@ -217,4 +224,5 @@ class vodloader(object):
             date = datetime.datetime.strptime(video['created_at'], '%Y-%m-%dT%H:%M:%SZ')
             name = f'{self.channel} {date.strftime("%m/%d/%Y")} VOD'
             body = self.get_youtube_body(name)
-            self.stream_buffload(video['url'], path, body)
+            video_id = video['id']
+            self.stream_buffload(video['url'], path, body, video_id, )

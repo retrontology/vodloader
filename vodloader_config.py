@@ -14,5 +14,13 @@ class vodloader_config(dict):
             except yaml.YAMLError as e:
                 print(e)
     
+    def save(self):
+        with open(self.filename, 'w') as stream:
+            try:
+                stream.write(yaml.safe_dump(self.copy()))
+            except yaml.YAMLError as e:
+                print(e)
+
+
     def reload(self):
         self.load(self.filename)
