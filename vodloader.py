@@ -218,7 +218,7 @@ class vodloader(object):
 
     def backlog_buffload(self):
         videos = self.get_channel_videos()
-        videos.sort(reverse=True, key=lambda x: x['id'])
+        videos.sort(reverse=False, key=lambda x: x['id'])
         for video in videos:
             filename = f'{self.channel}_{video["created_at"]}.ts'
             path = os.path.join(self.download_dir, filename)
