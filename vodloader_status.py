@@ -6,15 +6,15 @@ import pickle
 
 class vodloader_status(dict):
 
-    def __init__(self, vodloader):
-        self.vodloader = vodloader
+    def __init__(self, user_id):
+        self.user_id = user_id
         self.load()
 
 
     def get_file(self):
         pickle_dir = os.path.join(os.path.dirname(__file__), 'backlog_status')
         if not os.path.isdir(pickle_dir): os.mkdir(pickle_dir)
-        return(os.path.join(pickle_dir, f'status_{self.vodloader.channel}.pickle'))
+        return(os.path.join(pickle_dir, f'status_{self.user_id}.pickle'))
 
 
     def load(self):

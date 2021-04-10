@@ -38,7 +38,7 @@ class vodloader(object):
         self.webhook_subscribe()
         self.backlog = self.config['twitch']['channels'][self.channel]['backlog']
         if self.backlog:
-            _thread.start_new_thread(self.backlog_buffload, ())
+            _thread.start_new_thread(self.backlog_buffload, (self.user_id,))
 
 
     def setup_youtube(self, jsonfile):
