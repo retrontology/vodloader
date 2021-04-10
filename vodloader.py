@@ -18,7 +18,6 @@ class vodloader(object):
         self.logger = logging.getLogger(f'vodloader.twitch.{channel}')
         self.logger.info(f'Setting up vodloader for {channel}')
         self.config = config
-        self.status = vodloader_status(self)
         self.channel = channel
         self.quality = quality
         self.download_dir = config['download']['directory']
@@ -33,12 +32,12 @@ class vodloader(object):
             self.youtube = None
             self.youtube_args = None
         self.user_id = self.get_user_id()
+        self.status = vodloader_status(self.user_id)
         self.get_live()
-        self.webhook_uuid = ''
         self.webhook_subscribe()
         self.backlog = self.config['twitch']['channels'][self.channel]['backlog']
         if self.backlog:
-            _thread.start_new_thread(self.backlog_buffload, (self.user_id,))
+            _thread.start_new_thread(self.backlog_buffload, ())
 
 
     def setup_youtube(self, jsonfile):
@@ -120,6 +119,8 @@ class vodloader(object):
         if success:
             self.webhook_uuid = uuid
             self.logger.info(f'Subscribed to webhook for {self.channel}')
+        else:
+            self.webhook_uuid = None
         return success
 
 
