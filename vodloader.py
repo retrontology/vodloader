@@ -194,7 +194,7 @@ class vodloader(object):
             if attempts >= retry:
                 self.logger.error(f'Number of retry attempt exceeded for {path}')
                 break
-        self.logger.info(f'Finished uploading {path} to https://youtube/watch?v={response['id']}')
+        self.logger.info(f'Finished uploading {path} to https://youtube/watch?v={response["id"]}')
 
     
     def stream_buffload(self, url, path, body, video_id):
