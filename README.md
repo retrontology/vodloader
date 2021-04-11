@@ -19,12 +19,12 @@ You need to set up your config file before you run the program so it knows what 
   * **channels**:
     * **Some_Channel_Name**: This is where you put the name of the Twitch channel you want to archive. You may make multiple entries for multiple channels, but there must be a youtube_param child for each one.
       * **backlog**: (True/False) Whether you want to upload the current VOD backlog available on Twitch
+      * **quality**: The stream quality to be passed to streamlink for downloading. Can be left blank and will default to "best"
       * **youtube_param**: These are details that are sent to YouTube to help define and classify your upload.
         * **description**: A description to be listed below the video.
         * **categoryId**: A number that designates what YouTube category the video belongs in.
         * **playlistId**: The ID of a playlist that the uploaded video will be inserted into. Can be left blank
         * **privacy**: The privacy status the video will be listed as. The current possible values are "private", "unlisted", and "public".
-        * **quality**: The stream quality to be passed to streamlink for downloading. Can be left blank and will default to "best"
         * **tags**: Tags that will aid in searching for the video.
           * "Some Tag"
           * "Some Other Tag"

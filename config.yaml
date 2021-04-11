@@ -4,12 +4,12 @@ twitch:
   channels:
     Rlly:
       backlog: True
+      quality: "720p60"
       youtube_param:
         description: "A good looking chunk of word salad"
         categoryId: "20"
         privacy: "private"
         playlistId: "PLRV-ewmAAe9rHVKkhr3hz3eSzME__G0si"
-        quality: "720p60"
         tags:
           - "GTA RP"
           - "nopixel"
