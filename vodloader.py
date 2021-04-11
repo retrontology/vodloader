@@ -14,12 +14,15 @@ from vodloader_status import vodloader_status
 
 class vodloader(object):
 
-    def __init__(self, channel, twitch, webhook, config, quality='best'):
+    def __init__(self, channel, twitch, webhook, config):
         self.logger = logging.getLogger(f'vodloader.twitch.{channel}')
         self.logger.info(f'Setting up vodloader for {channel}')
         self.config = config
         self.channel = channel
-        self.quality = quality
+        if 'quality' in self.config['twitch']['channels'][self.channel] and self.config['twitch']['channels'][self.channel]['quality'] != "":
+            self.quality = self.config['twitch']['channels'][self.channel]['quality']
+        else:
+            self.quality = 'best'
         self.download_dir = config['download']['directory']
         self.keep = config['download']['keep']
         self.twitch = twitch
@@ -35,7 +38,10 @@ class vodloader(object):
         self.status = vodloader_status(self.user_id)
         self.get_live()
         self.webhook_subscribe()
-        self.backlog = self.config['twitch']['channels'][self.channel]['backlog']
+        if 'backlog' in self.config['twitch']['channels'][self.channel] and self.config['twitch']['channels'][self.channel]['backlog']:
+            self.backlog = self.config['twitch']['channels'][self.channel]['backlog']
+        else:
+            self.backlog = False
         if self.backlog:
             _thread.start_new_thread(self.backlog_buffload, ())
 
@@ -188,6 +194,7 @@ class vodloader(object):
             if attempts >= retry:
                 self.logger.error(f'Number of retry attempt exceeded for {path}')
                 break
+        self.logger.info(f'Finished uploading {path} to https://youtube/watch?v={response['id']}')
 
     
     def stream_buffload(self, url, path, body, video_id):
