@@ -11,6 +11,7 @@ import pickle
 import logging
 from vodloader_streamlink import FixedStreamlink
 from vodloader_status import vodloader_status
+from vodloader_chapters import vodloader_chapters
 
 class vodloader(object):
 
@@ -23,6 +24,7 @@ class vodloader(object):
             self.quality = self.config['twitch']['channels'][self.channel]['quality']
         else:
             self.quality = 'best'
+        self.chapters = None
         self.download_dir = config['download']['directory']
         self.keep = config['download']['keep']
         self.twitch = twitch
@@ -84,8 +86,9 @@ class vodloader(object):
         self.logger.info(f'Received webhook callback for {self.channel}')
         if data['type'] == 'live':
             if not self.live:
-                self.logger.info(f'{self.channel} has gone live!')
                 self.live = True
+                self.logger.info(f'{self.channel} has gone live!')
+                self.chapters = vodloader_chapters(data['game_name'])
                 url = 'https://www.twitch.tv/' + self.channel
                 filename = f'{self.channel}_{data["started_at"]}.ts'
                 path = os.path.join(self.download_dir, filename)
@@ -94,10 +97,13 @@ class vodloader(object):
                 body = self.get_youtube_body(name)
                 video_id = data["id"]
                 _thread.start_new_thread(self.stream_buffload, (url, path, body, video_id, ))
-            self.live = True
+            else:
+                self.live = True
+                self.chapters.append(data['game_name'])
+                self.logger.info(f'{self.channel} has changed game to {data["game_name"]}')
         else:
-            self.logger.info(f'{self.channel} has gone offline')
             self.live = False
+            self.logger.info(f'{self.channel} has gone offline')
 
 
     def get_live(self):
@@ -142,10 +148,12 @@ class vodloader(object):
         return user_info['data'][0]['id']
 
 
-    def get_youtube_body(self, title):
+    def get_youtube_body(self, title, chapters=True):
         body = {
             'snippet': {
-                'title': title
+                'title': title,
+                'description': '',
+                'tags': []
         },
             'status': {
                 'selfDeclaredMadeForKids': False
@@ -156,6 +164,9 @@ class vodloader(object):
         if 'categoryId' in self.youtube_args: body['snippet']['categoryId'] = self.youtube_args['categoryId']
         if 'playlistId' in self.youtube_args: body['snippet']['playlistId'] = self.youtube_args['playlistId']
         if 'privacy' in self.youtube_args: body['status']['privacyStatus'] = self.youtube_args['privacy']
+        body['snippet']['tags'] += self.chapters.get_games()
+        if chapters and len(self.chapters) > 1:
+            body['snippet']['description'] += f'\n\n\n\n{self.chapters.get_string()}'
         return body
 
 
