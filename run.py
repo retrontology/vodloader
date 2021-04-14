@@ -56,9 +56,9 @@ def setup_twitch(client_id, client_secret):
     return twitch
 
 
-def setup_ssl_reverse_proxy(host, ssl_port, http_port, certfile):
+def setup_ssl_reverse_proxy(host, local, ssl_port, http_port, certfile):
     handler = partial(proxy_request_handler, http_port)
-    httpd = http.server.HTTPServer((host, ssl_port), handler)
+    httpd = http.server.HTTPServer((local, ssl_port), handler)
     httpd.socket = ssl.wrap_socket(httpd.socket, certfile=certfile, server_side=True)
     _thread.start_new_thread(httpd.serve_forever, ())
     return httpd
@@ -76,7 +76,7 @@ def main():
     logger.info(f'Loading configuration from {config_file}')
     config = load_config(config_file)
     logger.info(f'Setting up HTTPS server for reverse proxy to webhook')
-    ssl_httpd = setup_ssl_reverse_proxy(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['webhook']['port'], config['twitch']['webhook']['ssl_cert'])
+    ssl_httpd = setup_ssl_reverse_proxy(config['twitch']['webhook']['host'], config['twitch']['webhook']['local'], config['twitch']['webhook']['ssl_port'], config['twitch']['webhook']['port'], config['twitch']['webhook']['ssl_cert'])
     logger.info(f'Logging into Twitch and initiating webhook')
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
     hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['webhook']['ssl_port'], config['twitch']['client_id'], config['twitch']['webhook']['port'], twitch)
