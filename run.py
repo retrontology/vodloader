@@ -23,6 +23,8 @@ def load_config(filename):
         config['download']['directory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'videos')
     if not os.path.isdir(config['download']['directory']):
         os.mkdir(config['download']['directory'])
+    if not 'local' in config['twitch']['webhook'] or not config['twitch']['webhook']['local']:
+        config['twitch']['webhook']['local'] = config['twitch']['webhook']['host']
     config.save()
     return config
 

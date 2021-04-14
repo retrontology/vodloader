@@ -15,6 +15,7 @@ twitch:
           - "nopixel"
   webhook:
     host: "mysupersecretdomain.com"
+    local: "192.168.1.2"
     port: 42069
     ssl_port: 42070
     ssl_cert: "server.pem"
