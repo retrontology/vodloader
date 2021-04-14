@@ -28,6 +28,10 @@ class vodloader_chapters(object):
         return out
 
 
+    def get_current_game(self):
+        return self.timestamps[-1][1]
+
+
     def get_string(self):
         out = ""
         for ts in self.timestamps:
