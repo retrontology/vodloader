@@ -22,7 +22,7 @@ class vodloader_chapters(object):
 
 
     def get_games(self):
-        games = list(lambda x :x[1], self.timestamps)
+        games = list(map(lambda x :x[1], self.timestamps))
         out = []
         [out.append(x) for x in games if x not in out]
         return out
