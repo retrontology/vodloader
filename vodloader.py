@@ -88,20 +88,21 @@ class vodloader(object):
             if not self.live:
                 self.live = True
                 self.logger.info(f'{self.channel} has gone live!')
-                self.chapters = vodloader_chapters(data['game_name'])
+                self.chapters = vodloader_chapters(data['game_name'], data['title'])
                 url = 'https://www.twitch.tv/' + self.channel
                 filename = f'{self.channel}_{data["started_at"]}.ts'
                 path = os.path.join(self.download_dir, filename)
                 date = datetime.datetime.strptime(data['started_at'], '%Y-%m-%dT%H:%M:%SZ')
                 name = f'{self.channel} {date.strftime("%m/%d/%Y")} VOD'
-                body = self.get_youtube_body(name)
                 video_id = data["id"]
-                _thread.start_new_thread(self.stream_buffload, (url, path, body, video_id, ))
+                _thread.start_new_thread(self.stream_buffload, (url, path, name, video_id, ))
             else:
                 self.live = True
-                if data['game_name'] != self.chapters.get_current_game():
-                    self.chapters.append(data['game_name'])
+                if self.channel.get_current_game != data["game_name"]:
                     self.logger.info(f'{self.channel} has changed game to {data["game_name"]}')
+                if self.channel.get_current_game != data["title"]:
+                    self.logger.info(f'{self.channel} has changed their title to {data["title"]}')
+                self.chapters.append(data['game_name'], data['title'])
         else:
             self.live = False
             self.logger.info(f'{self.channel} has gone offline')
@@ -149,7 +150,7 @@ class vodloader(object):
         return user_info['data'][0]['id']
 
 
-    def get_youtube_body(self, title, chapters=True):
+    def get_youtube_body(self, title, chapters=False, backlog=False):
         body = {
             'snippet': {
                 'title': title,
@@ -165,9 +166,13 @@ class vodloader(object):
         if 'categoryId' in self.youtube_args: body['snippet']['categoryId'] = self.youtube_args['categoryId']
         if 'playlistId' in self.youtube_args: body['snippet']['playlistId'] = self.youtube_args['playlistId']
         if 'privacy' in self.youtube_args: body['status']['privacyStatus'] = self.youtube_args['privacy']
-        body['snippet']['tags'] += self.chapters.get_games()
-        if chapters and len(self.chapters) > 1:
-            body['snippet']['description'] += f'\n\n\n\n{self.chapters.get_string()}'
+        if not backlog:
+            body['snippet']['tags'] += self.chapters.get_games()
+            if chapters:
+                if chapters.lower() == 'games':
+                    body['snippet']['description'] += f'\n\n\n\n{self.chapters.get_game_chapters()}'
+                if chapters.lower() == 'titles':
+                    body['snippet']['description'] += f'\n\n\n\n{self.chapters.get_title_chapters()}'
         return body
 
 
@@ -187,8 +192,9 @@ class vodloader(object):
         self.logger.info(f'Finished downloading stream from {self.channel}')
     
 
-    def stream_upload(self, path, body, chunk_size=4194304, retry=3):
+    def stream_upload(self, path, title, backlog = False, chunk_size=4194304, retry=3):
         self.logger.info(f'Uploading file {path} to YouTube account for {self.channel}')
+        body = self.get_youtube_body(title, self.config['twitch']['channels'][self.channel]['chapters'], backlog=backlog)
         uploaded = False
         attempts = 0
         while uploaded == False:
@@ -212,12 +218,12 @@ class vodloader(object):
             self.logger.info(f'Could not parse a video ID from uploading {path}')
 
     
-    def stream_buffload(self, url, path, body, video_id):
+    def stream_buffload(self, url, path, title, video_id, backlog=False):
         if not video_id in self.status:
             self.stream_download(url, path)
             self.status[video_id] = 'downloaded'
         if self.upload and self.status[video_id] != 'uploaded':
-            self.stream_upload(path, body)
+            self.stream_upload(path, title, backlog=backlog)
             self.status[video_id] = 'uploaded'
         if os.path.exists(path) and not self.keep:
             os.remove(path)
@@ -243,9 +249,8 @@ class vodloader(object):
         videos.sort(reverse=False, key=lambda x: x['id'])
         for video in videos:
             filename = f'{self.channel}_{video["created_at"]}.ts'
-            path = os.path.join(self.download_dir, filename)
             date = datetime.datetime.strptime(video['created_at'], '%Y-%m-%dT%H:%M:%SZ')
             name = f'{self.channel} {date.strftime("%m/%d/%Y")} VOD'
-            body = self.get_youtube_body(name)
+            path = os.path.join(self.download_dir, filename)
             video_id = video['id']
-            self.stream_buffload(video['url'], path, body, video_id, )
+            self.stream_buffload(video['url'], path, name, video_id, True,)

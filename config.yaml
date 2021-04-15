@@ -3,8 +3,9 @@ twitch:
   client_secret: "dfalsdfusdofoiiulx"
   channels:
     Rlly:
-      backlog: True
-      quality: "720p60"
+      backlog: False
+      chapters: "titles"
+      quality: "best"
       youtube_param:
         description: "A good looking chunk of word salad"
         categoryId: "20"

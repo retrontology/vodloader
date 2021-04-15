@@ -19,6 +19,7 @@ You need to set up your config file before you run the program so it knows what 
   * **channels**:
     * **Some_Channel_Name**: This is where you put the name of the Twitch channel you want to archive. You may make multiple entries for multiple channels, but there must be a youtube_param child for each one.
       * **backlog**: (True/False) Whether you want to upload the current VOD backlog available on Twitch
+      * **chapters**: ("games"/"titles"/False) Create chapters for YouTube based on either game or title changes. Can be set to False to disable
       * **quality**: The stream quality to be passed to streamlink for downloading. Can be left blank and will default to "best"
       * **youtube_param**: These are details that are sent to YouTube to help define and classify your upload.
         * **description**: A description to be listed below the video.
