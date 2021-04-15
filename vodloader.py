@@ -164,7 +164,6 @@ class vodloader(object):
         if 'description' in self.youtube_args: body['snippet']['description'] = self.youtube_args['description']
         if 'tags' in self.youtube_args: body['snippet']['tags'] = self.youtube_args['tags']
         if 'categoryId' in self.youtube_args: body['snippet']['categoryId'] = self.youtube_args['categoryId']
-        if 'playlistId' in self.youtube_args: body['snippet']['playlistId'] = self.youtube_args['playlistId']
         if 'privacy' in self.youtube_args: body['status']['privacyStatus'] = self.youtube_args['privacy']
         if not backlog:
             body['snippet']['tags'] += self.chapters.get_games()
@@ -214,8 +213,31 @@ class vodloader(object):
                 break
         if 'id' in response:
             self.logger.info(f'Finished uploading {path} to https://youtube.com/watch?v={response["id"]}')
+            if self.config['twitch']['channels'][self.channel]['youtube_param']['playlistId']:
+                self.add_video_to_playlist(response["id"], self.config['twitch']['channels'][self.channel]['youtube_param']['playlistId'])
         else:
             self.logger.info(f'Could not parse a video ID from uploading {path}')
+
+
+    def add_video_to_playlist(self, video_id, playlist_id, pos=0):
+        request = self.youtube.playlistItems().insert(
+            part="snippet",
+            body={
+                "snippet": {
+                    "playlistId": playlist_id,
+                    "position": pos,
+                    "resourceId": {
+                        "kind": "youtube#video",
+                        "videoId": video_id
+                    }
+                }
+            }
+        )
+        try:
+            r = request.execute()
+            self.logger.info(r)
+        except Exception as e:
+            self.logger.error(e)
 
     
     def stream_buffload(self, url, path, title, video_id, backlog=False):
