@@ -52,7 +52,7 @@ class vodloader(object):
         self.logger.info(f'Building YouTube flow for {self.channel}')
         api_name = 'youtube'
         api_version = 'v3'
-        scopes = ['https://www.googleapis.com/auth/youtube.upload']
+        scopes = ['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube.force-ssl']
         pickle_dir = os.path.join(os.path.dirname(__file__), 'pickles')
         if not os.path.exists(pickle_dir):
             self.logger.info(f'Creating pickle directory')
