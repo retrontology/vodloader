@@ -168,9 +168,9 @@ class vodloader(object):
         if not backlog:
             body['snippet']['tags'] += self.chapters.get_games()
             if chapters:
-                if chapters.lower() == 'games':
+                if chapters.lower() == 'games' and self.chapters.get_game_chapters():
                     body['snippet']['description'] += f'\n\n\n\n{self.chapters.get_game_chapters()}'
-                if chapters.lower() == 'titles':
+                if chapters.lower() == 'titles' and self.chapters.get_title_chapters():
                     body['snippet']['description'] += f'\n\n\n\n{self.chapters.get_title_chapters()}'
         return body
 
