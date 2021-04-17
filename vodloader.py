@@ -98,9 +98,9 @@ class vodloader(object):
                 _thread.start_new_thread(self.stream_buffload, (url, path, name, video_id, ))
             else:
                 self.live = True
-                if self.channel.get_current_game != data["game_name"]:
+                if self.chapters.get_current_game() != data["game_name"]:
                     self.logger.info(f'{self.channel} has changed game to {data["game_name"]}')
-                if self.channel.get_current_game != data["title"]:
+                if self.chapters.get_current_title() != data["title"]:
                     self.logger.info(f'{self.channel} has changed their title to {data["title"]}')
                 self.chapters.append(data['game_name'], data['title'])
         else:
