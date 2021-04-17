@@ -151,15 +151,14 @@ class vodloader(object):
     def get_youtube_body(self, chapters=False, backlog=False):
         body = {
             'snippet': {
-                'title': self.get_formatted_string(self.config['twitch']['channels'][self.channel]['youtube_param']['title']),
-                'description': self.get_formatted_string(self.config['twitch']['channels'][self.channel]['youtube_param']['description']),
+                'title': self.get_formatted_string(self.config['twitch']['channels'][self.channel]['youtube_param']['title'], self.chapters.start_absolute),
+                'description': self.get_formatted_string(self.config['twitch']['channels'][self.channel]['youtube_param']['description'], self.chapters.start_absolute),
                 'tags': []
         },
             'status': {
                 'selfDeclaredMadeForKids': False
             }
         }
-        if 'description' in self.youtube_args: body['snippet']['description'] = self.youtube_args['description']
         if 'tags' in self.youtube_args: body['snippet']['tags'] = self.youtube_args['tags']
         if 'categoryId' in self.youtube_args: body['snippet']['categoryId'] = self.youtube_args['categoryId']
         if 'privacy' in self.youtube_args: body['status']['privacyStatus'] = self.youtube_args['privacy']
