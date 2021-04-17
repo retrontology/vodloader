@@ -7,7 +7,8 @@ twitch:
       chapters: "titles"
       quality: "best"
       youtube_param:
-        description: "A good looking chunk of word salad"
+        title: "%C VOD %m/%d/%Y"
+        description: "Follow %C at https://twitch.tv/%C to watch live!"
         categoryId: "20"
         privacy: "private"
         playlistId: "PLRV-ewmAAe9rHVKkhr3hz3eSzME__G0si"

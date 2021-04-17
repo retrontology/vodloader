@@ -18,11 +18,12 @@ You need to set up your config file before you run the program so it knows what 
   * **client_secret**: The client secret of your registered Twitch application to interface with the Twitch API. This is received from the [Twitch Developer Portal](https://dev.twitch.tv/console/apps).
   * **channels**:
     * **Some_Channel_Name**: This is where you put the name of the Twitch channel you want to archive. You may make multiple entries for multiple channels, but there must be a youtube_param child for each one.
-      * **backlog**: (True/False) Whether you want to upload the current VOD backlog available on Twitch
+      * **backlog**: (True/False) Whether you want to upload the current VOD backlog available on Twitch (currently expiremental support so use at your own risk)
       * **chapters**: ("games"/"titles"/False) Create chapters for YouTube based on either game or title changes. Can be set to False to disable
       * **quality**: The stream quality to be passed to streamlink for downloading. Can be left blank and will default to "best"
       * **youtube_param**: These are details that are sent to YouTube to help define and classify your upload.
-        * **description**: A description to be listed below the video.
+        * **title**: A title format to be displayed on the uploaded video. [See format_chart.md for formatting](https://github.com/retrontology/vodloader/blobl/main/format_chart.md)
+        * **description**: A description format to be listed below the uploaded video. [See format_chart.md for formatting](https://github.com/retrontology/vodloader/blobl/main/format_chart.md)
         * **categoryId**: A number that designates what YouTube category the video belongs in.
         * **playlistId**: The ID of a playlist that the uploaded video will be inserted into. Can be left blank
         * **privacy**: The privacy status the video will be listed as. The current possible values are "private", "unlisted", and "public".

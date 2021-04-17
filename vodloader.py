@@ -88,14 +88,12 @@ class vodloader(object):
             if not self.live:
                 self.live = True
                 self.logger.info(f'{self.channel} has gone live!')
-                self.chapters = vodloader_chapters(data['game_name'], data['title'])
+                self.chapters = vodloader_chapters(data['game_name'], data['title'], data["started_at"])
                 url = 'https://www.twitch.tv/' + self.channel
                 filename = f'{self.channel}_{data["started_at"]}.ts'
                 path = os.path.join(self.download_dir, filename)
-                date = datetime.datetime.strptime(data['started_at'], '%Y-%m-%dT%H:%M:%SZ')
-                name = f'{self.channel} {date.strftime("%m/%d/%Y")} VOD'
                 video_id = data["id"]
-                _thread.start_new_thread(self.stream_buffload, (url, path, name, video_id, ))
+                _thread.start_new_thread(self.stream_buffload, (url, path, video_id, ))
             else:
                 self.live = True
                 if self.chapters.get_current_game() != data["game_name"]:
@@ -150,11 +148,11 @@ class vodloader(object):
         return user_info['data'][0]['id']
 
 
-    def get_youtube_body(self, title, chapters=False, backlog=False):
+    def get_youtube_body(self, chapters=False, backlog=False):
         body = {
             'snippet': {
-                'title': title,
-                'description': '',
+                'title': self.get_formatted_string(self.config['twitch']['channels'][self.channel]['youtube_param']['title']),
+                'description': self.get_formatted_string(self.config['twitch']['channels'][self.channel]['youtube_param']['description']),
                 'tags': []
         },
             'status': {
@@ -175,6 +173,13 @@ class vodloader(object):
         return body
 
 
+    def get_formatted_string(self, input, date):
+        output = date.strftime(input)
+        output = output.replace('%C', self.channel)
+        output = output.replace('%g', self.chapters.get_first_game())
+        output = output.replace('%t', self.chapters.get_first_title())
+
+
     def stream_download(self, url, path, chunk_size=8192):
         self.logger.info(f'Downloading stream from {url} to {path}')
         stream = self.get_stream(url, self.quality).open()
@@ -191,9 +196,9 @@ class vodloader(object):
         self.logger.info(f'Finished downloading stream from {self.channel}')
     
 
-    def stream_upload(self, path, title, backlog = False, chunk_size=4194304, retry=3):
+    def stream_upload(self, path, backlog = False, chunk_size=4194304, retry=3):
         self.logger.info(f'Uploading file {path} to YouTube account for {self.channel}')
-        body = self.get_youtube_body(title, self.config['twitch']['channels'][self.channel]['chapters'], backlog=backlog)
+        body = self.get_youtube_body(self.config['twitch']['channels'][self.channel]['chapters'], backlog=backlog)
         uploaded = False
         attempts = 0
         while uploaded == False:
@@ -240,12 +245,12 @@ class vodloader(object):
             self.logger.error(e)
 
     
-    def stream_buffload(self, url, path, title, video_id, backlog=False):
+    def stream_buffload(self, url, path, video_id, backlog=False):
         if not video_id in self.status:
             self.stream_download(url, path)
             self.status[video_id] = 'downloaded'
         if self.upload and self.status[video_id] != 'uploaded':
-            self.stream_upload(path, title, backlog=backlog)
+            self.stream_upload(path, backlog=backlog)
             self.status[video_id] = 'uploaded'
         if os.path.exists(path) and not self.keep:
             os.remove(path)
@@ -271,8 +276,6 @@ class vodloader(object):
         videos.sort(reverse=False, key=lambda x: x['id'])
         for video in videos:
             filename = f'{self.channel}_{video["created_at"]}.ts'
-            date = datetime.datetime.strptime(video['created_at'], '%Y-%m-%dT%H:%M:%SZ')
-            name = f'{self.channel} {date.strftime("%m/%d/%Y")} VOD'
             path = os.path.join(self.download_dir, filename)
             video_id = video['id']
-            self.stream_buffload(video['url'], path, name, video_id, True,)
+            self.stream_buffload(video['url'], path, video_id, True,)

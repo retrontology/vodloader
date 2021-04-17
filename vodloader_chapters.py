@@ -3,9 +3,10 @@ from math import floor
 
 class vodloader_chapters(object):
 
-    def __init__(self, game, title):
+    def __init__(self, game, title, started_at):
         self.start_time = datetime.datetime.now()
         self.timestamps = [('00:00:00', game, title)]
+        self.start_absolute = datetime.datetime.strptime(started_at, '%Y-%m-%dT%H:%M:%SZ')
     
 
     def __len__(self):
@@ -30,6 +31,12 @@ class vodloader_chapters(object):
     
     def get_current_title(self):
         return self.timestamps[-1][2]
+
+    def get_first_game(self):
+        return self.timestamps[0][1]
+
+    def get_first_title(self):
+        return self.timestamps[0][2]
 
     def get_game_chapters(self):
         out = f'{self.timestamps[0][0]} {self.timestamps[0][1]}\n'
