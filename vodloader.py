@@ -153,7 +153,8 @@ class vodloader(object):
         )
         try:
             r = request.execute()
-            self.logger.info(r)
+            self.logger.debug(r)
+            return r
         except Exception as e:
             self.logger.error(e)
 
