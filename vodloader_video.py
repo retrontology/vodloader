@@ -122,6 +122,7 @@ class vodloader_video(object):
 
     def get_formatted_string(self, input, date):
         output = input.replace('%C', self.parent.channel)
+        output = output.replace('%i', self.id)
         output = output.replace('%g', self.chapters.get_first_game())
         output = output.replace('%t', self.chapters.get_first_title())
         output = date.strftime(output)

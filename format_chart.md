@@ -3,6 +3,7 @@
 |%C|Twitch Channel as listed in the config.yaml|Rlly|
 |%g|Name of the game when the stream started as reported by Twitch|Grand Theft Auto V|
 |%t|Title of the stream when the stream started as reported by Twitch|Playing Among Us with Friends|
+|%i|Twitch Video ID|991357065|
 |%a|Weekday as locale’s abbreviated name.|Sun, Mon, …, Sat (en_US); So, Mo, …, Sa (de_DE)|
 |%A|Weekday as locale’s full name.|Sunday, Monday, …, Saturday (en_US); Sonntag, Montag, …, Samstag (de_DE)|
 |%w|Weekday as a decimal number, where 0 is Sunday and 6 is Saturday.|0, 1, …, 6|
