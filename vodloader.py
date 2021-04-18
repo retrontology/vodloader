@@ -1,6 +1,4 @@
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
 from twitchAPI.types import VideoType
@@ -9,30 +7,24 @@ import _thread
 import datetime
 import pickle
 import logging
-from vodloader_streamlink import FixedStreamlink
+from vodloader_video import vodloader_video
 from vodloader_status import vodloader_status
 from vodloader_chapters import vodloader_chapters
 
 class vodloader(object):
 
-    def __init__(self, channel, twitch, webhook, config):
-        self.logger = logging.getLogger(f'vodloader.twitch.{channel}')
-        self.logger.info(f'Setting up vodloader for {channel}')
-        self.config = config
+    def __init__(self, channel, twitch, webhook, twitch_config, yt_json, download_dir, keep=False, upload=True):
         self.channel = channel
-        if 'quality' in self.config['twitch']['channels'][self.channel] and self.config['twitch']['channels'][self.channel]['quality'] != "":
-            self.quality = self.config['twitch']['channels'][self.channel]['quality']
-        else:
-            self.quality = 'best'
-        self.chapters = None
-        self.download_dir = config['download']['directory']
-        self.keep = config['download']['keep']
+        self.logger = logging.getLogger(f'vodloader.{self.channel}')
+        self.logger.info(f'Setting up vodloader for {self.channel}')
+        self.download_dir = download_dir
+        self.keep = keep
         self.twitch = twitch
         self.webhook = webhook
-        self.upload = config['youtube']['upload']
+        self.upload = upload
         if self.upload:
-            self.youtube = self.setup_youtube(self.config['youtube']['json'])
-            self.youtube_args = self.config['twitch']['channels'][self.channel]['youtube_param']
+            self.youtube = self.setup_youtube(yt_json)
+            self.youtube_args = twitch_config['youtube_param']
         else:
             self.youtube = None
             self.youtube_args = None
@@ -40,8 +32,16 @@ class vodloader(object):
         self.status = vodloader_status(self.user_id)
         self.get_live()
         self.webhook_subscribe()
-        if 'backlog' in self.config['twitch']['channels'][self.channel] and self.config['twitch']['channels'][self.channel]['backlog']:
-            self.backlog = self.config['twitch']['channels'][self.channel]['backlog']
+        if 'chapters' in twitch_config and twitch_config['chapters'] != "":
+            self.chapters_type = twitch_config['chapters']
+        else:
+            self.chapters_type = False
+        if 'quality' in twitch_config and twitch_config['quality'] != "":
+            self.quality = twitch_config['quality']
+        else:
+            self.quality = 'best'
+        if 'backlog' in twitch_config and twitch_config['backlog']:
+            self.backlog = twitch_config['backlog']
         else:
             self.backlog = False
         if self.backlog:
@@ -88,19 +88,15 @@ class vodloader(object):
             if not self.live:
                 self.live = True
                 self.logger.info(f'{self.channel} has gone live!')
-                self.chapters = vodloader_chapters(data['game_name'], data['title'], data["started_at"])
                 url = 'https://www.twitch.tv/' + self.channel
-                filename = f'{self.channel}_{data["started_at"]}.ts'
-                path = os.path.join(self.download_dir, filename)
-                video_id = data["id"]
-                _thread.start_new_thread(self.stream_buffload, (url, path, video_id, ))
+                self.livestream = vodloader_video(self, url, data, backlog=False, quality=self.quality)
             else:
                 self.live = True
-                if self.chapters.get_current_game() != data["game_name"]:
+                if self.livestream.chapters.get_current_game() != data["game_name"]:
                     self.logger.info(f'{self.channel} has changed game to {data["game_name"]}')
-                if self.chapters.get_current_title() != data["title"]:
+                if self.livestream.chapters.get_current_title() != data["title"]:
                     self.logger.info(f'{self.channel} has changed their title to {data["title"]}')
-                self.chapters.append(data['game_name'], data['title'])
+                self.livestream.chapters.append(data['game_name'], data['title'])
         else:
             self.live = False
             self.logger.info(f'{self.channel} has gone offline')
@@ -136,91 +132,9 @@ class vodloader(object):
         return success
 
 
-    def get_stream(self, url, quality):
-        fs = FixedStreamlink()
-        ft = fs.resolve_url(url)
-        ft.bind(fs, 'FixedTwitch')
-        return fs.streams(url)[quality]
-
-
     def get_user_id(self):
         user_info = self.twitch.get_users(logins=[self.channel])
         return user_info['data'][0]['id']
-
-
-    def get_youtube_body(self, chapters=False, backlog=False):
-        body = {
-            'snippet': {
-                'title': self.get_formatted_string(self.config['twitch']['channels'][self.channel]['youtube_param']['title'], self.chapters.start_absolute),
-                'description': self.get_formatted_string(self.config['twitch']['channels'][self.channel]['youtube_param']['description'], self.chapters.start_absolute),
-                'tags': []
-        },
-            'status': {
-                'selfDeclaredMadeForKids': False
-            }
-        }
-        if 'tags' in self.youtube_args: body['snippet']['tags'] = self.youtube_args['tags']
-        if 'categoryId' in self.youtube_args: body['snippet']['categoryId'] = self.youtube_args['categoryId']
-        if 'privacy' in self.youtube_args: body['status']['privacyStatus'] = self.youtube_args['privacy']
-        if not backlog:
-            body['snippet']['tags'] += self.chapters.get_games()
-            if chapters:
-                if chapters.lower() == 'games' and self.chapters.get_game_chapters():
-                    body['snippet']['description'] += f'\n\n\n\n{self.chapters.get_game_chapters()}'
-                if chapters.lower() == 'titles' and self.chapters.get_title_chapters():
-                    body['snippet']['description'] += f'\n\n\n\n{self.chapters.get_title_chapters()}'
-        return body
-
-
-    def get_formatted_string(self, input, date):
-        output = date.strftime(input)
-        output = output.replace('%C', self.channel)
-        output = output.replace('%g', self.chapters.get_first_game())
-        output = output.replace('%t', self.chapters.get_first_title())
-
-
-    def stream_download(self, url, path, chunk_size=8192):
-        self.logger.info(f'Downloading stream from {url} to {path}')
-        stream = self.get_stream(url, self.quality).open()
-        with open(path, 'wb') as f:
-            data = stream.read(chunk_size)
-            while data:
-                try:
-                    f.write(data)
-                    data = stream.read(chunk_size)
-                except OSError as err:
-                    self.logger.error(err)
-                    break
-        stream.close()
-        self.logger.info(f'Finished downloading stream from {self.channel}')
-    
-
-    def stream_upload(self, path, backlog = False, chunk_size=4194304, retry=3):
-        self.logger.info(f'Uploading file {path} to YouTube account for {self.channel}')
-        body = self.get_youtube_body(self.config['twitch']['channels'][self.channel]['chapters'], backlog=backlog)
-        uploaded = False
-        attempts = 0
-        while uploaded == False:
-            media = MediaFileUpload(path, mimetype='video/mpegts', chunksize=chunk_size, resumable=True)
-            upload = self.youtube.videos().insert(part=",".join(body.keys()), body=body, media_body=media)
-            try:
-                response = upload.execute()
-            except HttpError as e:
-                self.logger.error(e.resp)
-                self.logger.error(e.content)
-            self.logger.debug(response)
-            uploaded = response['status']['uploadStatus'] == 'uploaded'
-            if not uploaded:
-                attempts += 1
-            if attempts >= retry:
-                self.logger.error(f'Number of retry attempt exceeded for {path}')
-                break
-        if 'id' in response:
-            self.logger.info(f'Finished uploading {path} to https://youtube.com/watch?v={response["id"]}')
-            if self.config['twitch']['channels'][self.channel]['youtube_param']['playlistId']:
-                self.add_video_to_playlist(response["id"], self.config['twitch']['channels'][self.channel]['youtube_param']['playlistId'])
-        else:
-            self.logger.info(f'Could not parse a video ID from uploading {path}')
 
 
     def add_video_to_playlist(self, video_id, playlist_id, pos=0):
@@ -243,17 +157,6 @@ class vodloader(object):
         except Exception as e:
             self.logger.error(e)
 
-    
-    def stream_buffload(self, url, path, video_id, backlog=False):
-        if not video_id in self.status:
-            self.stream_download(url, path)
-            self.status[video_id] = 'downloaded'
-        if self.upload and self.status[video_id] != 'uploaded':
-            self.stream_upload(path, backlog=backlog)
-            self.status[video_id] = 'uploaded'
-        if os.path.exists(path) and not self.keep:
-            os.remove(path)
-
 
     def get_channel_videos(self, video_type=VideoType.ARCHIVE):
         cursor = None
@@ -274,7 +177,9 @@ class vodloader(object):
         videos = self.get_channel_videos()
         videos.sort(reverse=False, key=lambda x: x['id'])
         for video in videos:
-            filename = f'{self.channel}_{video["created_at"]}.ts'
-            path = os.path.join(self.download_dir, filename)
-            video_id = video['id']
-            self.stream_buffload(video['url'], path, video_id, True,)
+            v = vodloader_video(self, video['url'], video, backlog=True, quality=self.quality)
+            v.thread.join()
+
+
+    def get_stream_markers(self, vod_id):
+        url = f'https://api.twitch.tv/kraken/videos/{vod_id}/markers?api_version=5&client_id={self.twitch.client_id}'

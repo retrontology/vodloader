@@ -3,10 +3,9 @@ from math import floor
 
 class vodloader_chapters(object):
 
-    def __init__(self, game, title, started_at):
+    def __init__(self, game, title):
         self.start_time = datetime.datetime.now()
         self.timestamps = [('00:00:00', game, title)]
-        self.start_absolute = datetime.datetime.strptime(started_at, '%Y-%m-%dT%H:%M:%SZ')
     
 
     def __len__(self):
@@ -17,7 +16,7 @@ class vodloader_chapters(object):
         hours = floor(delta.seconds/3600)
         mins = floor(delta.seconds%3600/60)
         secs = floor(delta.seconds%60)
-        timestamp = f'{hours}:{mins}:{secs}'
+        timestamp = f'{str(hours).zfill(2)}:{str(mins).zfill(2)}:{str(secs).zfill(2)}'
         self.timestamps.append((timestamp, game, title))
 
     def get_games(self):
