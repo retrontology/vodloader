@@ -124,6 +124,8 @@ class vodloader_video(object):
         output = input.replace('%C', self.parent.channel)
         output = output.replace('%i', self.id)
         output = output.replace('%g', self.chapters.get_first_game())
+        output = output.replace('%G', self.chapters.get_current_game())
         output = output.replace('%t', self.chapters.get_first_title())
+        output = output.replace('%t', self.chapters.get_current_title())
         output = date.strftime(output)
         return output

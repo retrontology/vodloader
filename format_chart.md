@@ -2,7 +2,9 @@
 |:---:|---------------------|-----------|
 |%C|Twitch Channel as listed in the config.yaml|Rlly|
 |%g|Name of the game when the stream started as reported by Twitch|Grand Theft Auto V|
-|%t|Title of the stream when the stream started as reported by Twitch|Playing Among Us with Friends|
+|%G|Name of the game when the stream stops, as reported by Twitch|Among Us|
+|%t|Title of the stream when the stream started as reported by Twitch|Shelly The Bullied|
+|%T|Title of the stream when the stream stops, as reported by Twitch|Playing Among Us with Friends|
 |%i|Twitch Video ID|991357065|
 |%a|Weekday as locale’s abbreviated name.|Sun, Mon, …, Sat (en_US); So, Mo, …, Sa (de_DE)|
 |%A|Weekday as locale’s full name.|Sunday, Monday, …, Saturday (en_US); Sonntag, Montag, …, Samstag (de_DE)|
@@ -28,6 +30,5 @@
 |%x|Locale’s appropriate date representation.|08/16/88 (None); 08/16/1988 (en_US); 16.08.1988 (de_DE)|
 |%X|Locale’s appropriate time representation.|21:30:00 (en_US); 21:30:00 (de_DE)|
 |%%|A literal '%' character.|%|
-|%G|ISO 8601 year with century representing the year that contains the greater part of the ISO week (%V).|0001, 0002, …, 2013, 2014, …, 9998, 9999|
 |%u|ISO 8601 weekday as a decimal number where 1 is Monday.|
 |%V|ISO 8601 week as a decimal number with Monday as the first day of the week. Week 01 is the week containing Jan 4.|01, 02, …, 53|
