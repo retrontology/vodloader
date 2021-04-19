@@ -93,8 +93,7 @@ def main():
     try:
         while True:
             time.sleep(600)
-    except Exception as e:
-        logger.error(e)
+    except:
         logger.info(f'Shutting down')
         for v in vodloaders:
             v.webhook_unsubscribe()
