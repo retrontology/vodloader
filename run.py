@@ -14,6 +14,7 @@ import logging.handlers
 import http.server
 import ssl
 import time
+import pytz
 
 config_file = os.path.join(os.path.dirname('__file__'), 'config.yaml')
 
@@ -25,6 +26,11 @@ def load_config(filename):
         os.mkdir(config['download']['directory'])
     if not 'local' in config['twitch']['webhook'] or not config['twitch']['webhook']['local']:
         config['twitch']['webhook']['local'] = config['twitch']['webhook']['host']
+    for channel in config['twitch']['channels']:
+        if not 'timezone' in config['twitch']['channels'][channel] or config['twitch']['channels'][channel]['timezone'] == '':
+            config['twitch']['channels'][channel]['timezone'] ='UTC'
+        if not config['twitch']['channels'][channel]['timezone'] in pytz.all_timezones:
+            sys.exit(f'timezone entry for {channel} in {config_file} is invalid!')
     config.save()
     return config
 
@@ -83,11 +89,12 @@ def main():
     logger.info(f'Initiating vodloaders')
     vodloaders = []
     for channel in config['twitch']['channels']:
-        vodloaders.append(vodloader(channel, twitch, hook, config['twitch']['channels'][channel], config['youtube']['json'], config['download']['directory'], config['download']['keep'], config['youtube']['upload']))
+        vodloaders.append(vodloader(channel, twitch, hook, config['twitch']['channels'][channel], config['youtube']['json'], config['download']['directory'], config['download']['keep'], config['youtube']['upload']), pytz.timezone(config['twitch']['channels'][channel]['timezone']))
     try:
         while True:
             time.sleep(600)
-    except:
+    except Exception as e:
+        logger.error(e)
         logger.info(f'Shutting down')
         for v in vodloaders:
             v.webhook_unsubscribe()

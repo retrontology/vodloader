@@ -23,7 +23,7 @@ class vodloader_video(object):
         self.id = twitch_data['id']
         if backlog: self.start_absolute = twitch_data['created_at']
         else: self.start_absolute = twitch_data['started_at']
-        self.start_absolute = datetime.datetime.strptime(self.start_absolute, '%Y-%m-%dT%H:%M:%SZ')
+        self.start_absolute = self.parent.tz.localize(datetime.datetime.strptime(self.start_absolute, '%Y-%m-%dT%H:%M:%SZ'))
         self.download_url = url
         self.path = os.path.join(self.parent.download_dir, f'{self.id}.ts')
         self.chapters = self.chapters_init(twitch_data)

@@ -6,6 +6,7 @@ twitch:
       backlog: False
       chapters: "titles"
       quality: "best"
+      timezone: "America/Cambridge_Bay"
       youtube_param:
         title: "%C VOD %m/%d/%Y"
         description: "Follow %C at https://twitch.tv/%C to watch live!"

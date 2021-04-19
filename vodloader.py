@@ -4,19 +4,20 @@ from google_auth_oauthlib.flow import Flow, InstalledAppFlow
 from twitchAPI.types import VideoType
 import os
 import _thread
-import datetime
 import pickle
 import logging
 from vodloader_video import vodloader_video
 from vodloader_status import vodloader_status
 from vodloader_chapters import vodloader_chapters
+import pytz
 
 class vodloader(object):
 
-    def __init__(self, channel, twitch, webhook, twitch_config, yt_json, download_dir, keep=False, upload=True):
+    def __init__(self, channel, twitch, webhook, twitch_config, yt_json, download_dir, keep=False, upload=True, tz=pytz.timezone("America/Chicago")):
         self.channel = channel
         self.logger = logging.getLogger(f'vodloader.{self.channel}')
         self.logger.info(f'Setting up vodloader for {self.channel}')
+        self.tz = tz
         self.download_dir = download_dir
         self.keep = keep
         self.twitch = twitch

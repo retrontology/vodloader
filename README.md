@@ -21,6 +21,7 @@ You need to set up your config file before you run the program so it knows what 
       * **backlog**: (True/False) Whether you want to upload the current VOD backlog available on Twitch (currently expiremental support so use at your own risk)
       * **chapters**: ("games"/"titles"/False) Create chapters for YouTube based on either game or title changes. Can be set to False to disable
       * **quality**: The stream quality to be passed to streamlink for downloading. Can be left blank and will default to "best"
+      * **timezone**: The time zone of the streamer to localize the time for the time formatted titles and descriptions. If left blank will default to UTC
       * **youtube_param**: These are details that are sent to YouTube to help define and classify your upload.
         * **title**: A title format to be displayed on the uploaded video. See [format_chart.md](https://github.com/retrontology/vodloader/blob/main/format_chart.md) for formatting
         * **description**: A description format to be listed below the uploaded video. See [format_chart.md](https://github.com/retrontology/vodloader/blob/main/format_chart.md) for formatting
