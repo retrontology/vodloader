@@ -89,7 +89,7 @@ def main():
     logger.info(f'Initiating vodloaders')
     vodloaders = []
     for channel in config['twitch']['channels']:
-        vodloaders.append(vodloader(channel, twitch, hook, config['twitch']['channels'][channel], config['youtube']['json'], config['download']['directory'], config['download']['keep'], config['youtube']['upload']), pytz.timezone(config['twitch']['channels'][channel]['timezone']))
+        vodloaders.append(vodloader(channel, twitch, hook, config['twitch']['channels'][channel], config['youtube']['json'], config['download']['directory'], config['download']['keep'], config['youtube']['upload'], pytz.timezone(config['twitch']['channels'][channel]['timezone'])))
     try:
         while True:
             time.sleep(600)
