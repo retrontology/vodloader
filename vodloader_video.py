@@ -7,6 +7,8 @@ import logging
 import os
 import datetime
 import streamlink
+import requests
+import json
 
 
 class vodloader_video(object):
@@ -133,3 +135,11 @@ class vodloader_video(object):
         output = output.replace('%t', self.chapters.get_current_title())
         output = date.strftime(output)
         return output
+    
+    def get_stream_markers(self, retry=3):
+        url = f'https://api.twitch.tv/kraken/videos/{self.id}/markers?api_version=5&client_id={self.parent.twitch.app_id}'
+        for i in range(retry):
+            r = requests.get(url)
+            if r.status_code == 200:
+                return json.loads(r.content)
+        return None
