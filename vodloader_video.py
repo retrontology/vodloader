@@ -1,5 +1,4 @@
 from vodloader_chapters import vodloader_chapters
-# from vodloader_streamlink import FixedStreamlink
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 from threading import Thread
@@ -41,12 +40,6 @@ class vodloader_video(object):
 
     def __del__(self):
         pass
-
-    # def get_fixed_stream(self, url, quality):
-    #     fs = FixedStreamlink()
-    #     ft = fs.resolve_url(url)
-    #     ft.bind(fs, 'FixedTwitch')
-    #     return fs.streams(url)[quality]
     
     def get_stream(self, url, quality):
         return streamlink.streams(url)[quality]
