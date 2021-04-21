@@ -59,9 +59,6 @@ class vodloader_video(object):
             self.parent.status[self.id] = 'downloaded'
         if self.upload and self.parent.status[self.id] != 'uploaded':
             self.upload_stream()
-            self.parent.status[self.id] = 'uploaded'
-        if os.path.exists(self.path) and not self.keep:
-            os.remove(self.path)
 
     def download_stream(self, chunk_size=8192, max_length=60*(60*12-15)):
         self.logger.info(f'Downloading stream from {self.download_url} to {self.path}')
@@ -86,31 +83,7 @@ class vodloader_video(object):
         self.logger.info(f'Finished downloading stream from {self.download_url}')
 
     def upload_stream(self, chunk_size=4194304, retry=3):
-        self.logger.info(f'Uploading file {self.path} to YouTube account for {self.parent.channel}')
-        body = self.get_youtube_body(self.parent.chapters_type)
-        uploaded = False
-        attempts = 0
-        while uploaded == False:
-            media = MediaFileUpload(self.path, mimetype='video/mpegts', chunksize=chunk_size, resumable=True)
-            upload = self.parent.youtube.videos().insert(part=",".join(body.keys()), body=body, media_body=media)
-            try:
-                response = upload.execute()
-            except HttpError as e:
-                self.logger.error(e.resp)
-                self.logger.error(e.content)
-            self.logger.debug(response)
-            uploaded = response['status']['uploadStatus'] == 'uploaded'
-            if not uploaded:
-                attempts += 1
-            if attempts >= retry:
-                self.logger.error(f'Number of retry attempt exceeded for {self.path}')
-                break
-        if 'id' in response:
-            self.logger.info(f'Finished uploading {self.path} to https://youtube.com/watch?v={response["id"]}')
-            if self.parent.youtube_args['playlistId']:
-                self.parent.add_video_to_playlist(response["id"], self.parent.youtube_args['playlistId'])
-        else:
-            self.logger.info(f'Could not parse a video ID from uploading {self.path}')
+        self.parent.upload_video(self.path, self.get_youtube_body(self.parent.chapters_type), self.id, keep=self.keep)
     
     def get_youtube_body(self, chapters=False):
         body = {

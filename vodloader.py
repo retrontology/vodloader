@@ -1,9 +1,13 @@
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
+from googleapiclient.http import MediaFileUpload
+from googleapiclient.errors import HttpError
 from twitchAPI.types import VideoType
 import os
+from time import sleep
 import _thread
+from threading import Thread
 import pickle
 import logging
 from vodloader_video import vodloader_video
@@ -24,8 +28,11 @@ class vodloader(object):
         self.webhook = webhook
         self.upload = upload
         if self.upload:
+            self.upload_queue = []
             self.youtube = self.setup_youtube(yt_json)
             self.youtube_args = twitch_config['youtube_param']
+            self.upload_process = Thread(target=self.upload_queue_loop, args=())
+            self.upload_process.start()
         else:
             self.youtube = None
             self.youtube_args = None
@@ -136,6 +143,49 @@ class vodloader(object):
     def get_user_id(self):
         user_info = self.twitch.get_users(logins=[self.channel])
         return user_info['data'][0]['id']
+
+
+    def upload_queue_loop(self):
+        while True:
+            if len(self.upload_queue) > 0:
+                self.upload_queue[0].start()
+                self.upload_queue[0].join()
+                del self.upload_queue[0]
+            else: sleep(15)
+
+
+    def queue_upload(self, path, body, vid_id, keep=False, chunk_size=4194304, retry=3):
+        thread = Thread(target=self.upload_video, args=(path, body, vid_id, keep))
+        self.upload_queue.append(thread)
+
+
+    def upload_video(self, path, body, id, keep=False, chunk_size=4194304, retry=3):
+        self.logger.info(f'Uploading file {path} to YouTube account for {self.channel}')
+        uploaded = False
+        attempts = 0
+        while uploaded == False:
+            media = MediaFileUpload(path, mimetype='video/mpegts', chunksize=chunk_size, resumable=True)
+            upload = self.youtube.videos().insert(part=",".join(body.keys()), body=body, media_body=media)
+            try:
+                response = upload.execute()
+            except HttpError as e:
+                self.logger.error(e.resp)
+                self.logger.error(e.content)
+            self.logger.debug(response)
+            uploaded = response['status']['uploadStatus'] == 'uploaded'
+            if not uploaded:
+                attempts += 1
+            if attempts >= retry:
+                self.logger.error(f'Number of retry attempt exceeded for {path}')
+                break
+        if 'id' in response:
+            self.logger.info(f'Finished uploading {path} to https://youtube.com/watch?v={response["id"]}')
+            if self.youtube_args['playlistId']:
+                self.add_video_to_playlist(response["id"], self.youtube_args['playlistId'])
+            self.status[id] = 'uploaded'
+            if not keep: os.remove(path)
+        else:
+            self.logger.info(f'Could not parse a video ID from uploading {path}')
 
 
     def add_video_to_playlist(self, video_id, playlist_id, pos=0):
