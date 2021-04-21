@@ -12,19 +12,28 @@ import json
 
 class vodloader_video(object):
 
-    def __init__(self, parent, url, twitch_data, backlog=False, quality='best'):
+    def __init__(self, parent, url, twitch_data, backlog=False, quality='best', part=1):
         self.parent = parent
         self.logger = logging.getLogger(f'vodloader.{self.parent.channel}.video')
+        self.part = part
         self.backlog = backlog
         self.quality = quality
+        self.passed = False
         self.upload = self.parent.upload
         self.keep = self.parent.keep
+        self.twitch_data = twitch_data
         self.id = twitch_data['id']
         if backlog: self.start_absolute = twitch_data['created_at']
         else: self.start_absolute = twitch_data['started_at']
         self.start_absolute = self.parent.tz.localize(datetime.datetime.strptime(self.start_absolute, '%Y-%m-%dT%H:%M:%SZ'))
+        self.start = datetime.datetime.now()
         self.download_url = url
-        self.path = os.path.join(self.parent.download_dir, f'{self.id}.ts')
+        name = self.id
+        if self.part > 1:
+            name += f'.p{self.part}'
+            self.id += f'p{self.part}'
+        name += '.ts'
+        self.path = os.path.join(self.parent.download_dir, name)
         self.chapters = self.chapters_init(twitch_data)
         self.thread = Thread(target=self.buffload_stream, args=())
         self.thread.start()
@@ -53,8 +62,8 @@ class vodloader_video(object):
             self.parent.status[self.id] = 'uploaded'
         if os.path.exists(self.path) and not self.keep:
             os.remove(self.path)
-    
-    def download_stream(self, chunk_size=8192):
+
+    def download_stream(self, chunk_size=8192, max_length=60*(60*12-15)):
         self.logger.info(f'Downloading stream from {self.download_url} to {self.path}')
         stream = self.get_stream(self.download_url, self.quality).open()
         with open(self.path, 'wb') as f:
@@ -66,6 +75,13 @@ class vodloader_video(object):
                 except OSError as err:
                     self.logger.error(err)
                     break
+                if (datetime.datetime.now() - self.start).seconds > max_length-15 and not self.passed:
+                    self.passed = True
+                    self.logger.info(f'Max length of {max_length} seconds has been exceeded for {self.path}, continuing download in part {self.part+1}')
+                    self.parent.oldstream = self
+                    self.parent.livestream = vodloader_video(self.parent, self.download_url, self.twitch_data, backlog=self.backlog, quality=self.quality, part=self.part+1)
+                if (datetime.datetime.now() - self.start).seconds > max_length:
+                    stream.close()
         stream.close()
         self.logger.info(f'Finished downloading stream from {self.download_url}')
 
@@ -117,6 +133,8 @@ class vodloader_video(object):
                     body['snippet']['description'] += f'\n\n\n\n{self.chapters.get_game_chapters()}'
                 if chapters.lower() == 'titles' and self.chapters.get_title_chapters():
                     body['snippet']['description'] += f'\n\n\n\n{self.chapters.get_title_chapters()}'
+        if self.part > 1:
+            body['snippet']['title'] = f'{body["snippet"]["title"]} Part {self.part}'
         return body
 
     def get_formatted_string(self, input, date):
