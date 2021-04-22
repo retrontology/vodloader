@@ -6,7 +6,6 @@ from googleapiclient.errors import HttpError
 from twitchAPI.types import VideoType
 import os
 from time import sleep
-import _thread
 from threading import Thread
 import pickle
 import logging
@@ -18,6 +17,7 @@ import pytz
 class vodloader(object):
 
     def __init__(self, channel, twitch, webhook, twitch_config, yt_json, download_dir, keep=False, upload=True, tz=pytz.timezone("America/Chicago")):
+        self.end = False
         self.channel = channel
         self.logger = logging.getLogger(f'vodloader.{self.channel}')
         self.logger.info(f'Setting up vodloader for {self.channel}')
@@ -53,8 +53,8 @@ class vodloader(object):
         else:
             self.backlog = False
         if self.backlog:
-            _thread.start_new_thread(self.backlog_buffload, ())
-
+            self.backlog_process = Thread(target=self.backlog_buffload, args=())
+            self.backlog_process.start()
 
     def setup_youtube(self, jsonfile):
         self.logger.info(f'Building YouTube flow for {self.channel}')
@@ -85,10 +85,8 @@ class vodloader(object):
             self.logger.info(f'YouTube credential pickle file for {self.channel} found!')
         return build(api_name, api_version, credentials=creds)
 
-
     def __del__(self):
         self.webhook_unsubscribe()
-
 
     def callback_stream_changed(self, uuid, data):
         self.logger.info(f'Received webhook callback for {self.channel}')
@@ -109,7 +107,6 @@ class vodloader(object):
             self.live = False
             self.logger.info(f'{self.channel} has gone offline')
 
-
     def get_live(self):
         data = self.twitch.get_streams(user_id=self.user_id)
         if not data['data']:
@@ -120,7 +117,6 @@ class vodloader(object):
             self.live = False
         return self.live
 
-
     def webhook_unsubscribe(self):
         if self.webhook_uuid:
             success = self.webhook.unsubscribe(self.webhook_uuid)
@@ -128,7 +124,6 @@ class vodloader(object):
                 self.webhook_uuid = ''
                 self.logger.info(f'Unsubscribed from webhook for {self.channel}')
             return success
-
 
     def webhook_subscribe(self):
         success, uuid = self.webhook.subscribe_stream_changed(self.user_id, self.callback_stream_changed)
@@ -139,11 +134,9 @@ class vodloader(object):
             self.webhook_uuid = None
         return success
 
-
     def get_user_id(self):
         user_info = self.twitch.get_users(logins=[self.channel])
         return user_info['data'][0]['id']
-
 
     def upload_queue_loop(self):
         while True:
@@ -152,12 +145,11 @@ class vodloader(object):
                 self.upload_queue[0].join()
                 del self.upload_queue[0]
             else: sleep(15)
-
+            if self.end: break
 
     def queue_upload(self, path, body, vid_id, keep=False, chunk_size=4194304, retry=3):
         thread = Thread(target=self.upload_video, args=(path, body, vid_id, keep))
         self.upload_queue.append(thread)
-
 
     def upload_video(self, path, body, id, keep=False, chunk_size=4194304, retry=3):
         self.logger.info(f'Uploading file {path} to YouTube account for {self.channel}')
@@ -187,7 +179,6 @@ class vodloader(object):
         else:
             self.logger.info(f'Could not parse a video ID from uploading {path}')
 
-
     def add_video_to_playlist(self, video_id, playlist_id, pos=0):
         request = self.youtube.playlistItems().insert(
             part="snippet",
@@ -209,7 +200,6 @@ class vodloader(object):
         except Exception as e:
             self.logger.error(e)
 
-
     def get_channel_videos(self, video_type=VideoType.ARCHIVE):
         cursor = None
         videos = []
@@ -224,14 +214,9 @@ class vodloader(object):
                 cursor = data['pagination']['cursor']
         return videos
     
-
     def backlog_buffload(self):
         videos = self.get_channel_videos()
         videos.sort(reverse=False, key=lambda x: x['id'])
         for video in videos:
             v = vodloader_video(self, video['url'], video, backlog=True, quality=self.quality)
             v.thread.join()
-
-
-    def get_stream_markers(self, vod_id):
-        url = f'https://api.twitch.tv/kraken/videos/{vod_id}/markers?api_version=5&client_id={self.twitch.client_id}'

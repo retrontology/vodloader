@@ -1,30 +1,30 @@
+download:
+  directory: /home/blazer/git/vodloader/videos
+  keep: false
 twitch:
-  client_id: "cxlvasdfualsdm"
-  client_secret: "dfalsdfusdofoiiulx"
   channels:
     Rlly:
-      backlog: False
-      chapters: "titles"
-      quality: "best"
-      timezone: "America/Cambridge_Bay"
+      backlog: false
+      chapters: titles
+      quality: best
+      timezone: America/Cambridge_Bay
       youtube_param:
-        title: "%C VOD %m/%d/%Y"
-        description: "Follow %C at https://twitch.tv/%C to watch live!"
-        categoryId: "20"
-        privacy: "private"
-        playlistId: "PLRV-ewmAAe9rHVKkhr3hz3eSzME__G0si"
+        categoryId: '20'
+        description: Follow %C at https://twitch.tv/%C to watch live!
+        playlistId: PLRV-ewmAAe9rHVKkhr3hz3eSzME__G0si
+        privacy: private
         tags:
-          - "GTA RP"
-          - "nopixel"
+        - GTA RP
+        - nopixel
+        title: '%C VOD %m/%d/%Y'
+  client_id: cxlvasdfualsdm
+  client_secret: dfalsdfusdofoiiulx
   webhook:
-    host: "mysupersecretdomain.com"
-    local: "192.168.1.2"
+    host: mysupersecretdomain.com
+    local: 192.168.1.2
     port: 42069
+    ssl_cert: server.pem
     ssl_port: 42070
-    ssl_cert: "server.pem"
 youtube:
-  upload: True
-  json: "secrets.json"
-download:
-  keep: False
-  directory: ""
+  json: secrets.json
+  upload: true

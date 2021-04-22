@@ -34,7 +34,6 @@ def load_config(filename):
     config.save()
     return config
 
-
 def setup_logger(logname, logpath=""):
     if not logpath or logpath == "":
         logpath = os.path.join(os.path.dirname(__file__), 'logs')
@@ -46,7 +45,7 @@ def setup_logger(logname, logpath=""):
     logger.setLevel(logging.DEBUG)
     file_handler = logging.handlers.TimedRotatingFileHandler(os.path.join(logpath, logname), when='midnight')
     stream_handler = logging.StreamHandler()
-    form = logging.Formatter('%(asctime)s [%(levelname)s] %(message)s')
+    form = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
     file_handler.setFormatter(form)
     stream_handler.setFormatter(form)
     file_handler.setLevel(logging.INFO)
@@ -55,12 +54,10 @@ def setup_logger(logname, logpath=""):
     logger.addHandler(stream_handler)
     return logger
 
-
 def setup_twitch(client_id, client_secret):
     twitch = Twitch(client_id, client_secret)
     twitch.authenticate_app([])
     return twitch
-
 
 def setup_ssl_reverse_proxy(host, local, ssl_port, http_port, certfile):
     handler = partial(proxy_request_handler, http_port)
@@ -69,13 +66,11 @@ def setup_ssl_reverse_proxy(host, local, ssl_port, http_port, certfile):
     _thread.start_new_thread(httpd.serve_forever, ())
     return httpd
 
-
 def setup_webhook(host, ssl_port, client_id, port, twitch):
     hook = TwitchWebHook('https://' + host + ":" + str(ssl_port), client_id, port)
     hook.authenticate(twitch) 
     hook.start()
     return hook
-
 
 def main():
     logger = setup_logger('vodloader')
@@ -96,11 +91,11 @@ def main():
     except:
         logger.info(f'Shutting down')
         for v in vodloaders:
+            v.end = True
             v.webhook_unsubscribe()
         hook.stop()
         ssl_httpd.shutdown()
         ssl_httpd.socket.close()
-
 
 if __name__ == '__main__':
     main()
