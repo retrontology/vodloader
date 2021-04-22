@@ -76,7 +76,10 @@ class vodloader_video(object):
                     self.passed = True
                     self.logger.info(f'Max length of {max_length} seconds has been exceeded for {self.path}, continuing download in part {self.part+1}')
                     self.parent.oldstream = self
-                    self.parent.livestream = vodloader_video(self.parent, self.download_url, self.twitch_data, backlog=self.backlog, quality=self.quality, part=self.part+1)
+                    twitch_data = self.twitch_data.copy()
+                    twitch_data['game_name'] = self.chapters.get_current_game()
+                    twitch_data['title'] = self.chapters.get_current_title()
+                    self.parent.livestream = vodloader_video(self.parent, self.download_url, twitch_data, backlog=self.backlog, quality=self.quality, part=self.part+1)
                 if (datetime.datetime.now() - self.start).seconds > max_length:
                     stream.close()
         stream.close()
