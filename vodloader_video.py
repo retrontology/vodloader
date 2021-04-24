@@ -8,6 +8,7 @@ import datetime
 import streamlink
 import requests
 import json
+import pytz
 
 
 class vodloader_video(object):
@@ -25,7 +26,8 @@ class vodloader_video(object):
         self.id = twitch_data['id']
         if backlog: self.start_absolute = twitch_data['created_at']
         else: self.start_absolute = twitch_data['started_at']
-        self.start_absolute = self.parent.tz.localize(datetime.datetime.strptime(self.start_absolute, '%Y-%m-%dT%H:%M:%SZ'))
+        self.start_absolute = pytz.timezone('UTC').localize(datetime.datetime.strptime(self.start_absolute, '%Y-%m-%dT%H:%M:%SZ'))
+        self.start_absolute = self.start_absolute.astimezone(self.parent.tz)
         self.start = datetime.datetime.now()
         self.download_url = url
         name = self.id
