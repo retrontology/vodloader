@@ -178,8 +178,28 @@ class vodloader(object):
             if not keep: os.remove(path)
         else:
             self.logger.info(f'Could not parse a video ID from uploading {path}')
+    
+    def get_playlist_items(self, playlist_id):
+        items = []
+        npt = ""
+        while True:
+            request = self.youtube.playlistItems().list(
+                part="snippet",
+                maxResults=50,
+                pageToken=npt,
+                playlistId=playlist_id
+            )
+            response = request.execute()
+            items.extend(response['items'])
+            if 'nextPageToken' in response:
+                npt = response['nextPageToken']
+            else:
+                break
+        return items
 
-    def add_video_to_playlist(self, video_id, playlist_id, pos=0):
+    def add_video_to_playlist(self, video_id, playlist_id, pos=-1):
+        if pos == -1:
+            pos = len(self.get_playlist_items(playlist_id))
         request = self.youtube.playlistItems().insert(
             part="snippet",
             body={
@@ -200,7 +220,7 @@ class vodloader(object):
         except Exception as e:
             self.logger.error(e)
 
-    def get_channel_videos(self, video_type=VideoType.ARCHIVE):
+    def get_twitch_videos(self, video_type=VideoType.ARCHIVE):
         cursor = None
         videos = []
         while True:
@@ -215,7 +235,7 @@ class vodloader(object):
         return videos
     
     def backlog_buffload(self):
-        videos = self.get_channel_videos()
+        videos = self.get_twitch_videos()
         videos.sort(reverse=False, key=lambda x: x['id'])
         for video in videos:
             v = vodloader_video(self, video['url'], video, backlog=True, quality=self.quality)
