@@ -13,6 +13,7 @@ from vodloader_video import vodloader_video
 from vodloader_status import vodloader_status
 from vodloader_chapters import vodloader_chapters
 import pytz
+import datetime
 
 class vodloader(object):
 
@@ -27,15 +28,14 @@ class vodloader(object):
         self.twitch = twitch
         self.webhook = webhook
         self.upload = upload
+        self.youtube_args = twitch_config['youtube_param']
         if self.upload:
             self.upload_queue = []
             self.youtube = self.setup_youtube(yt_json)
-            self.youtube_args = twitch_config['youtube_param']
             self.upload_process = Thread(target=self.upload_queue_loop, args=())
             self.upload_process.start()
         else:
             self.youtube = None
-            self.youtube_args = None
         self.user_id = self.get_user_id()
         self.status = vodloader_status(self.user_id)
         self.get_live()
@@ -236,7 +236,14 @@ class vodloader(object):
     
     def backlog_buffload(self):
         videos = self.get_twitch_videos()
-        videos.sort(reverse=False, key=lambda x: x['id'])
+        videos.sort(reverse=False, key=lambda x: datetime.datetime.strptime((x['created_at']), '%Y-%m-%dT%H:%M:%SZ'))
+        datafile = os.path.join(self.download_dir, 'titles.txt')
         for video in videos:
-            v = vodloader_video(self, video['url'], video, backlog=True, quality=self.quality)
-            v.thread.join()
+            self.backlog_video = vodloader_video(self, video['url'], video, backlog=True, quality=self.quality)
+            title = f'{self.backlog_video.id}: {self.backlog_video.get_formatted_string(self.youtube_args["title"], self.backlog_video.start_absolute)}\n'
+            while self.backlog_video.thread.is_alive():
+                self.backlog_video.thread.join()
+                sleep(1)
+            if not self.upload:
+                with open(datafile, 'a') as fl:
+                    fl.write(title)

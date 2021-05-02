@@ -2,6 +2,7 @@ from vodloader_chapters import vodloader_chapters
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 from threading import Thread
+from math import floor
 import logging
 import os
 import datetime
@@ -42,11 +43,11 @@ class vodloader_video(object):
 
     def chapters_init(self, twitch_data):
         if self.backlog:
-            chapters = None
+            game = ''
         else:
             game = twitch_data['game_name']
-            title = twitch_data['title']
-            chapters = vodloader_chapters(game, title)
+        title = twitch_data['title']
+        chapters = vodloader_chapters(game, title)
         return chapters
 
     def __del__(self):
@@ -62,29 +63,44 @@ class vodloader_video(object):
         if self.upload and self.parent.status[self.id] != 'uploaded':
             self.upload_stream()
 
-    def download_stream(self, chunk_size=8192, max_length=60*(60*12-15)):
+    def download_stream(self, chunk_size=8192, max_length=60*(60*12-15), retry=10):
         self.logger.info(f'Downloading stream from {self.download_url} to {self.path}')
-        stream = self.get_stream(self.download_url, self.quality).open()
+        stream = self.get_stream(self.download_url, self.quality)
+        if self.part > 1 and self.backlog:
+            stream.start_offset = self.part * (max_length - 15 * self.part)
+        buff = stream.open()
+        if self.backlog:
+            seq_limit = floor(max_length/10) * self.part
+        error = 0
         with open(self.path, 'wb') as f:
-            data = stream.read(chunk_size)
-            while data:
+            data = buff.read(chunk_size)
+            while data and error < retry:
                 try:
                     f.write(data)
-                    data = stream.read(chunk_size)
+                    data = buff.read(chunk_size)
                 except OSError as err:
                     self.logger.error(err)
-                    break
-                if (datetime.datetime.now() - self.start).seconds > max_length-15 and not self.passed:
+                    error += 1
+                if self.backlog:
+                    should_pass = buff.worker.playlist_sequence >= (seq_limit - 2)
+                    should_close = buff.worker.playlist_sequence >= seq_limit
+                else:
+                    should_pass = (datetime.datetime.now() - self.start).seconds > max_length-15
+                    should_close = (datetime.datetime.now() - self.start).seconds > max_length
+                if should_pass and not self.passed:
                     self.passed = True
                     self.logger.info(f'Max length of {max_length} seconds has been exceeded for {self.path}, continuing download in part {self.part+1}')
-                    self.parent.oldstream = self
                     twitch_data = self.twitch_data.copy()
                     twitch_data['game_name'] = self.chapters.get_current_game()
                     twitch_data['title'] = self.chapters.get_current_title()
-                    self.parent.livestream = vodloader_video(self.parent, self.download_url, twitch_data, backlog=self.backlog, quality=self.quality, part=self.part+1)
-                if (datetime.datetime.now() - self.start).seconds > max_length:
-                    stream.close()
-        stream.close()
+                    if self.backlog:
+                        self.parent.backlog_video = vodloader_video(self.parent, self.download_url, twitch_data, backlog=self.backlog, quality=self.quality, part=self.part+1)
+                    else:
+                        self.parent.livestream = vodloader_video(self.parent, self.download_url, twitch_data, backlog=self.backlog, quality=self.quality, part=self.part+1)
+                if should_close:
+                    buff.close()
+                    break
+        buff.close()
         self.logger.info(f'Finished downloading stream from {self.download_url}')
 
     def upload_stream(self, chunk_size=4194304, retry=3):
@@ -132,3 +148,5 @@ class vodloader_video(object):
             if r.status_code == 200:
                 return json.loads(r.content)
         return None
+
+
