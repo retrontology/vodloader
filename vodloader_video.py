@@ -67,7 +67,7 @@ class vodloader_video(object):
         self.logger.info(f'Downloading stream from {self.download_url} to {self.path}')
         stream = self.get_stream(self.download_url, self.quality)
         if self.part > 1 and self.backlog:
-            stream.start_offset = (self.part - 1) * (max_length - 15 * (self.part - 1))
+            stream.start_offset = (self.part - 1) * (max_length - 60 * 10 * (self.part - 1))
         buff = stream.open()
         if self.backlog:
             seq_limit = floor(max_length/10) * self.part
