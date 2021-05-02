@@ -71,7 +71,6 @@ class vodloader_video(object):
         buff = stream.open()
         if self.backlog:
             seq_limit = floor(max_length/10) * self.part
-            print(seq_limit)
         error = 0
         with open(self.path, 'wb') as f:
             data = buff.read(chunk_size)
