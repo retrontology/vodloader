@@ -140,4 +140,4 @@ logs/
 backlog_status
 pickles/*
 videos/*
-server.pem
+*.pem
