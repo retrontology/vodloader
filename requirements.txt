@@ -4,4 +4,4 @@ streamlink==2.1.1
 google_api_python_client==2.1.0
 protobuf==3.15.7
 PyYAML==5.4.1
-twitchAPI==2.3.1
+twitchAPI==2.3.2
