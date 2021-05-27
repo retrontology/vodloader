@@ -6,6 +6,7 @@ from googleapiclient.errors import HttpError
 from twitchAPI.types import VideoType
 import os
 from time import sleep
+from tzlocal import get_localzone
 from threading import Thread
 import pickle
 import logging
@@ -14,6 +15,7 @@ from vodloader_status import vodloader_status
 from vodloader_chapters import vodloader_chapters
 import pytz
 import datetime
+import json
 
 class vodloader(object):
 
@@ -141,15 +143,13 @@ class vodloader(object):
     def upload_queue_loop(self):
         while True:
             if len(self.upload_queue) > 0:
-                self.upload_queue[0].start()
-                self.upload_queue[0].join()
-                del self.upload_queue[0]
-            else: sleep(15)
+                try:
+                    self.upload_video(*self.upload_queue[0])
+                    del self.upload_queue[0]
+                except YouTubeOverQuota as e:
+                    self.wait_for_quota()
+            else: sleep(1)
             if self.end: break
-
-    def queue_upload(self, path, body, vid_id, keep=False, chunk_size=4194304, retry=3):
-        thread = Thread(target=self.upload_video, args=(path, body, vid_id, keep))
-        self.upload_queue.append(thread)
 
     def upload_video(self, path, body, id, keep=False, chunk_size=4194304, retry=3):
         self.logger.info(f'Uploading file {path} to YouTube account for {self.channel}')
@@ -161,14 +161,18 @@ class vodloader(object):
             try:
                 response = upload.execute()
             except HttpError as e:
-                self.logger.error(e.resp)
-                self.logger.error(e.content)
+                c = json.loads(e.content)
+                if c['error']['errors'][0]['domain'] == 'youtube.quota' and c['error']['errors'][0]['reason'] == 'quotaExceeded':
+                    raise YouTubeOverQuota
+                else:
+                    self.logger.error(e.resp)
+                    self.logger.error(e.content)
             self.logger.debug(response)
             uploaded = response['status']['uploadStatus'] == 'uploaded'
             if not uploaded:
                 attempts += 1
             if attempts >= retry:
-                self.logger.error(f'Number of retry attempt exceeded for {path}')
+                self.logger.error(f'Number of retry attempts exceeded for {path}')
                 break
         if 'id' in response:
             self.logger.info(f'Finished uploading {path} to https://youtube.com/watch?v={response["id"]}')
@@ -179,6 +183,18 @@ class vodloader(object):
         else:
             self.logger.info(f'Could not parse a video ID from uploading {path}')
     
+    def wait_for_quota(self):
+        now = datetime.datetime.now()
+        until = now + datetime.timedelta(days=1)
+        until = until - datetime.timedelta(microseconds=until.microsecond, seconds=until.second, minutes=until.minute, hours=until.hour)
+        until = pytz.timezone('US/Pacific').localize(until)
+        now = get_localzone().localize(now)
+        wait = until - now
+        if wait.days > 0:
+            wait = wait - datetime.timedelta(days=wait.days)
+        self.logger.error(f'YouTube upload quota has been exceeded, waiting for reset at Midnight Pacific Time in {wait.seconds} seconds')
+        sleep(wait.seconds + 15)
+
     def get_playlist_items(self, playlist_id):
         items = []
         npt = ""
@@ -247,3 +263,7 @@ class vodloader(object):
             if not self.upload:
                 with open(datafile, 'a') as fl:
                     fl.write(title)
+
+class YouTubeOverQuota(Exception):
+    """ called when youtube upload quota is exceeded """
+    pass

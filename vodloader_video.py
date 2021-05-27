@@ -104,7 +104,7 @@ class vodloader_video(object):
         self.logger.info(f'Finished downloading stream from {self.download_url}')
 
     def upload_stream(self, chunk_size=4194304, retry=3):
-        self.parent.queue_upload(self.path, self.get_youtube_body(self.parent.chapters_type), self.id, keep=self.keep)
+        self.parent.upload_queue.append((self.path, self.get_youtube_body(self.parent.chapters_type), self.id, self.keep))
     
     def get_youtube_body(self, chapters=False):
         body = {
