@@ -38,7 +38,7 @@ class vodloader_video(object):
         name += '.ts'
         self.path = os.path.join(self.parent.download_dir, name)
         self.chapters = self.chapters_init(twitch_data)
-        self.thread = Thread(target=self.buffload_stream, args=())
+        self.thread = Thread(target=self.buffload_stream, args=(), daemon=True)
         self.thread.start()
 
     def chapters_init(self, twitch_data):

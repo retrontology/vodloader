@@ -34,7 +34,7 @@ class vodloader(object):
         if self.upload:
             self.upload_queue = []
             self.youtube = self.setup_youtube(yt_json)
-            self.upload_process = Thread(target=self.upload_queue_loop, args=())
+            self.upload_process = Thread(target=self.upload_queue_loop, args=(), daemon=True)
             self.upload_process.start()
         else:
             self.youtube = None
@@ -55,7 +55,7 @@ class vodloader(object):
         else:
             self.backlog = False
         if self.backlog:
-            self.backlog_process = Thread(target=self.backlog_buffload, args=())
+            self.backlog_process = Thread(target=self.backlog_buffload, args=(), daemon=True)
             self.backlog_process.start()
 
     def setup_youtube(self, jsonfile):
