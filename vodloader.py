@@ -178,7 +178,8 @@ class vodloader(object):
             self.logger.info(f'Finished uploading {path} to https://youtube.com/watch?v={response["id"]}')
             if self.youtube_args['playlistId']:
                 self.add_video_to_playlist(response["id"], self.youtube_args['playlistId'])
-            self.status[id] = 'uploaded'
+            self.status[id] = False
+            self.status.save()
             if not keep: os.remove(path)
         else:
             self.logger.info(f'Could not parse a video ID from uploading {path}')

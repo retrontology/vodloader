@@ -59,8 +59,7 @@ class vodloader_video(object):
     def buffload_stream(self):
         if not self.id in self.parent.status:
             self.download_stream()
-            self.parent.status[self.id] = 'downloaded'
-        if self.upload and self.parent.status[self.id] != 'uploaded':
+        if self.upload and self.parent.status[self.id] != True:
             self.upload_stream()
 
     def download_stream(self, chunk_size=8192, max_length=60*(60*12-15), retry=10):
@@ -101,6 +100,8 @@ class vodloader_video(object):
                     buff.close()
                     break
         buff.close()
+        self.parent.status[self.id] = False
+        self.parent.status.save()
         self.logger.info(f'Finished downloading stream from {self.download_url}')
 
     def upload_stream(self, chunk_size=4194304, retry=3):
