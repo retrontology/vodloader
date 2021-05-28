@@ -3,6 +3,7 @@ from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload
 from threading import Thread
 from math import floor
+from time import sleep
 import logging
 import os
 import datetime
@@ -74,6 +75,8 @@ class vodloader_video(object):
         with open(self.path, 'wb') as f:
             data = buff.read(chunk_size)
             while data and error < retry:
+                while self.parent.pause:
+                    sleep(10)
                 try:
                     f.write(data)
                     data = buff.read(chunk_size)

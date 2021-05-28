@@ -42,6 +42,7 @@ You need to set up your config file before you run the program so it knows what 
 * **download**:
   * **keep**: (True/False) Whether you want to keep the downloads or delete them after they're uploaded
   * **directory**: Where you want to store the downloaded videos before they are uploaded. Can be left blank and will default to the video folder.
+  * **quota_pause**: Whether or not you want to pause downloading the backlog while waiting for the YouTube quota to reset
 
 
 ## Running

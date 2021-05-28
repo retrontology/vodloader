@@ -18,8 +18,6 @@ def load_config(filename):
         config['download']['directory'] = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'videos')
     if not os.path.isdir(config['download']['directory']):
         os.mkdir(config['download']['directory'])
-    if not 'local' in config['twitch']['webhook'] or not config['twitch']['webhook']['local']:
-        config['twitch']['webhook']['local'] = config['twitch']['webhook']['host']
     for channel in config['twitch']['channels']:
         if not 'timezone' in config['twitch']['channels'][channel] or config['twitch']['channels'][channel]['timezone'] == '':
             config['twitch']['channels'][channel]['timezone'] ='UTC'
@@ -71,7 +69,7 @@ def main():
     logger.info(f'Initiating vodloaders')
     vodloaders = []
     for channel in config['twitch']['channels']:
-        vodloaders.append(vodloader(channel, twitch, hook, config['twitch']['channels'][channel], config['youtube']['json'], config['download']['directory'], config['download']['keep'], config['youtube']['upload'], pytz.timezone(config['twitch']['channels'][channel]['timezone'])))
+        vodloaders.append(vodloader(channel, twitch, hook, config['twitch']['channels'][channel], config['youtube']['json'], config['download']['directory'], config['download']['keep'], config['youtube']['upload'], config['download']['quota_pause'], pytz.timezone(config['twitch']['channels'][channel]['timezone'])))
     try:
         while True:
             time.sleep(600)

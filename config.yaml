@@ -1,6 +1,7 @@
 download:
   directory: /mnt/chumbo/git/vodloader/videos
   keep: false
+  quota_pause: true
 twitch:
   channels:
     Rlly:

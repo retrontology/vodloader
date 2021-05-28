@@ -141,3 +141,7 @@ backlog_status
 pickles/*
 videos/*
 *.pem
+*.key
+*.bak
+*.crt
+TODO

@@ -19,7 +19,7 @@ import json
 
 class vodloader(object):
 
-    def __init__(self, channel, twitch, webhook, twitch_config, yt_json, download_dir, keep=False, upload=True, tz=pytz.timezone("America/Chicago")):
+    def __init__(self, channel, twitch, webhook, twitch_config, yt_json, download_dir, keep=False, upload=True, quota_pause=True, tz=pytz.timezone("America/Chicago")):
         self.end = False
         self.channel = channel
         self.logger = logging.getLogger(f'vodloader.{self.channel}')
@@ -30,6 +30,8 @@ class vodloader(object):
         self.twitch = twitch
         self.webhook = webhook
         self.upload = upload
+        self.quota_pause = quota_pause
+        self.pause = False
         self.youtube_args = twitch_config['youtube_param']
         if self.upload:
             self.upload_queue = []
@@ -185,6 +187,7 @@ class vodloader(object):
             self.logger.info(f'Could not parse a video ID from uploading {path}')
     
     def wait_for_quota(self):
+        self.pause = True
         now = datetime.datetime.now()
         until = now + datetime.timedelta(days=1)
         until = until - datetime.timedelta(microseconds=until.microsecond, seconds=until.second, minutes=until.minute, hours=until.hour)
@@ -195,6 +198,7 @@ class vodloader(object):
             wait = wait - datetime.timedelta(days=wait.days)
         self.logger.error(f'YouTube upload quota has been exceeded, waiting for reset at Midnight Pacific Time in {wait.seconds} seconds')
         sleep(wait.seconds + 15)
+        self.pause = False
 
     def get_playlist_items(self, playlist_id):
         items = []
@@ -256,6 +260,8 @@ class vodloader(object):
         videos.sort(reverse=False, key=lambda x: datetime.datetime.strptime((x['created_at']), '%Y-%m-%dT%H:%M:%SZ'))
         datafile = os.path.join(self.download_dir, 'titles.txt')
         for video in videos:
+            while self.pause:
+                sleep(10)
             self.backlog_video = vodloader_video(self, video['url'], video, backlog=True, quality=self.quality)
             title = f'{self.backlog_video.id}: {self.backlog_video.get_formatted_string(self.youtube_args["title"], self.backlog_video.start_absolute)}\n'
             while self.backlog_video.thread.is_alive():
