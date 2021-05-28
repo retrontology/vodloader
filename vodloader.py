@@ -260,8 +260,10 @@ class vodloader(object):
         videos.sort(reverse=False, key=lambda x: datetime.datetime.strptime((x['created_at']), '%Y-%m-%dT%H:%M:%SZ'))
         datafile = os.path.join(self.download_dir, 'titles.txt')
         for video in videos:
-            while self.pause:
-                sleep(10)
+            if self.pause and self.quota_pause:
+                self.logger.info('Pausing backlog processing until YouTube quota is refreshed')
+                while self.pause:
+                    sleep(10)
             self.backlog_video = vodloader_video(self, video['url'], video, backlog=True, quality=self.quality)
             title = f'{self.backlog_video.id}: {self.backlog_video.get_formatted_string(self.youtube_args["title"], self.backlog_video.start_absolute)}\n'
             while self.backlog_video.thread.is_alive():
