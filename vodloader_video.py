@@ -135,7 +135,14 @@ class vodloader_video(object):
                     body['snippet']['description'] += f'\n\n\n\n{self.chapters.get_title_chapters()}'
         if self.part > 1:
             body['snippet']['title'] = f'{body["snippet"]["title"]} Part {self.part}'
+        body['snippet']['title'] = self.filter_string(body['snippet']['title'])
+        body['snippet']['description'] = self.filter_string(body['snippet']['description'])
         return body
+    
+    @staticmethod
+    def filter_string(s):
+        nono_chars = '<>|'
+        return ''.join([x for x in s if not x in nono_chars])
 
     def get_formatted_string(self, input, date):
         output = input.replace('%C', self.parent.channel)
