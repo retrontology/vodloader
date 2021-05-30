@@ -157,6 +157,7 @@ class vodloader(object):
         self.logger.info(f'Uploading file {path} to YouTube account for {self.channel}')
         uploaded = False
         attempts = 0
+        response = None
         while uploaded == False:
             media = MediaFileUpload(path, mimetype='video/mpegts', chunksize=chunk_size, resumable=True)
             upload = self.youtube.videos().insert(part=",".join(body.keys()), body=body, media_body=media)
@@ -176,7 +177,7 @@ class vodloader(object):
             if attempts >= retry:
                 self.logger.error(f'Number of retry attempts exceeded for {path}')
                 break
-        if 'id' in response:
+        if response and 'id' in response:
             self.logger.info(f'Finished uploading {path} to https://youtube.com/watch?v={response["id"]}')
             if self.youtube_args['playlistId']:
                 self.add_video_to_playlist(response["id"], self.youtube_args['playlistId'])
