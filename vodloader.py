@@ -162,6 +162,8 @@ class vodloader(object):
             upload = self.youtube.videos().insert(part=",".join(body.keys()), body=body, media_body=media)
             try:
                 response = upload.execute()
+                self.logger.debug(response)
+                uploaded = response['status']['uploadStatus'] == 'uploaded'
             except HttpError as e:
                 c = json.loads(e.content)
                 if c['error']['errors'][0]['domain'] == 'youtube.quota' and c['error']['errors'][0]['reason'] == 'quotaExceeded':
@@ -169,8 +171,6 @@ class vodloader(object):
                 else:
                     self.logger.error(e.resp)
                     self.logger.error(e.content)
-            self.logger.debug(response)
-            uploaded = response['status']['uploadStatus'] == 'uploaded'
             if not uploaded:
                 attempts += 1
             if attempts >= retry:
