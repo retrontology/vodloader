@@ -75,10 +75,6 @@ class vodloader_video(object):
         with open(self.path, 'wb') as f:
             data = buff.read(chunk_size)
             while data and error < retry:
-                if self.parent.pause and self.parent.quota_pause and self.backlog:
-                    self.logger.info(f'Pausing download for {self.path} until YouTube Quota is refreshed')
-                    while self.parent.pause:
-                        sleep(10)
                 try:
                     f.write(data)
                     data = buff.read(chunk_size)
