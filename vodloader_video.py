@@ -66,11 +66,14 @@ class vodloader_video(object):
     def download_stream(self, chunk_size=8192, max_length=60*(60*12-15), retry=10):
         self.logger.info(f'Downloading stream from {self.download_url} to {self.path}')
         stream = self.get_stream(self.download_url, self.quality)
-        if self.part > 1 and self.backlog:
-            stream.start_offset = (self.part - 1) * (max_length - 60 * 10 * (self.part - 1))
         buff = stream.open()
         if self.backlog:
-            seq_limit = floor(max_length/10) * self.part
+            seglen = buff.worker.playlist_sequences[0].segment.duration
+            seq_limit = floor(max_length/seglen) * self.part
+            if self.part > 1:
+                buff.close()
+                stream.start_offset = (self.part - 1) * (max_length - 60 * seglen * (self.part - 1))
+                buff = stream.open()
         error = 0
         with open(self.path, 'wb') as f:
             data = buff.read(chunk_size)
