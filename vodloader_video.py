@@ -112,11 +112,13 @@ class vodloader_video(object):
         self.parent.upload_queue.append((self.path, self.get_youtube_body(self.parent.chapters_type), self.id, self.keep))
     
     def get_youtube_body(self, chapters=False):
+        tvid = f'tvid:{self.id}'
+        if self.part > 1: tvid += f'.p{self.part}'
         body = {
             'snippet': {
                 'title': self.get_formatted_string(self.parent.youtube_args['title'], self.start_absolute),
                 'description': self.get_formatted_string(self.parent.youtube_args['description'], self.start_absolute),
-                'tags': [f'tvid:{self.id}']
+                'tags': [tvid]
         },
             'status': {
                 'selfDeclaredMadeForKids': False
