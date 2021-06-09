@@ -116,13 +116,13 @@ class vodloader_video(object):
             'snippet': {
                 'title': self.get_formatted_string(self.parent.youtube_args['title'], self.start_absolute),
                 'description': self.get_formatted_string(self.parent.youtube_args['description'], self.start_absolute),
-                'tags': []
+                'tags': [f'tvid:{self.id}']
         },
             'status': {
                 'selfDeclaredMadeForKids': False
             }
         }
-        if 'tags' in self.parent.youtube_args: body['snippet']['tags'] = self.parent.youtube_args['tags']
+        if 'tags' in self.parent.youtube_args: body['snippet']['tags'] += self.parent.youtube_args['tags']
         if 'categoryId' in self.parent.youtube_args: body['snippet']['categoryId'] = self.parent.youtube_args['categoryId']
         if 'privacy' in self.parent.youtube_args: body['status']['privacyStatus'] = self.parent.youtube_args['privacy']
         if not self.backlog:
