@@ -220,6 +220,21 @@ class vodloader(object):
             else:
                 break
         return items
+    
+    @staticmethod
+    def get_tvid_from_yt_item(item):
+        tvid = None
+        for tag in item['snippet']['tags']:
+            if tag[:5] == 'tvid:':
+                tvid = tag[5:]
+        if tvid:
+            tvid = tvid.split('.p', 1)
+            id = int(tvid[0])
+            if len(tvid) > 1: part = int(tvid[1])
+            else: part = None
+            return id, part
+        else: return None
+
 
     def add_video_to_playlist(self, video_id, playlist_id, pos=-1):
         if pos == -1:
