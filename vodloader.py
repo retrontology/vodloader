@@ -4,7 +4,7 @@ from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
-from twitchAPI.types import NotFoundException, VideoType
+from twitchAPI.types import VideoType
 import os
 from time import sleep
 from tzlocal import get_localzone
@@ -13,7 +13,6 @@ import pickle
 import logging
 from vodloader_video import vodloader_video
 from vodloader_status import vodloader_status
-from vodloader_chapters import vodloader_chapters
 import pytz
 import datetime
 import json
@@ -295,6 +294,10 @@ class vodloader(object):
 
     def sort_playlist(self, playlist_id, reverse=False):
         videos = self.get_playlist_items(playlist_id)
+        for video in videos:
+            if video['tvid'] == None:
+                self.logger.error("There was a video found in the specified playlist to be sorted without a valid tvid tag. As such this playlist cannot be reliably sorted.")
+                return
         ordered = videos.copy()
         ordered.sort(reverse=reverse, key=lambda x: (x['tvid'], x['part']))
         i = 0
@@ -306,7 +309,8 @@ class vodloader(object):
                 if j < len(videos):
                     videos.insert(i, videos.pop(j))
                 else:
-                    raise NotFoundException
+                    self.logger.error('An error has occured while sorting the playlist')
+                    return
             i+=1
 
     def get_twitch_videos(self, video_type=VideoType.ARCHIVE):
@@ -340,7 +344,7 @@ class vodloader(object):
             if not self.upload:
                 with open(datafile, 'a') as fl:
                     fl.write(title)
-        self.sort_playlist(self.youtube_args['playlist'])
+        self.sort_playlist(self.youtube_args['playlistId'])
 
 class YouTubeOverQuota(Exception):
     """ called when youtube upload quota is exceeded """
