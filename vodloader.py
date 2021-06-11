@@ -42,6 +42,7 @@ class vodloader(object):
             self.youtube = None
         self.user_id = self.get_user_id()
         self.status = vodloader_status(self.user_id)
+        self.sync_status()
         self.get_live()
         self.webhook_subscribe()
         if 'chapters' in twitch_config and twitch_config['chapters'] != "":
@@ -313,6 +314,12 @@ class vodloader(object):
                     self.logger.error('An error has occured while sorting the playlist')
                     return
             i+=1
+    
+    def sync_status(self):
+        for item in self.get_channel_items():
+            if item['tvid']:
+                self.status[str(item['tvid'])] = True
+        self.status.save()
 
     def get_twitch_videos(self, video_type=VideoType.ARCHIVE):
         cursor = None
