@@ -340,6 +340,7 @@ class vodloader(object):
             if not self.upload:
                 with open(datafile, 'a') as fl:
                     fl.write(title)
+        self.sort_playlist(self.youtube_args['playlist'])
 
 class YouTubeOverQuota(Exception):
     """ called when youtube upload quota is exceeded """
