@@ -1,3 +1,4 @@
+from _typeshed import OpenBinaryModeReading
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
@@ -299,7 +300,10 @@ class vodloader(object):
         i = 0
         while i < len(videos):
             if not videos[i]['id'] == ordered[i]['id']:
-                pass
+                self.set_video_playlist_pos(ordered[i]['id'], self.youtube_args['playlist'], i)
+                j = 0
+                while videos[j]['id'] != ordered[i]['id']: j+=1
+                videos.insert(i, videos.pop(j))
             i+=1
 
     def get_twitch_videos(self, video_type=VideoType.ARCHIVE):
