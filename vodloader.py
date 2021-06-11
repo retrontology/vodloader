@@ -225,7 +225,7 @@ class vodloader(object):
         return items
     
     def get_channel_items(self):
-        request = self.youtube.channels.list(part="contentDetails", mine=True)
+        request = self.youtube.channels().list(part="contentDetails", mine=True)
         try:
             r = request.execute()
             self.logger.debug(r)
