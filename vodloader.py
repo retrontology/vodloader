@@ -183,6 +183,7 @@ class vodloader(object):
             self.logger.info(f'Finished uploading {path} to https://youtube.com/watch?v={response["id"]}')
             if self.youtube_args['playlistId']:
                 self.add_video_to_playlist(response["id"], self.youtube_args['playlistId'])
+                self.sort_playlist(self.youtube_args['playlistId'])
             self.status[id] = True
             self.status.save()
             if not keep: os.remove(path)
@@ -344,7 +345,6 @@ class vodloader(object):
             if not self.upload:
                 with open(datafile, 'a') as fl:
                     fl.write(title)
-        self.sort_playlist(self.youtube_args['playlistId'])
 
 class YouTubeOverQuota(Exception):
     """ called when youtube upload quota is exceeded """
