@@ -1,14 +1,13 @@
-from _typeshed import OpenBinaryModeReading
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
 from twitchAPI.types import VideoType
-import os
 from time import sleep
 from tzlocal import get_localzone
 from threading import Thread
+import os
 import pickle
 import logging
 from vodloader_video import vodloader_video
