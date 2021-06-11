@@ -224,7 +224,14 @@ class vodloader(object):
         return items
     
     def get_channel_items(self):
-        uploads = self.youtube.channels.list(part="contentDetails", mine=True).execute()['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+        request = self.youtube.channels.list(part="contentDetails", mine=True)
+        try:
+            r = request.execute()
+            self.logger.debug(r)
+            uploads = r['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+        except Exception as e:
+            self.logger.error(e)
+            return None
         return self.get_playlist_items(uploads)
     
     @staticmethod
@@ -245,6 +252,27 @@ class vodloader(object):
         if pos == -1:
             pos = len(self.get_playlist_items(playlist_id))
         request = self.youtube.playlistItems().insert(
+            part="snippet",
+            body={
+                "snippet": {
+                    "playlistId": playlist_id,
+                    "position": pos,
+                    "resourceId": {
+                        "kind": "youtube#video",
+                        "videoId": video_id
+                    }
+                }
+            }
+        )
+        try:
+            r = request.execute()
+            self.logger.debug(r)
+            return r
+        except Exception as e:
+            self.logger.error(e)
+    
+    def set_video_playlist_pos(self, video_id, playlist_id, pos):
+        request = self.youtube.playlistItems().update(
             part="snippet",
             body={
                 "snippet": {
