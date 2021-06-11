@@ -224,7 +224,30 @@ class vodloader(object):
                 break
         return items
     
-    def get_channel_items(self):
+    def get_playlist_videos(self, playlist_id):
+        video_ids = [x[''] for x in self.get_playlist_items(playlist_id)]
+        items = []
+        if len(video_ids) > 0:
+            self.youtube.videos().list()
+            npt = ""
+            while True:
+                request = self.youtube.videos().list(
+                    part="snippet",
+                    maxResults=50,
+                    pageToken=npt,
+                    id=video_ids
+                )
+                response = request.execute()
+                for item in response['items']:
+                    item['tvid'], item['part'] = self.get_tvid_from_yt_item(item)
+                    items.append(item)
+                if 'nextPageToken' in response:
+                    npt = response['nextPageToken']
+                else:
+                    break
+        return items
+    
+    def get_channel_videos(self):
         request = self.youtube.channels().list(part="contentDetails", mine=True)
         try:
             r = request.execute()
@@ -233,10 +256,10 @@ class vodloader(object):
         except Exception as e:
             self.logger.error(e)
             return None
-        return self.get_playlist_items(uploads)
+        return self.get_playlist_videos(uploads)
     
     @staticmethod
-    def get_tvid_from_yt_item(item):
+    def get_tvid_from_yt_video(item):
         tvid = None
         for tag in item['snippet']['tags']:
             if tag[:5] == 'tvid:':
