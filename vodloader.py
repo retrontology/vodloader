@@ -292,6 +292,16 @@ class vodloader(object):
         except Exception as e:
             self.logger.error(e)
 
+    def sort_playlist(self, playlist_id, reverse=False):
+        videos = self.get_playlist_items(playlist_id)
+        ordered = videos.copy()
+        ordered.sort(reverse=reverse, key=lambda x: (x['tvid'], x['part']))
+        i = 0
+        while i < len(videos):
+            if not videos[i]['id'] == ordered[i]['id']:
+                pass
+            i+=1
+
     def get_twitch_videos(self, video_type=VideoType.ARCHIVE):
         cursor = None
         videos = []
