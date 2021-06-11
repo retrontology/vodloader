@@ -4,7 +4,7 @@ from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
 from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
-from twitchAPI.types import VideoType
+from twitchAPI.types import NotFoundException, VideoType
 import os
 from time import sleep
 from tzlocal import get_localzone
@@ -301,9 +301,12 @@ class vodloader(object):
         while i < len(videos):
             if not videos[i]['id'] == ordered[i]['id']:
                 self.set_video_playlist_pos(ordered[i]['id'], playlist_id, i)
-                j = 0
-                while videos[j]['id'] != ordered[i]['id']: j+=1
-                videos.insert(i, videos.pop(j))
+                j = i + 1
+                while videos[j]['id'] != ordered[i]['id'] and j <= len(videos): j+=1
+                if j < len(videos):
+                    videos.insert(i, videos.pop(j))
+                else:
+                    raise NotFoundException
             i+=1
 
     def get_twitch_videos(self, video_type=VideoType.ARCHIVE):
