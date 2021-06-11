@@ -303,10 +303,10 @@ class vodloader(object):
         ordered.sort(reverse=reverse, key=lambda x: (x['tvid'], x['part']))
         i = 0
         while i < len(videos):
-            if not videos[i]['id'] == ordered[i]['id']:
-                self.set_video_playlist_pos(ordered[i]['id'], playlist_id, i)
+            if not videos[i]['snippet']['resourceId']['videoId'] == ordered[i]['snippet']['resourceId']['videoId']:
+                self.set_video_playlist_pos(ordered[i]['snippet']['resourceId']['videoId'], playlist_id, i)
                 j = i + 1
-                while videos[j]['id'] != ordered[i]['id'] and j <= len(videos): j+=1
+                while videos[j]['snippet']['resourceId']['videoId'] != ordered[i]['snippet']['resourceId']['videoId'] and j <= len(videos): j+=1
                 if j < len(videos):
                     videos.insert(i, videos.pop(j))
                 else:
