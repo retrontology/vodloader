@@ -300,7 +300,7 @@ class vodloader(object):
         i = 0
         while i < len(videos):
             if not videos[i]['id'] == ordered[i]['id']:
-                self.set_video_playlist_pos(ordered[i]['id'], self.youtube_args['playlist'], i)
+                self.set_video_playlist_pos(ordered[i]['id'], playlist_id, i)
                 j = 0
                 while videos[j]['id'] != ordered[i]['id']: j+=1
                 videos.insert(i, videos.pop(j))
