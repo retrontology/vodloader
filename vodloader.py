@@ -214,12 +214,18 @@ class vodloader(object):
                 playlistId=playlist_id
             )
             response = request.execute()
-            items.extend(response['items'])
+            for item in response['items']:
+                item['tvid'], item['part'] = self.get_tvid_from_yt_item(item)
+                items.append(item)
             if 'nextPageToken' in response:
                 npt = response['nextPageToken']
             else:
                 break
         return items
+    
+    def get_channel_items(self):
+        uploads = self.youtube.channels.list(part="contentDetails", mine=True).execute()['items'][0]['contentDetails']['relatedPlaylists']['uploads']
+        return self.get_playlist_items(uploads)
     
     @staticmethod
     def get_tvid_from_yt_item(item):
@@ -233,8 +239,7 @@ class vodloader(object):
             if len(tvid) > 1: part = int(tvid[1])
             else: part = None
             return id, part
-        else: return None
-
+        else: return None, None
 
     def add_video_to_playlist(self, video_id, playlist_id, pos=-1):
         if pos == -1:
