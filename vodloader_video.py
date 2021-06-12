@@ -113,7 +113,7 @@ class vodloader_video(object):
     
     def get_youtube_body(self, chapters=False):
         tvid = f'tvid:{self.id}'
-        if self.part > 1 or self.passed: tvid += f'.p{self.part}'
+        if self.part == 1 and self.passed: tvid += f'p{self.part}'
         body = {
             'snippet': {
                 'title': self.get_formatted_string(self.parent.youtube_args['title'], self.start_absolute),

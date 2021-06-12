@@ -341,9 +341,18 @@ class vodloader(object):
             i+=1
     
     def sync_status(self):
-        for item in self.get_channel_videos():
-            if item['tvid']:
-                self.status[str(item['tvid'])] = True
+        ids = []
+        for video in self.get_channel_videos():
+            if video['tvid']:
+                if video['part'] and video['part'] > 1:
+                    ids.append(f'{video["tvid"]}p{video["part"]}')
+                else:
+                    ids.append(str(video['tvid']))
+        for id in self.status.keys():
+            if not id in ids:
+                self.status.pop(id)
+        for id in ids:
+            self.status[id] = True
         self.status.save()
 
     def get_twitch_videos(self, video_type=VideoType.ARCHIVE):
