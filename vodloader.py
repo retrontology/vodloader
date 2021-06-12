@@ -1,12 +1,10 @@
 from twitchAPI.types import VideoType
 from time import sleep
-from tzlocal import get_localzone
 from threading import Thread
-import os
 import logging
 from vodloader_video import vodloader_video
 from vodloader_status import vodloader_status
-import pytz
+from youtube_uploader import youtube_uploader
 import datetime
 
 
@@ -24,15 +22,10 @@ class vodloader(object):
         self.webhook = webhook
         self.upload = upload
         self.quota_pause = quota_pause
-        self.pause = False
-        self.youtube_args = twitch_config['youtube_param']
         if self.upload:
-            self.upload_queue = []
-            self.youtube = self.setup_youtube(yt_json)
-            self.upload_process = Thread(target=self.upload_queue_loop, args=(), daemon=True)
-            self.upload_process.start()
+            self.uploader = youtube_uploader(self, yt_json, twitch_config['youtube_param'])
         else:
-            self.youtube = None
+            self.uploader = None
         self.user_id = self.get_user_id()
         self.status = vodloader_status(self.user_id)
         self.sync_status()
@@ -139,17 +132,10 @@ class vodloader(object):
     def backlog_buffload(self):
         videos = self.get_twitch_videos()
         videos.sort(reverse=False, key=lambda x: datetime.datetime.strptime((x['created_at']), '%Y-%m-%dT%H:%M:%SZ'))
-        datafile = os.path.join(self.download_dir, 'titles.txt')
         for video in videos:
             if self.pause and self.quota_pause:
                 self.logger.info('Pausing backlog processing until YouTube quota is refreshed')
-                while self.pause:
+                while self.uploader.pause:
                     sleep(10)
             self.backlog_video = vodloader_video(self, video['url'], video, backlog=True, quality=self.quality)
-            title = f'{self.backlog_video.id}: {self.backlog_video.get_formatted_string(self.youtube_args["title"], self.backlog_video.start_absolute)}\n'
-            while self.backlog_video.thread.is_alive():
-                self.backlog_video.thread.join()
-                sleep(1)
-            if not self.upload:
-                with open(datafile, 'a') as fl:
-                    fl.write(title)
+            self.backlog_video.thread.join()

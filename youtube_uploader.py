@@ -6,6 +6,8 @@ from googleapiclient.http import MediaFileUpload
 from googleapiclient.errors import HttpError
 from time import sleep
 from threading import Thread
+from tzlocal import get_localzone
+import pytz
 import os
 import pickle
 import json
@@ -18,12 +20,17 @@ class youtube_uploader():
     def __init__(self, parent: vodloader, jsonfile, youtube_args):
         self.parent = parent
         self.logger = logging.getLogger(f'vodloader.{self.parent.channel}.uploader')
+        self.end = False
+        self.pause = False
         self.jsonfile = jsonfile
         self.youtube_args = youtube_args
-        self.youtube = self.setup_youtube
-        self.upload_queue = []
-        self.upload_process = Thread(target=self.upload_queue_loop, args=(), daemon=True)
+        self.youtube = self.setup_youtube(jsonfile)
+        self.queue = []
+        self.upload_process = Thread(target=self.upload_loop, args=(), daemon=True)
         self.upload_process.start()
+
+    def stop(self):
+        self.end = True
 
     def setup_youtube(self, jsonfile, scopes=['https://www.googleapis.com/auth/youtube.upload', 'https://www.googleapis.com/auth/youtube']):
         self.logger.info(f'Building YouTube flow for {self.parent.channel}')
@@ -53,16 +60,16 @@ class youtube_uploader():
             self.logger.info(f'YouTube credential pickle file for {self.parent.channel} found!')
         return build(api_name, api_version, credentials=creds)
 
-    def upload_queue_loop(self):
+    def upload_loop(self):
         while True:
-            if len(self.upload_queue) > 0:
+            if len(self.queue) > 0:
                 try:
-                    self.upload_video(*self.upload_queue[0])
-                    del self.upload_queue[0]
+                    self.upload_video(*self.queue[0])
+                    del self.queue[0]
                 except YouTubeOverQuota as e:
                     self.wait_for_quota()
             else: sleep(1)
-            if self.parent.end: break
+            if self.end: break
 
     def upload_video(self, path, body, id, keep=False, chunk_size=4194304, retry=3):
         self.logger.info(f'Uploading file {path} to YouTube account for {self.parent.channel}')
@@ -95,8 +102,8 @@ class youtube_uploader():
             if self.youtube_args['playlistId']:
                 self.add_video_to_playlist(response["id"], self.youtube_args['playlistId'])
                 self.sort_playlist(self.youtube_args['playlistId'])
-            self.status[id] = True
-            self.status.save()
+            self.parent.status[id] = True
+            self.parent.status.save()
             if not keep: os.remove(path)
         else:
             self.logger.info(f'Could not parse a video ID from uploading {path}')

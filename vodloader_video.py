@@ -1,9 +1,6 @@
 from vodloader_chapters import vodloader_chapters
-from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaFileUpload
 from threading import Thread
 from math import floor
-from time import sleep
 import logging
 import os
 import datetime
@@ -113,24 +110,24 @@ class vodloader_video(object):
         self.logger.info(f'Finished downloading stream from {self.download_url}')
 
     def upload_stream(self, chunk_size=4194304, retry=3):
-        self.parent.upload_queue.append((self.path, self.get_youtube_body(self.parent.chapters_type), self.id, self.keep))
+        self.parent.uploader.queue.append((self.path, self.get_youtube_body(self.parent.chapters_type), self.id, self.keep))
     
     def get_youtube_body(self, chapters=False):
         tvid = f'tvid:{self.id}'
         if self.part == 1 and self.passed: tvid += f'p{self.part}'
         body = {
             'snippet': {
-                'title': self.get_formatted_string(self.parent.youtube_args['title'], self.start_absolute),
-                'description': self.get_formatted_string(self.parent.youtube_args['description'], self.start_absolute),
+                'title': self.get_formatted_string(self.parent.uploader.youtube_args['title'], self.start_absolute),
+                'description': self.get_formatted_string(self.parent.uploader.youtube_args['description'], self.start_absolute),
                 'tags': [tvid]
         },
             'status': {
                 'selfDeclaredMadeForKids': False
             }
         }
-        if 'tags' in self.parent.youtube_args: body['snippet']['tags'] += self.parent.youtube_args['tags']
-        if 'categoryId' in self.parent.youtube_args: body['snippet']['categoryId'] = self.parent.youtube_args['categoryId']
-        if 'privacy' in self.parent.youtube_args: body['status']['privacyStatus'] = self.parent.youtube_args['privacy']
+        if 'tags' in self.parent.uploader.youtube_args: body['snippet']['tags'] += self.parent.uploader.youtube_args['tags']
+        if 'categoryId' in self.parent.uploader.youtube_args: body['snippet']['categoryId'] = self.parent.uploader.youtube_args['categoryId']
+        if 'privacy' in self.parent.uploader.youtube_args: body['status']['privacyStatus'] = self.parent.uploader.youtube_args['privacy']
         if not self.backlog:
             body['snippet']['tags'] += self.chapters.get_games()
             if chapters:
