@@ -348,7 +348,7 @@ class vodloader(object):
                     ids.append(f'{video["tvid"]}p{video["part"]}')
                 else:
                     ids.append(str(video['tvid']))
-        for id in self.status.keys():
+        for id in self.status:
             if not id in ids:
                 self.status.pop(id)
         for id in ids:
