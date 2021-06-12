@@ -338,7 +338,7 @@ class vodloader(object):
             i+=1
     
     def sync_status(self):
-        for item in self.get_channel_items():
+        for item in self.get_channel_videos():
             if item['tvid']:
                 self.status[str(item['tvid'])] = True
         self.status.save()
