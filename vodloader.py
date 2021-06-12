@@ -267,7 +267,7 @@ class vodloader(object):
                 if tag[:5] == 'tvid:':
                     tvid = tag[5:]
             if tvid:
-                tvid = tvid.split('.p', 1)
+                tvid = tvid.split('p', 1)
                 id = int(tvid[0])
                 if len(tvid) > 1: part = int(tvid[1])
                 else: part = None
