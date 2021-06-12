@@ -233,7 +233,7 @@ class vodloader(object):
                     part="snippet",
                     maxResults=50,
                     pageToken=npt,
-                    id=video_ids
+                    id=",".join(video_ids)
                 )
                 response = request.execute()
                 for item in response['items']:
