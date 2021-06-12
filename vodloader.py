@@ -227,7 +227,6 @@ class vodloader(object):
         video_ids = [x['snippet']['resourceId']['videoId'] for x in self.get_playlist_items(playlist_id)]
         items = []
         if len(video_ids) > 0:
-            self.youtube.videos().list()
             npt = ""
             while True:
                 request = self.youtube.videos().list(
