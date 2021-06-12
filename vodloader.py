@@ -224,7 +224,7 @@ class vodloader(object):
         return items
     
     def get_playlist_videos(self, playlist_id):
-        video_ids = [x[''] for x in self.get_playlist_items(playlist_id)]
+        video_ids = [x['snippet']['resourceId']['videoId'] for x in self.get_playlist_items(playlist_id)]
         items = []
         if len(video_ids) > 0:
             self.youtube.videos().list()
