@@ -216,7 +216,6 @@ class vodloader(object):
             )
             response = request.execute()
             for item in response['items']:
-                item['tvid'], item['part'] = self.get_tvid_from_yt_item(item)
                 items.append(item)
             if 'nextPageToken' in response:
                 npt = response['nextPageToken']
@@ -239,7 +238,7 @@ class vodloader(object):
                 )
                 response = request.execute()
                 for item in response['items']:
-                    item['tvid'], item['part'] = self.get_tvid_from_yt_item(item)
+                    item['tvid'], item['part'] = self.get_tvid_from_yt_video(item)
                     items.append(item)
                 if 'nextPageToken' in response:
                     npt = response['nextPageToken']
