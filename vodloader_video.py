@@ -25,9 +25,13 @@ class vodloader_video(object):
         self.upload = self.parent.upload
         self.keep = self.parent.keep
         self.twitch_data = twitch_data
-        self.id = twitch_data['id']
-        if backlog: self.start_absolute = twitch_data['created_at']
-        else: self.start_absolute = twitch_data['started_at']
+        if backlog:
+            self.start_absolute = twitch_data['created_at']
+            self.id = twitch_data['stream_id']
+            self.vod_id = twitch_data['id']
+        else:
+            self.start_absolute = twitch_data['started_at']
+            self.id = twitch_data['id']
         self.start_absolute = pytz.timezone('UTC').localize(datetime.datetime.strptime(self.start_absolute, '%Y-%m-%dT%H:%M:%SZ'))
         self.start_absolute = self.start_absolute.astimezone(self.parent.tz)
         self.start = datetime.datetime.now()
