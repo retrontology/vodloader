@@ -224,25 +224,28 @@ class vodloader(object):
         return items
     
     def get_playlist_videos(self, playlist_id):
-        video_ids = [x['snippet']['resourceId']['videoId'] for x in self.get_playlist_items(playlist_id)]
         items = []
-        if len(video_ids) > 0:
-            npt = ""
-            while True:
-                request = self.youtube.videos().list(
-                    part="snippet",
-                    maxResults=50,
-                    pageToken=npt,
-                    id=",".join(video_ids)
-                )
-                response = request.execute()
-                for item in response['items']:
-                    item['tvid'], item['part'] = self.get_tvid_from_yt_video(item)
-                    items.append(item)
-                if 'nextPageToken' in response:
-                    npt = response['nextPageToken']
-                else:
-                    break
+        npt = ""
+        while True:
+            request = self.youtube.playlistItems().list(
+                part="snippet",
+                maxResults=50,
+                pageToken=npt,
+                playlistId=playlist_id
+            )
+            response = request.execute()
+            request = self.youtube.videos().list(
+                part="snippet",
+                id=",".join([x['snippet']['resourceId']['videoId'] for x in response['items']])
+            )
+            response = request.execute()
+            for item in response['items']:
+                item['tvid'], item['part'] = self.get_tvid_from_yt_video(item)
+                items.append(item)
+            if 'nextPageToken' in response:
+                npt = response['nextPageToken']
+            else:
+                break
         return items
     
     def get_channel_videos(self):
