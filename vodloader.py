@@ -349,7 +349,7 @@ class vodloader(object):
                 else:
                     ids.append(str(video['tvid']))
         for id in self.status.copy():
-            if not id in ids:
+            if not id in ids and self.status[id] == True:
                 self.status.pop(id)
         for id in ids:
             self.status[id] = True
