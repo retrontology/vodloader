@@ -322,7 +322,7 @@ class vodloader(object):
     def sort_playlist(self, playlist_id, reverse=False):
         videos = self.get_playlist_videos(playlist_id)
         for video in videos:
-            if not video['tvid'] == None:
+            if video['tvid'] == None:
                 self.logger.error("There was a video found in the specified playlist to be sorted without a valid tvid tag. As such this playlist cannot be reliably sorted.")
                 return
         ordered = videos.copy()
