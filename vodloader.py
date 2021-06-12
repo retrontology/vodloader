@@ -172,7 +172,7 @@ class vodloader(object):
                 else:
                     self.logger.error(e.resp)
                     self.logger.error(e.content)
-            except BrokenPipeError as e:
+            except (BrokenPipeError, ConnectionResetError) as e:
                 self.logger.error(e)
             if not uploaded:
                 attempts += 1
