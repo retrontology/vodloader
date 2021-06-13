@@ -46,5 +46,12 @@ You need to set up your config file before you run the program so it knows what 
   * **quota_pause**: Whether or not you want to pause downloading the backlog while waiting for the YouTube quota to reset
 
 
-## Running
-```python run.py```
+## Usage
+```
+python run.py [-h] [-c config.yaml] [-d]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -c config.yaml, --config config.yaml
+  -d, --debug
+```
