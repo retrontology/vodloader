@@ -84,12 +84,7 @@ class youtube_uploader():
                 self.logger.debug(response)
                 uploaded = response['status']['uploadStatus'] == 'uploaded'
             except HttpError as e:
-                c = json.loads(e.content)
-                if c['error']['errors'][0]['domain'] == 'youtube.quota' and c['error']['errors'][0]['reason'] == 'quotaExceeded':
-                    raise YouTubeOverQuota
-                else:
-                    self.logger.error(e.resp)
-                    self.logger.error(e.content)
+                self.check_over_quota(e)
             except (BrokenPipeError, ConnectionResetError) as e:
                 self.logger.error(e)
             if not uploaded:
@@ -133,7 +128,10 @@ class youtube_uploader():
                 pageToken=npt,
                 playlistId=playlist_id
             )
-            response = request.execute()
+            try:
+                response = request.execute()
+            except HttpError as e:
+                self.check_over_quota(e)
             for item in response['items']:
                 items.append(item)
             if 'nextPageToken' in response:
@@ -152,12 +150,18 @@ class youtube_uploader():
                 pageToken=npt,
                 playlistId=playlist_id
             )
-            response = request.execute()
+            try:
+                response = request.execute()
+            except HttpError as e:
+                self.check_over_quota(e)
             request = self.youtube.videos().list(
                 part="snippet",
                 id=",".join([x['snippet']['resourceId']['videoId'] for x in response['items']])
             )
-            response = request.execute()
+            try:
+                response = request.execute()
+            except HttpError as e:
+                self.check_over_quota(e)
             for item in response['items']:
                 item['tvid'], item['part'] = self.get_tvid_from_yt_video(item)
                 items.append(item)
@@ -173,9 +177,8 @@ class youtube_uploader():
             r = request.execute()
             self.logger.debug(r)
             uploads = r['items'][0]['contentDetails']['relatedPlaylists']['uploads']
-        except Exception as e:
-            self.logger.error(e)
-            return None
+        except HttpError as e:
+            self.check_over_quota(e)
         return self.get_playlist_videos(uploads)
     
     @staticmethod
@@ -214,8 +217,8 @@ class youtube_uploader():
             r = request.execute()
             self.logger.debug(r)
             return r
-        except Exception as e:
-            self.logger.error(e)
+        except HttpError as e:
+            self.check_over_quota(e)
     
     def set_video_playlist_pos(self, video_id, playlist_id, pos):
         request = self.youtube.playlistItems().update(
@@ -235,8 +238,8 @@ class youtube_uploader():
             r = request.execute()
             self.logger.debug(r)
             return r
-        except Exception as e:
-            self.logger.error(e)
+        except HttpError as e:
+            self.check_over_quota(e)
 
     def sort_playlist(self, playlist_id, reverse=False):
         videos = self.get_playlist_videos(playlist_id)
@@ -258,6 +261,14 @@ class youtube_uploader():
                     self.logger.error('An error has occured while sorting the playlist')
                     return
             i+=1
+    
+    def check_over_quota(self, e: HttpError):
+        c = json.loads(e.content)
+        if c['error']['errors'][0]['domain'] == 'youtube.quota' and c['error']['errors'][0]['reason'] == 'quotaExceeded':
+            raise YouTubeOverQuota
+        else:
+            self.logger.error(e.resp)
+            self.logger.error(e.content)
     
 class YouTubeOverQuota(Exception):
     """ called when youtube upload quota is exceeded """
