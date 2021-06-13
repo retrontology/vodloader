@@ -25,6 +25,8 @@ class vodloader(object):
         self.quota_pause = quota_pause
         if self.upload:
             self.uploader = youtube_uploader(self, yt_json, twitch_config['youtube_param'], sort)
+            if self.uploader.sort:
+                self.uploader.sort_playlist(twitch_config['youtube_param']['playlistId'])
         else:
             self.uploader = None
         self.user_id = self.get_user_id()
