@@ -213,11 +213,10 @@ class youtube_uploader():
         )
         try:
             r = request.execute()
-            self.logger.debug(r)
+            self.logger.debug(f'Added video {video_id} to playlist {playlist_id}')
             return r
         except HttpError as e:
             self.check_over_quota(e)
-        self.logger.debug(f'Added video {video_id} to playlist {playlist_id}')
     
     def set_video_playlist_pos(self, video_id, playlist_item_id, playlist_id, pos):
         request = self.youtube.playlistItems().update(
@@ -236,11 +235,10 @@ class youtube_uploader():
         )
         try:
             r = request.execute()
-            self.logger.debug(r)
+            self.logger.debug(f'Moved item {playlist_item_id} to position {pos} in playlist {playlist_id}')
             return r
         except HttpError as e:
             self.check_over_quota(e)
-        self.logger.debug(f'Moved item {playlist_item_id} to position {pos} in playlist {playlist_id}')
 
     def sort_playlist(self, playlist_id, reverse=False):
         self.logger.debug(f'Sorting playlist {playlist_id} according to tvid and part')
