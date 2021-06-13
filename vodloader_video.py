@@ -79,6 +79,9 @@ class vodloader_video(object):
         with open(self.path, 'wb') as f:
             data = buff.read(chunk_size)
             while data and error < retry:
+                if self.parent.end:
+                    buff.close()
+                    exit()
                 try:
                     f.write(data)
                     data = buff.read(chunk_size)
