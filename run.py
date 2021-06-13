@@ -75,7 +75,7 @@ def main():
     args = parse_args()
     logger = setup_logger('vodloader', debug=args.debug)
     logger.info(f'Loading configuration from {args.config}')
-    config = load_config(args["config"])
+    config = load_config(args.config)
     logger.info(f'Logging into Twitch and initiating webhook')
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
     hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['webhook']['port'], config['twitch']['client_id'], config['twitch']['webhook']['ssl_cert'], config['twitch']['webhook']['ssl_key'], twitch)
