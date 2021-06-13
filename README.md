@@ -39,7 +39,7 @@ You need to set up your config file before you run the program so it knows what 
 * **youtube**:
   * **upload**: (True/False) Whether you want to upload to YouTube or not
   * **json**: The json file that holds the OAuth 2 secrets generated from the [Google Developer Console](https://console.cloud.google.com/apis/credentials)
-  * **sort**: (True/False) Whether you want to sort the playlist or not
+  * **sort**: (True/False) Whether you want to sort the playlist or not. Only works if a playlist is specified and the videos in the playlist are only uploaded by vodloader.
 * **download**:
   * **keep**: (True/False) Whether you want to keep the downloads or delete them after they're uploaded
   * **directory**: Where you want to store the downloaded videos before they are uploaded. Can be left blank and will default to the video folder.

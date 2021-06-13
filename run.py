@@ -9,8 +9,14 @@ import logging.handlers
 import ssl
 import time
 import pytz
+import argparse
 
-config_file = os.path.join(os.path.dirname('__file__'), 'config.yaml')
+
+def parse_args(args):
+    parser = argparse.ArgumentParser(prog='vodloader', description='Automate uploading Twitch streams to YouTube')
+    parser.add_argument('-c', '--config', default=os.path.join(os.path.dirname('__file__'), 'config.yaml'), metavar='config.yaml')
+    parser.add_argument('-d', '--debug', action='store_true')
+    return parser.parse_args(args)
 
 def load_config(filename):
     config = vodloader_config(filename)
@@ -28,7 +34,7 @@ def load_config(filename):
     config.save()
     return config
 
-def setup_logger(logname, logpath=""):
+def setup_logger(logname, logpath="", debug=False):
     if not logpath or logpath == "":
         logpath = os.path.join(os.path.dirname(__file__), 'logs')
     else:
@@ -42,8 +48,12 @@ def setup_logger(logname, logpath=""):
     form = logging.Formatter('%(asctime)s [%(levelname)s] %(name)s: %(message)s')
     file_handler.setFormatter(form)
     stream_handler.setFormatter(form)
-    file_handler.setLevel(logging.INFO)
-    stream_handler.setLevel(logging.INFO)
+    if debug:
+        file_handler.setLevel(logging.DEBUG)
+        stream_handler.setLevel(logging.DEBUG)
+    else:
+        file_handler.setLevel(logging.INFO)
+        stream_handler.setLevel(logging.INFO)
     logger.addHandler(file_handler)
     logger.addHandler(stream_handler)
     return logger
@@ -62,9 +72,10 @@ def setup_webhook(host, port, client_id, cert, key, twitch):
     return hook
 
 def main():
-    logger = setup_logger('vodloader')
-    logger.info(f'Loading configuration from {config_file}')
-    config = load_config(config_file)
+    args = parse_args(sys.argv)
+    logger = setup_logger('vodloader', debug=args['debug'])
+    logger.info(f'Loading configuration from {args["config"]}')
+    config = load_config(args["config"])
     logger.info(f'Logging into Twitch and initiating webhook')
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
     hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['webhook']['port'], config['twitch']['client_id'], config['twitch']['webhook']['ssl_cert'], config['twitch']['webhook']['ssl_key'], twitch)
