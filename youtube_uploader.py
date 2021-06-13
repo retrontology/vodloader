@@ -132,44 +132,36 @@ class youtube_uploader():
                 response = request.execute()
             except HttpError as e:
                 self.check_over_quota(e)
-            for item in response['items']:
-                items.append(item)
+            items.extend(response['items'])
             if 'nextPageToken' in response:
                 npt = response['nextPageToken']
             else:
                 break
         return items
     
-    def get_playlist_videos(self, playlist_id):
-        items = []
-        npt = ""
-        while True:
-            request = self.youtube.playlistItems().list(
-                part="snippet",
-                maxResults=50,
-                pageToken=npt,
-                playlistId=playlist_id
-            )
-            try:
-                response = request.execute()
-            except HttpError as e:
-                self.check_over_quota(e)
+    def get_videos_from_playlist_items(self, playlist_items):
+        videos = []
+        max_results = 50
+        length = len(playlist_items)
+        i = 0
+        while i * max_results < length:
+            top = max_results * (i + 1)
+            if top > length: top = length
+            ids = ",".join([x['snippet']['resourceId']['videoId'] for x in playlist_items[max_results*i:top]])
             request = self.youtube.videos().list(
                 part="snippet",
-                id=",".join([x['snippet']['resourceId']['videoId'] for x in response['items']])
+                id=ids
             )
             try:
                 response = request.execute()
             except HttpError as e:
                 self.check_over_quota(e)
-            for item in response['items']:
-                item['tvid'], item['part'] = self.get_tvid_from_yt_video(item)
-                items.append(item)
-            if 'nextPageToken' in response:
-                npt = response['nextPageToken']
-            else:
-                break
-        return items
+            videos.extend(response['items'])
+            i += 1
+        return videos
+    
+    def get_playlist_videos(self, playlist_id):
+        return self.get_videos_from_playlist_items(self.get_playlist_items(playlist_id))
     
     def get_channel_videos(self):
         request = self.youtube.channels().list(part="contentDetails", mine=True)
@@ -220,16 +212,16 @@ class youtube_uploader():
         except HttpError as e:
             self.check_over_quota(e)
     
-    def set_video_playlist_pos(self, video_id, playlist_id, pos):
+    def set_video_playlist_pos(self, playlist_item_id, playlist_id, pos):
         request = self.youtube.playlistItems().update(
             part="snippet",
             body={
+                "id": playlist_item_id,
                 "snippet": {
                     "playlistId": playlist_id,
                     "position": pos,
                     "resourceId": {
-                        "kind": "youtube#video",
-                        "videoId": video_id
+                        "kind": "youtube#video"
                     }
                 }
             }
@@ -242,20 +234,20 @@ class youtube_uploader():
             self.check_over_quota(e)
 
     def sort_playlist(self, playlist_id, reverse=False):
-        videos = self.get_playlist_videos(playlist_id)
+        playlist_items = self.get_playlist_items(playlist_id)
+        videos = self.get_videos_from_playlist_items(playlist_items)
         for video in videos:
             if video['tvid'] == None:
                 self.logger.error("There was a video found in the specified playlist to be sorted without a valid tvid tag. As such this playlist cannot be reliably sorted.")
                 return
-        ordered = videos.copy()
-        ordered.sort(reverse=reverse, key=lambda x: (x['tvid'], x['part']))
+        videos.sort(reverse=reverse, key=lambda x: (x['tvid'], x['part']))
         i = 0
         while i < len(videos):
-            if not videos[i]['id'] == ordered[i]['id']:
-                self.set_video_playlist_pos(ordered[i]['id'], playlist_id, i)
+            if videos[i]['id'] != playlist_items[i]['snippet']['resourceId']['videoId']:
                 j = i + 1
-                while videos[j]['id'] != ordered[i]['id'] and j <= len(videos): j+=1
+                while videos[j]['id'] != playlist_items[i]['snippet']['resourceId']['videoId'] and j <= len(videos): j+=1
                 if j < len(videos):
+                    self.set_video_playlist_pos(playlist_items[j]['id'], playlist_id, i)
                     videos.insert(i, videos.pop(j))
                 else:
                     self.logger.error('An error has occured while sorting the playlist')
