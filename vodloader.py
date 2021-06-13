@@ -134,7 +134,7 @@ class vodloader(object):
         videos = self.get_twitch_videos()
         videos.sort(reverse=False, key=lambda x: datetime.datetime.strptime((x['created_at']), '%Y-%m-%dT%H:%M:%SZ'))
         for video in videos:
-            if self.pause and self.quota_pause:
+            if self.uploader.pause and self.quota_pause:
                 self.logger.info('Pausing backlog processing until YouTube quota is refreshed')
                 while self.uploader.pause:
                     sleep(10)
