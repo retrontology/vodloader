@@ -158,6 +158,8 @@ class youtube_uploader():
                 self.check_over_quota(e)
             videos.extend(response['items'])
             i += 1
+        for video in videos:
+            video['tvid'], video['part'] = self.get_tvid_from_yt_video(video)
         return videos
     
     def get_playlist_videos(self, playlist_id):
