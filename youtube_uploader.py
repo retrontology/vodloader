@@ -219,7 +219,7 @@ class youtube_uploader():
             self.check_over_quota(e)
         self.logger.debug(f'Added video {video_id} to playlist {playlist_id}')
     
-    def set_video_playlist_pos(self, playlist_item_id, playlist_id, pos):
+    def set_video_playlist_pos(self, video_id, playlist_item_id, playlist_id, pos):
         request = self.youtube.playlistItems().update(
             part="snippet",
             body={
@@ -228,7 +228,8 @@ class youtube_uploader():
                     "playlistId": playlist_id,
                     "position": pos,
                     "resourceId": {
-                        "kind": "youtube#video"
+                        "kind": "youtube#video",
+                        "videoId": video_id
                     }
                 }
             }
@@ -256,7 +257,7 @@ class youtube_uploader():
                 j = i + 1
                 while videos[j]['id'] != playlist_items[i]['snippet']['resourceId']['videoId'] and j <= len(videos): j+=1
                 if j < len(videos):
-                    self.set_video_playlist_pos(playlist_items[j]['id'], playlist_id, i)
+                    self.set_video_playlist_pos(playlist_items[j]['snippet']['resourceId']['videoId'], playlist_items[j]['id'], playlist_id, i)
                     videos.insert(i, videos.pop(j))
                 else:
                     self.logger.error('An error has occured while sorting the playlist')
