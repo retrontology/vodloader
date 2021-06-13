@@ -16,11 +16,12 @@ import logging
 
 class youtube_uploader():
 
-    def __init__(self, parent, jsonfile, youtube_args):
+    def __init__(self, parent, jsonfile, youtube_args, sort=True):
         self.parent = parent
         self.logger = logging.getLogger(f'vodloader.{self.parent.channel}.uploader')
         self.end = False
         self.pause = False
+        self.sort = sort
         self.jsonfile = jsonfile
         self.youtube_args = youtube_args
         self.youtube = self.setup_youtube(jsonfile)
@@ -100,7 +101,8 @@ class youtube_uploader():
             self.logger.info(f'Finished uploading {path} to https://youtube.com/watch?v={response["id"]}')
             if self.youtube_args['playlistId']:
                 self.add_video_to_playlist(response["id"], self.youtube_args['playlistId'])
-                self.sort_playlist(self.youtube_args['playlistId'])
+                if self.sort:
+                    self.sort_playlist(self.youtube_args['playlistId'])
             self.parent.status[id] = True
             self.parent.status.save()
             if not keep: os.remove(path)

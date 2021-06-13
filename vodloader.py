@@ -11,7 +11,7 @@ import pytz
 
 class vodloader(object):
 
-    def __init__(self, channel, twitch, webhook, twitch_config, yt_json, download_dir, keep=False, upload=True, quota_pause=True, tz=pytz.timezone("America/Chicago")):
+    def __init__(self, channel, twitch, webhook, twitch_config, yt_json, download_dir, keep=False, upload=True, sort=True, quota_pause=True, tz=pytz.timezone("America/Chicago")):
         self.end = False
         self.channel = channel
         self.logger = logging.getLogger(f'vodloader.{self.channel}')
@@ -24,7 +24,7 @@ class vodloader(object):
         self.upload = upload
         self.quota_pause = quota_pause
         if self.upload:
-            self.uploader = youtube_uploader(self, yt_json, twitch_config['youtube_param'])
+            self.uploader = youtube_uploader(self, yt_json, twitch_config['youtube_param'], sort)
         else:
             self.uploader = None
         self.user_id = self.get_user_id()

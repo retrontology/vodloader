@@ -23,6 +23,8 @@ def load_config(filename):
             config['twitch']['channels'][channel]['timezone'] ='UTC'
         if not config['twitch']['channels'][channel]['timezone'] in pytz.all_timezones:
             sys.exit(f'timezone entry for {channel} in {config_file} is invalid!')
+    if not 'sort' in config['youtube']:
+        config['youtube']['sort'] = True
     config.save()
     return config
 
@@ -69,7 +71,7 @@ def main():
     logger.info(f'Initiating vodloaders')
     vodloaders = []
     for channel in config['twitch']['channels']:
-        vodloaders.append(vodloader(channel, twitch, hook, config['twitch']['channels'][channel], config['youtube']['json'], config['download']['directory'], config['download']['keep'], config['youtube']['upload'], config['download']['quota_pause'], pytz.timezone(config['twitch']['channels'][channel]['timezone'])))
+        vodloaders.append(vodloader(channel, twitch, hook, config['twitch']['channels'][channel], config['youtube']['json'], config['download']['directory'], config['download']['keep'], config['youtube']['upload'], config['youtube']['sort'], config['download']['quota_pause'], pytz.timezone(config['twitch']['channels'][channel]['timezone'])))
     try:
         while True:
             time.sleep(600)

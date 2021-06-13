@@ -1,8 +1,6 @@
-download:
-  directory: /mnt/chumbo/git/vodloader/videos
-  keep: false
-  quota_pause: true
 twitch:
+  client_id: cxlvasdfualsdm
+  client_secret: dfalsdfusdofoiiulx
   channels:
     Rlly:
       backlog: false
@@ -10,16 +8,14 @@ twitch:
       quality: best
       timezone: America/Cambridge_Bay
       youtube_param:
-        categoryId: '20'
+        title: '%C VOD %m/%d/%Y'
         description: Follow %C at https://twitch.tv/%C to watch live!
+        categoryId: '20'
         playlistId: PLRV-ewmAAe9rHVKkhr3hz3eSzME__G0si
         privacy: private
         tags:
         - GTA RP
         - nopixel
-        title: '%C VOD %m/%d/%Y'
-  client_id: cxlvasdfualsdm
-  client_secret: dfalsdfusdofoiiulx
   webhook:
     host: mysupersecretdomain.com
     local: mysupersecretdomain.com
@@ -27,5 +23,10 @@ twitch:
     ssl_cert: fullchain.pem
     ssl_key: privkey.pem
 youtube:
-  json: secrets.json
   upload: true
+  json: secrets.json
+  sort: true
+download:
+  keep: false
+  directory: ''
+  quota_pause: true
