@@ -72,7 +72,7 @@ def setup_webhook(host, port, client_id, cert, key, twitch):
     return hook
 
 def main():
-    args = parse_args(sys.argv)
+    args = parse_args()
     logger = setup_logger('vodloader', debug=args.debug)
     logger.info(f'Loading configuration from {args.config}')
     config = load_config(args["config"])
