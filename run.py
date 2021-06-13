@@ -73,8 +73,8 @@ def setup_webhook(host, port, client_id, cert, key, twitch):
 
 def main():
     args = parse_args(sys.argv)
-    logger = setup_logger('vodloader', debug=args['debug'])
-    logger.info(f'Loading configuration from {args["config"]}')
+    logger = setup_logger('vodloader', debug=args.debug)
+    logger.info(f'Loading configuration from {args.config}')
     config = load_config(args["config"])
     logger.info(f'Logging into Twitch and initiating webhook')
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
