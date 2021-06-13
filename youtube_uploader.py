@@ -235,7 +235,7 @@ class youtube_uploader():
         )
         try:
             r = request.execute()
-            self.logger.debug(f'Moved item {playlist_item_id} to position {pos} in playlist {playlist_id}')
+            self.logger.debug(f'Moved item {video_id} to position {pos} in playlist {playlist_id}')
             return r
         except HttpError as e:
             self.check_over_quota(e)
@@ -256,7 +256,7 @@ class youtube_uploader():
                 while videos[j]['id'] != playlist_items[i]['snippet']['resourceId']['videoId'] and j <= len(videos): j+=1
                 if j < len(videos):
                     self.set_video_playlist_pos(playlist_items[j]['snippet']['resourceId']['videoId'], playlist_items[j]['id'], playlist_id, i)
-                    videos.insert(i, videos.pop(j))
+                    playlist_items.insert(i, playlist_items.pop(j))
                 else:
                     self.logger.error('An error has occured while sorting the playlist')
                     return
