@@ -12,11 +12,11 @@ import pytz
 import argparse
 
 
-def parse_args(args):
+def parse_args():
     parser = argparse.ArgumentParser(prog='vodloader', description='Automate uploading Twitch streams to YouTube')
     parser.add_argument('-c', '--config', default=os.path.join(os.path.dirname('__file__'), 'config.yaml'), metavar='config.yaml')
     parser.add_argument('-d', '--debug', action='store_true')
-    return parser.parse_args(args)
+    return parser.parse_args()
 
 def load_config(filename):
     config = vodloader_config(filename)
