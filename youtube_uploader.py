@@ -1,4 +1,3 @@
-from vodloader import vodloader
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
@@ -17,7 +16,7 @@ import logging
 
 class youtube_uploader():
 
-    def __init__(self, parent: vodloader, jsonfile, youtube_args):
+    def __init__(self, parent, jsonfile, youtube_args):
         self.parent = parent
         self.logger = logging.getLogger(f'vodloader.{self.parent.channel}.uploader')
         self.end = False
