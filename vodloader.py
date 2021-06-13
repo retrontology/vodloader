@@ -103,7 +103,7 @@ class vodloader(object):
     
     def sync_status(self):
         ids = []
-        for video in self.get_channel_videos():
+        for video in self.uploader.get_channel_videos():
             if video['tvid']:
                 if video['part'] and video['part'] > 1:
                     ids.append(f'{video["tvid"]}p{video["part"]}')
