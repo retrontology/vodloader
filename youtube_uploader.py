@@ -121,6 +121,7 @@ class youtube_uploader():
     def get_playlist_items(self, playlist_id):
         items = []
         npt = ""
+        i = 1
         while True:
             request = self.youtube.playlistItems().list(
                 part="snippet",
@@ -132,9 +133,11 @@ class youtube_uploader():
                 response = request.execute()
             except HttpError as e:
                 self.check_over_quota(e)
+            self.logger.debug(f'Retrieved page {i} from playlist {playlist_id}')
             items.extend(response['items'])
             if 'nextPageToken' in response:
                 npt = response['nextPageToken']
+                i += 1
             else:
                 break
         return items
@@ -156,6 +159,7 @@ class youtube_uploader():
                 response = request.execute()
             except HttpError as e:
                 self.check_over_quota(e)
+            self.logger.debug(f'Retrieved video info for videos: {ids}')
             videos.extend(response['items'])
             i += 1
         for video in videos:
@@ -169,7 +173,7 @@ class youtube_uploader():
         request = self.youtube.channels().list(part="contentDetails", mine=True)
         try:
             r = request.execute()
-            self.logger.debug(r)
+            self.logger.debug('Retrieved channel upload playlist')
             uploads = r['items'][0]['contentDetails']['relatedPlaylists']['uploads']
         except HttpError as e:
             self.check_over_quota(e)
@@ -213,6 +217,7 @@ class youtube_uploader():
             return r
         except HttpError as e:
             self.check_over_quota(e)
+        self.logger.debug(f'Added video {video_id} to playlist {playlist_id}')
     
     def set_video_playlist_pos(self, playlist_item_id, playlist_id, pos):
         request = self.youtube.playlistItems().update(
@@ -234,6 +239,7 @@ class youtube_uploader():
             return r
         except HttpError as e:
             self.check_over_quota(e)
+        self.logger.debug(f'Moved item {playlist_item_id} to position {pos} in playlist {playlist_id}')
 
     def sort_playlist(self, playlist_id, reverse=False):
         playlist_items = self.get_playlist_items(playlist_id)
@@ -259,6 +265,7 @@ class youtube_uploader():
     def check_over_quota(self, e: HttpError):
         c = json.loads(e.content)
         if c['error']['errors'][0]['domain'] == 'youtube.quota' and c['error']['errors'][0]['reason'] == 'quotaExceeded':
+            self.logger.error(f'YouTube client quota has been exceeded!')
             raise YouTubeOverQuota
         else:
             self.logger.error(e.resp)
