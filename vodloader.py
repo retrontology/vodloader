@@ -116,6 +116,7 @@ class vodloader(object):
             for id in ids:
                 self.status[id] = True
             self.status.save()
+            self.logger.debug('Status synced with YouTube uploads')
         except YouTubeOverQuota:
             self.logger.error("YouTube quota is exceede, can't sync status")
 

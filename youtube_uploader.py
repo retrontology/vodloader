@@ -242,6 +242,7 @@ class youtube_uploader():
         self.logger.debug(f'Moved item {playlist_item_id} to position {pos} in playlist {playlist_id}')
 
     def sort_playlist(self, playlist_id, reverse=False):
+        self.logger.debug(f'Sorting playlist {playlist_id} according to tvid and part')
         playlist_items = self.get_playlist_items(playlist_id)
         videos = self.get_videos_from_playlist_items(playlist_items)
         for video in videos:
