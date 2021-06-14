@@ -251,7 +251,7 @@ class youtube_uploader():
         videos.sort(reverse=reverse, key=lambda x: (x['tvid'], x['part']))
         i = 0
         while i < len(videos):
-            if videos[i]['id'] != playlist_items[j]['snippet']['resourceId']['videoId']:
+            if videos[i]['id'] != playlist_items[i]['snippet']['resourceId']['videoId']:
                 j = i + 1
                 while videos[i]['id'] != playlist_items[j]['snippet']['resourceId']['videoId'] and j <= len(videos): j+=1
                 if j < len(videos):
