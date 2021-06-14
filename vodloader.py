@@ -7,6 +7,7 @@ from vodloader_status import vodloader_status
 from youtube_uploader import YouTubeOverQuota, youtube_uploader
 import datetime
 import pytz
+import os
 
 
 class vodloader(object):
@@ -105,6 +106,10 @@ class vodloader(object):
     
     def sync_status(self):
         ids = []
+        for id in self.status.copy():
+            if self.status[id] == False:
+                if not os.path.isfile(os.path.join(self.download_dir, f'{id}.ts')):
+                    self.status.pop(id)
         try:
             for video in self.uploader.get_channel_videos():
                 if video['tvid']:
@@ -120,7 +125,7 @@ class vodloader(object):
             self.status.save()
             self.logger.debug('Status synced with YouTube uploads')
         except YouTubeOverQuota:
-            self.logger.error("YouTube quota is exceede, can't sync status")
+            self.logger.error("YouTube quota is exceeded, can't sync status")
 
     def get_twitch_videos(self, video_type=VideoType.ARCHIVE):
         cursor = None
