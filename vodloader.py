@@ -122,10 +122,10 @@ class vodloader(object):
                     self.status.pop(id)
             for id in ids:
                 self.status[id] = True
-            self.status.save()
             self.logger.debug('Status synced with YouTube uploads')
         except YouTubeOverQuota:
             self.logger.error("YouTube quota is exceeded, can't sync status")
+        self.status.save()
 
     def get_twitch_videos(self, video_type=VideoType.ARCHIVE):
         cursor = None
