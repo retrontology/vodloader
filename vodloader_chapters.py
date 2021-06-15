@@ -1,5 +1,6 @@
 import datetime
 from math import floor
+from os import stat
 
 class vodloader_chapters(object):
 
@@ -13,10 +14,7 @@ class vodloader_chapters(object):
 
     def append(self, game, title):
         delta = datetime.datetime.now() - self.start_time
-        hours = floor(delta.seconds/3600)
-        mins = floor(delta.seconds%3600/60)
-        secs = floor(delta.seconds%60)
-        timestamp = f'{str(hours).zfill(2)}:{str(mins).zfill(2)}:{str(secs).zfill(2)}'
+        timestamp = self.get_timestamp_from_sec(delta.seconds)
         self.timestamps.append((timestamp, game, title))
 
     def get_games(self):
@@ -60,3 +58,10 @@ class vodloader_chapters(object):
             return out
         else:
             return None
+    
+    @staticmethod
+    def get_timestamp_from_sec(seconds):
+        hours = floor(seconds/3600)
+        mins = floor(seconds%3600/60)
+        secs = floor(seconds%60)
+        timestamp = f'{str(hours).zfill(2)}:{str(mins).zfill(2)}:{str(secs).zfill(2)}'

@@ -45,11 +45,9 @@ class vodloader_video(object):
 
     def chapters_init(self, twitch_data):
         if self.backlog:
-            game = ''
+            chapters = self.get_vod_chapters()
         else:
-            game = twitch_data['game_name']
-        title = twitch_data['title']
-        chapters = vodloader_chapters(game, title)
+            chapters = vodloader_chapters(twitch_data['game_name'], twitch_data['title'])
         return chapters
 
     def __del__(self):
@@ -160,11 +158,26 @@ class vodloader_video(object):
         return output
     
     def get_stream_markers(self, retry=3):
-        url = f'https://api.twitch.tv/kraken/videos/{self.id}/markers?api_version=5&client_id={self.parent.twitch.app_id}'
+        url = f'https://api.twitch.tv/kraken/videos/{self.vod_id}/markers?api_version=5&client_id={self.parent.twitch.app_id}'
         for i in range(retry):
             r = requests.get(url)
             if r.status_code == 200:
                 return json.loads(r.content)
         return None
 
+    def get_video(self, retry=3):
+        url = f'https://api.twitch.tv/kraken/videos/{self.vod_id}?api_version=5&client_id={self.parent.twitch.app_id}'
+        for i in range(retry):
+            r = requests.get(url)
+            if r.status_code == 200:
+                return json.loads(r.content)
+        return None
 
+    def get_vod_chapters(self):
+        video = self.get_video()
+        chapters = vodloader_chapters(video['game'], video['title'])
+        offset = 0
+        for marker in self.get_stream_markers()['markers']['game_changes']:
+            offset += marker['time']
+            chapters.timestamps.append((chapters.get_timestamp_from_sec(offset), marker['label'],  video['title']))
+        return chapters
