@@ -262,9 +262,7 @@ class youtube_uploader():
                 else:
                     dupes['tvid'] = [video]
             for tvid in dupes:
-                if len(dupes[tvid]) < 2:
-                    dupes.pop(tvid)
-                else:
+                if len(dupes[tvid]) > 1:
                     for video in dupes[tvid]:
                         if video['part'] == None:
                             invalid.append(video['id'])
