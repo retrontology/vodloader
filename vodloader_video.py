@@ -178,7 +178,7 @@ class vodloader_video(object):
         chapters = vodloader_chapters(video['game'], video['title'])
         offset = 0
         response = self.get_stream_markers()
-        if 'markers' in response and 'game_changes' in response['markers']:
+        if 'markers' in response and 'game_changes' in response['markers'] and response['markers']['game_changes']:
             for marker in response['markers']['game_changes']:
                 offset += marker['time']
                 chapters.timestamps.append((chapters.get_timestamp_from_sec(offset), marker['label'],  video['title']))
