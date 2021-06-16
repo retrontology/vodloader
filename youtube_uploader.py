@@ -244,11 +244,31 @@ class youtube_uploader():
         self.logger.debug(f'Sorting playlist {playlist_id} according to tvid and part')
         playlist_items = self.get_playlist_items(playlist_id)
         videos = self.get_videos_from_playlist_items(playlist_items)
+        unsortable = []
         for video in videos:
             if video['tvid'] == None:
-                self.logger.error("There was a video found in the specified playlist to be sorted without a valid tvid tag. As such this playlist cannot be reliably sorted.")
-                return
-        videos.sort(reverse=reverse, key=lambda x: (x['tvid'], x['part']))
+                unsortable.append(video['id'])
+        if unsortable != []:
+            self.logger.error(f"There were videos found in the specified playlist to be sorted without a valid tvid tag. As such this playlist cannot be reliably sorted. The videos specified are: {','.join(unsortable)}")
+            return
+        try:
+            videos.sort(reverse=reverse, key=lambda x: (x['tvid'], x['part']))
+        except TypeError as e:
+            dupes = {}
+            invalid = []
+            for video in videos:
+                if video['tvid'] in dupes:
+                    dupes['tvid'].append(video)
+                else:
+                    dupes['tvid'] = [video]
+            for tvid in dupes:
+                if len(dupes[tvid]) < 2:
+                    dupes.pop(tvid)
+                else:
+                    for video in dupes[tvid]:
+                        if video['part'] == None:
+                            invalid.append(video['id'])
+            self.logger.error(f"There were videos found in the specified playlist to be sorted that has duplicate tvid tags, but no part specified. As such this playlist cannot be reliably sorted. The videos specified are: {','.join(invalid)}")
         i = 0
         while i < len(videos):
             if videos[i]['id'] != playlist_items[i]['snippet']['resourceId']['videoId']:
