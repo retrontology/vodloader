@@ -267,6 +267,7 @@ class youtube_uploader():
                         if video['part'] == None:
                             invalid.append(video['id'])
             self.logger.error(f"There were videos found in the specified playlist to be sorted that has duplicate tvid tags, but no part specified. As such this playlist cannot be reliably sorted. The videos specified are: {','.join(invalid)}")
+            return
         i = 0
         while i < len(videos):
             if videos[i]['id'] != playlist_items[i]['snippet']['resourceId']['videoId']:
