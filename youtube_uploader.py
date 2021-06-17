@@ -199,13 +199,13 @@ class youtube_uploader():
         return timestamp
     
     @staticmethod
-    def parse_tags(video, tag:str):
-        tag = tag + ':'
+    def parse_tags(video, tag_id:str):
+        tag_id = tag_id + ':'
         result = None
         if 'tags' in video['snippet']:
             for tag in video['snippet']['tags']:
-                if tag[:len(tag)] == tag:
-                    result = tag[len(tag):]
+                if tag[:len(tag_id)] == tag_id:
+                    result = tag[len(tag_id):]
         return result
 
     def add_video_to_playlist(self, video_id, playlist_id, pos=-1):
