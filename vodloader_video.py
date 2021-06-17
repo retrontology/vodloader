@@ -115,12 +115,13 @@ class vodloader_video(object):
     
     def get_youtube_body(self, chapters=False):
         tvid = f'tvid:{self.id}'
+        timestamp = f'timestamp:{self.start_absolute.timestamp()}'
         if self.part == 1 and self.passed: tvid += f'p{self.part}'
         body = {
             'snippet': {
                 'title': self.get_formatted_string(self.parent.uploader.youtube_args['title'], self.start_absolute),
                 'description': self.get_formatted_string(self.parent.uploader.youtube_args['description'], self.start_absolute),
-                'tags': [tvid]
+                'tags': [tvid, timestamp]
         },
             'status': {
                 'selfDeclaredMadeForKids': False

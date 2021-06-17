@@ -97,7 +97,7 @@ class youtube_uploader():
             if self.youtube_args['playlistId']:
                 self.add_video_to_playlist(response["id"], self.youtube_args['playlistId'])
                 if self.sort:
-                    self.sort_playlist(self.youtube_args['playlistId'])
+                    self.sort_playlist_by_timestamp(self.youtube_args['playlistId'])
             self.parent.status[id] = True
             self.parent.status.save()
             if not keep: os.remove(path)
@@ -164,6 +164,7 @@ class youtube_uploader():
             i += 1
         for video in videos:
             video['tvid'], video['part'] = self.get_tvid_from_yt_video(video)
+            video['timestamp'] = self.get_timestamp_from_yt_video(video)
         return videos
     
     def get_playlist_videos(self, playlist_id):
@@ -180,20 +181,30 @@ class youtube_uploader():
         return self.get_playlist_videos(uploads)
     
     @staticmethod
-    def get_tvid_from_yt_video(item):
-        if 'tags' in item['snippet']:
-            tvid = None
-            for tag in item['snippet']['tags']:
-                if tag[:5] == 'tvid:':
-                    tvid = tag[5:]
-            if tvid:
-                tvid = tvid.split('p', 1)
-                id = int(tvid[0])
-                if len(tvid) > 1: part = int(tvid[1])
-                else: part = None
-                return id, part
-            else: return None, None
+    def get_tvid_from_yt_video(video):
+        tvid = youtube_uploader.parse_tags(video, 'tvid')
+        if tvid:
+            tvid = tvid.split('p', 1)
+            id = int(tvid[0])
+            if len(tvid) > 1: part = int(tvid[1])
+            else: part = None
+            return id, part
         else: return None, None
+    
+    @staticmethod
+    def get_timestamp_from_yt_video(video):
+        timestamp = youtube_uploader.parse_tags(video, 'timestamp')
+        return datetime.datetime.fromtimestamp(float(timestamp))
+    
+    @staticmethod
+    def parse_tags(video, tag:str):
+        tag = tag + ':'
+        result = None
+        if 'tags' in video['snippet']:
+            for tag in video['snippet']['tags']:
+                if tag[:len(tag)] == tag:
+                    result = tag[len(tag):]
+        return result
 
     def add_video_to_playlist(self, video_id, playlist_id, pos=-1):
         if pos == -1:
@@ -240,7 +251,7 @@ class youtube_uploader():
         except HttpError as e:
             self.check_over_quota(e)
 
-    def sort_playlist(self, playlist_id, reverse=False):
+    def sort_playlist_by_tvid(self, playlist_id, reverse=False):
         self.logger.debug(f'Sorting playlist {playlist_id} according to tvid and part')
         playlist_items = self.get_playlist_items(playlist_id)
         videos = self.get_videos_from_playlist_items(playlist_items)
@@ -281,6 +292,47 @@ class youtube_uploader():
                     return
             i+=1
     
+    def sort_playlist_by_timestamp(self, playlist_id, reverse=False):
+        self.logger.debug(f'Sorting playlist {playlist_id} according to timestamp')
+        playlist_items = self.get_playlist_items(playlist_id)
+        videos = self.get_videos_from_playlist_items(playlist_items)
+        unsortable = []
+        for video in videos:
+            if video['tvid'] == None or video['timestamp'] == None:
+                unsortable.append(video['id'])
+        if unsortable != []:
+            self.logger.error(f"There were videos found in the specified playlist to be sorted without a valid tvid or timestamp tag. As such this playlist cannot be reliably sorted. The videos specified are: {','.join(unsortable)}")
+            return
+        try:
+            videos.sort(reverse=reverse, key=lambda x: (x['timestamp'], x['part']))
+        except TypeError as e:
+            dupes = {}
+            invalid = []
+            for video in videos:
+                if video['tvid'] in dupes:
+                    dupes['tvid'].append(video)
+                else:
+                    dupes['tvid'] = [video]
+            for tvid in dupes:
+                if len(dupes[tvid]) > 1:
+                    for video in dupes[tvid]:
+                        if video['part'] == None:
+                            invalid.append(video['id'])
+            self.logger.error(f"There were videos found in the specified playlist to be sorted that has duplicate timestamp tags, but no part specified. As such this playlist cannot be reliably sorted. The videos specified are: {','.join(invalid)}")
+            return
+        i = 0
+        while i < len(videos):
+            if videos[i]['id'] != playlist_items[i]['snippet']['resourceId']['videoId']:
+                j = i + 1
+                while videos[i]['id'] != playlist_items[j]['snippet']['resourceId']['videoId'] and j <= len(videos): j+=1
+                if j < len(videos):
+                    self.set_video_playlist_pos(playlist_items[j]['snippet']['resourceId']['videoId'], playlist_items[j]['id'], playlist_id, i)
+                    playlist_items.insert(i, playlist_items.pop(j))
+                else:
+                    self.logger.error('An error has occurred while sorting the playlist')
+                    return
+            i+=1
+
     def check_over_quota(self, e: HttpError):
         c = json.loads(e.content)
         if c['error']['errors'][0]['domain'] == 'youtube.quota' and c['error']['errors'][0]['reason'] == 'quotaExceeded':
