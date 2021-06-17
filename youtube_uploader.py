@@ -194,7 +194,9 @@ class youtube_uploader():
     @staticmethod
     def get_timestamp_from_yt_video(video):
         timestamp = youtube_uploader.parse_tags(video, 'timestamp')
-        return datetime.datetime.fromtimestamp(float(timestamp))
+        if timestamp != None:
+            timestamp = datetime.datetime.fromtimestamp(float(timestamp))
+        return timestamp
     
     @staticmethod
     def parse_tags(video, tag:str):
