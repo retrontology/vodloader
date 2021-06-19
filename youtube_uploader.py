@@ -92,17 +92,20 @@ class youtube_uploader():
             if attempts >= retry:
                 self.logger.error(f'Number of retry attempts exceeded for {path}')
                 break
-        if response and 'id' in response:
+        if response and response['status']['uploadStatus'] == 'uploaded':
             self.logger.info(f'Finished uploading {path} to https://youtube.com/watch?v={response["id"]}')
             if self.youtube_args['playlistId']:
-                self.add_video_to_playlist(response["id"], self.youtube_args['playlistId'])
                 if self.sort:
-                    self.sort_playlist_by_timestamp(self.youtube_args['playlistId'])
+                    response['tvid'], response['part'] = self.get_tvid_from_yt_video(response)
+                    response['timestamp'] = self.get_timestamp_from_yt_video(response)
+                    self.insert_into_playlist(response, self.youtube_args['playlistId'])
+                else:
+                    self.add_video_to_playlist(response["id"], self.youtube_args['playlistId'], pos=0)
             self.parent.status[id] = True
             self.parent.status.save()
             if not keep: os.remove(path)
         else:
-            self.logger.info(f'Could not parse a video ID from uploading {path}')
+            self.logger.info(f'Could not upload {path}')
     
     def wait_for_quota(self):
         self.pause = True
@@ -253,75 +256,70 @@ class youtube_uploader():
         except HttpError as e:
             self.check_over_quota(e)
 
-    def sort_playlist_by_tvid(self, playlist_id, reverse=False):
-        self.logger.debug(f'Sorting playlist {playlist_id} according to tvid and part')
+    def insert_into_playlist(self, video, playlist_id, reverse=False):
+        self.logger.debug(f'Inserting video {video["id"]} into playlist {playlist_id} at position according to timestamp')
         playlist_items = self.get_playlist_items(playlist_id)
         videos = self.get_videos_from_playlist_items(playlist_items)
-        unsortable = []
-        for video in videos:
-            if video['tvid'] == None:
-                unsortable.append(video['id'])
-        if unsortable != []:
-            self.logger.error(f"There were videos found in the specified playlist to be sorted without a valid tvid tag. As such this playlist cannot be reliably sorted. The videos specified are: {','.join(unsortable)}")
-            return
-        try:
-            videos.sort(reverse=reverse, key=lambda x: (x['tvid'], x['part']))
-        except TypeError as e:
-            dupes = {}
-            invalid = []
-            for video in videos:
-                if video['tvid'] in dupes:
-                    dupes['tvid'].append(video)
-                else:
-                    dupes['tvid'] = [video]
-            for tvid in dupes:
-                if len(dupes[tvid]) > 1:
-                    for video in dupes[tvid]:
-                        if video['part'] == None:
-                            invalid.append(video['id'])
-            self.logger.error(f"There were videos found in the specified playlist to be sorted that has duplicate tvid tags, but no part specified. As such this playlist cannot be reliably sorted. The videos specified are: {','.join(invalid)}")
-            return
-        i = 0
-        while i < len(videos):
-            if videos[i]['id'] != playlist_items[i]['snippet']['resourceId']['videoId']:
-                j = i + 1
-                while videos[i]['id'] != playlist_items[j]['snippet']['resourceId']['videoId'] and j <= len(videos): j+=1
-                if j < len(videos):
-                    self.set_video_playlist_pos(playlist_items[j]['snippet']['resourceId']['videoId'], playlist_items[j]['id'], playlist_id, i)
-                    playlist_items.insert(i, playlist_items.pop(j))
-                else:
-                    self.logger.error('An error has occured while sorting the playlist')
-                    return
-            i+=1
-    
-    def sort_playlist_by_timestamp(self, playlist_id, reverse=False):
-        self.logger.debug(f'Sorting playlist {playlist_id} according to timestamp')
-        playlist_items = self.get_playlist_items(playlist_id)
-        videos = self.get_videos_from_playlist_items(playlist_items)
-        unsortable = []
+        videos = self.sort_playlist_by_timestamp(playlist_id, reverse=reverse, playlist_items=playlist_items, videos=videos)
+        domain = range(len(videos))
+        if reverse:
+            for i in domain:
+                if video['timestamp'] == videos[i]['timestamp'] and video['part'] > videos[i]['part']:
+                    self.add_video_to_playlist(video['id'], playlist_id, pos=i)
+                    return i
+                elif video['timestamp'] > videos[i]['timestamp']:
+                    self.add_video_to_playlist(video['id'], playlist_id, pos=i)
+                    return i
+            self.add_video_to_playlist(video['id'], playlist_id, pos=len(videos))
+            return len(videos)
+        else:
+            for i in domain:
+                if video['timestamp'] == videos[i]['timestamp'] and video['part'] < videos[i]['part']:
+                    self.add_video_to_playlist(video['id'], playlist_id, pos=i)
+                    return i
+                elif video['timestamp'] < videos[i]['timestamp']:
+                    self.add_video_to_playlist(video['id'], playlist_id, pos=i)
+                    return i
+            self.add_video_to_playlist(video['id'], playlist_id, pos=len(videos))
+            return len(videos)
+                    
+
+    def check_sortable(self, videos):
+        dupes = {}
+        no_part = []
+        no_id = []
         for video in videos:
             if video['tvid'] == None or video['timestamp'] == None:
-                unsortable.append(video['id'])
-        if unsortable != []:
-            self.logger.error(f"There were videos found in the specified playlist to be sorted without a valid tvid or timestamp tag. As such this playlist cannot be reliably sorted. The videos specified are: {','.join(unsortable)}")
-            return
-        try:
+                no_id.append(video['id'])
+            elif video['tvid'] in dupes:
+                dupes['tvid'].append(video)
+            else:
+                dupes['tvid'] = [video]
+        for tvid in dupes:
+            if len(dupes[tvid]) > 1:
+                for video in dupes[tvid]:
+                    if video['part'] == None:
+                        no_part.append(video['id'])
+        if no_id != []:
+            self.logger.error(f"There were videos found in the specified playlist to be sorted without a valid tvid or timestamp tag. As such this playlist cannot be reliably sorted. The videos specified are: {','.join(no_id)}")
+            return False
+        elif no_part != []:
+            self.logger.error(f"There were videos found in the specified playlist to be sorted that has duplicate timestamp/tvid tags, but no part specified. As such this playlist cannot be reliably sorted. The videos specified are: {','.join(no_part)}")
+            return False
+        else:
+            return True
+    
+    def sort_playlist_by_timestamp(self, playlist_id, reverse=False, playlist_items=None, videos=None):
+        self.logger.debug(f'Sorting playlist {playlist_id} according to timestamp and part')
+        if not playlist_items:
+            playlist_items = self.get_playlist_items(playlist_id)
+            videos = self.get_videos_from_playlist_items(playlist_items)
+        elif not videos:
+            videos = self.get_videos_from_playlist_items(playlist_items)
+        if self.check_sortable(videos):
             videos.sort(reverse=reverse, key=lambda x: (x['timestamp'], x['part']))
-        except TypeError as e:
-            dupes = {}
-            invalid = []
-            for video in videos:
-                if video['tvid'] in dupes:
-                    dupes['tvid'].append(video)
-                else:
-                    dupes['tvid'] = [video]
-            for tvid in dupes:
-                if len(dupes[tvid]) > 1:
-                    for video in dupes[tvid]:
-                        if video['part'] == None:
-                            invalid.append(video['id'])
-            self.logger.error(f"There were videos found in the specified playlist to be sorted that has duplicate timestamp tags, but no part specified. As such this playlist cannot be reliably sorted. The videos specified are: {','.join(invalid)}")
-            return
+        else:
+            return False
         i = 0
         while i < len(videos):
             if videos[i]['id'] != playlist_items[i]['snippet']['resourceId']['videoId']:
@@ -332,8 +330,9 @@ class youtube_uploader():
                     playlist_items.insert(i, playlist_items.pop(j))
                 else:
                     self.logger.error('An error has occurred while sorting the playlist')
-                    return
+                    return False
             i+=1
+        return videos
 
     def check_over_quota(self, e: HttpError):
         c = json.loads(e.content)
