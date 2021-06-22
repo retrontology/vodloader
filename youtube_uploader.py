@@ -229,7 +229,7 @@ class youtube_uploader():
         )
         try:
             r = request.execute()
-            self.logger.debug(f'Added video {video_id} to playlist {playlist_id}')
+            self.logger.debug(f'Added video {video_id} to playlist {playlist_id} at position {pos}')
             return r
         except HttpError as e:
             self.check_over_quota(e)
@@ -263,25 +263,31 @@ class youtube_uploader():
         videos = self.sort_playlist_by_timestamp(playlist_id, reverse=reverse, playlist_items=playlist_items, videos=videos)
         domain = range(len(videos))
         if reverse:
-            for i in domain:
-                if video['timestamp'] == videos[i]['timestamp'] and video['part'] > videos[i]['part']:
-                    self.add_video_to_playlist(video['id'], playlist_id, pos=i)
-                    return i
-                elif video['timestamp'] > videos[i]['timestamp']:
-                    self.add_video_to_playlist(video['id'], playlist_id, pos=i)
-                    return i
-            self.add_video_to_playlist(video['id'], playlist_id, pos=len(videos))
-            return len(videos)
+            if videos:
+                for i in domain:
+                    if video['timestamp'] == videos[i]['timestamp'] and video['part'] > videos[i]['part']:
+                        self.add_video_to_playlist(video['id'], playlist_id, pos=i)
+                        return i
+                    elif video['timestamp'] > videos[i]['timestamp']:
+                        self.add_video_to_playlist(video['id'], playlist_id, pos=i)
+                        return i
+                self.add_video_to_playlist(video['id'], playlist_id, pos=len(videos))
+                return len(videos)
+            else:
+                self.add_video_to_playlist(video['id'], playlist_id, pos=0)
         else:
-            for i in domain:
-                if video['timestamp'] == videos[i]['timestamp'] and video['part'] < videos[i]['part']:
-                    self.add_video_to_playlist(video['id'], playlist_id, pos=i)
-                    return i
-                elif video['timestamp'] < videos[i]['timestamp']:
-                    self.add_video_to_playlist(video['id'], playlist_id, pos=i)
-                    return i
-            self.add_video_to_playlist(video['id'], playlist_id, pos=len(videos))
-            return len(videos)
+            if videos:
+                for i in domain:
+                    if video['timestamp'] == videos[i]['timestamp'] and video['part'] < videos[i]['part']:
+                        self.add_video_to_playlist(video['id'], playlist_id, pos=i)
+                        return i
+                    elif video['timestamp'] < videos[i]['timestamp']:
+                        self.add_video_to_playlist(video['id'], playlist_id, pos=i)
+                        return i
+                self.add_video_to_playlist(video['id'], playlist_id, pos=len(videos))
+                return len(videos)
+            else:
+                self.add_video_to_playlist(video['id'], playlist_id, pos=-1)
                     
 
     def check_sortable(self, videos):
