@@ -297,10 +297,10 @@ class youtube_uploader():
         for video in videos:
             if video['tvid'] == None or video['timestamp'] == None:
                 no_id.append(video['id'])
-            elif video['tvid'] in dupes:
-                dupes['tvid'].append(video)
+            if video['timestamp'] in dupes:
+                dupes['timestamp'].append(video)
             else:
-                dupes['tvid'] = [video]
+                dupes['timestamp'] = [video]
         for tvid in dupes:
             if len(dupes[tvid]) > 1:
                 for video in dupes[tvid]:
