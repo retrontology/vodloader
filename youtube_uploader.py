@@ -341,13 +341,14 @@ class youtube_uploader():
         return videos
 
     def check_over_quota(self, e: HttpError):
-        c = json.loads(e.content)
-        if c['error']['errors'][0]['domain'] == 'youtube.quota' and c['error']['errors'][0]['reason'] == 'quotaExceeded':
-            self.logger.error(f'YouTube client quota has been exceeded!')
-            raise YouTubeOverQuota
-        else:
-            self.logger.error(e.resp)
-            self.logger.error(e.content)
+        if e.content:
+            c = json.loads(e.content)
+            if c['error']['errors'][0]['domain'] == 'youtube.quota' and c['error']['errors'][0]['reason'] == 'quotaExceeded':
+                self.logger.error(f'YouTube client quota has been exceeded!')
+                raise YouTubeOverQuota
+            else:
+                self.logger.error(e.resp)
+                self.logger.error(e.content)
     
 class YouTubeOverQuota(Exception):
     """ called when youtube upload quota is exceeded """
