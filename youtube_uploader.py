@@ -337,7 +337,8 @@ class youtube_uploader():
                 else:
                     self.logger.error('An error has occurred while sorting the playlist')
                     return False
-            i+=1
+            else:
+                i+=1
         return videos
 
     def check_over_quota(self, e: HttpError):
