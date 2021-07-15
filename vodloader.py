@@ -12,7 +12,8 @@ import os
 
 class vodloader(object):
 
-    def __init__(self, channel, twitch, webhook, twitch_config, yt_json, download_dir, keep=False, upload=True, sort=True, quota_pause=True, tz=pytz.timezone("America/Chicago")):
+    def __init__(self, sl, channel, twitch, webhook, twitch_config, yt_json, download_dir, keep=False, upload=True, sort=True, quota_pause=True, tz=pytz.timezone("America/Chicago")):
+        self.streamlink = sl
         self.end = False
         self.channel = channel
         self.logger = logging.getLogger(f'vodloader.{self.channel}')

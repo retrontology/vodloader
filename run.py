@@ -2,6 +2,7 @@ from vodloader_config import vodloader_config
 from vodloader import vodloader
 from twitchAPI.twitch import Twitch
 from twitchAPI.webhook import TwitchWebHook
+from streamlink import Streamlink
 import sys
 import os
 import logging
@@ -58,6 +59,15 @@ def setup_logger(logname, logpath="", debug=False):
     logger.addHandler(stream_handler)
     return logger
 
+def setup_streamlink(logname, logpath=""):
+    if not logpath or logpath == "":
+        logpath = os.path.join(os.path.dirname(__file__), 'logs')
+    else:
+        logpath = os.path.abspath(logpath)
+    if not os.path.exists(logpath):
+        os.mkdir(logpath)
+    return Streamlink(options={'subprocess-errorlog-path':os.path.join(logpath, logname)})
+
 def setup_twitch(client_id, client_secret):
     twitch = Twitch(client_id, client_secret)
     twitch.authenticate_app([])
@@ -80,9 +90,10 @@ def main():
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
     hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['webhook']['port'], config['twitch']['client_id'], config['twitch']['webhook']['ssl_cert'], config['twitch']['webhook']['ssl_key'], twitch)
     logger.info(f'Initiating vodloaders')
+    sl = setup_streamlink('vodloader-streamlink.log')
     vodloaders = []
     for channel in config['twitch']['channels']:
-        vodloaders.append(vodloader(channel, twitch, hook, config['twitch']['channels'][channel], config['youtube']['json'], config['download']['directory'], config['download']['keep'], config['youtube']['upload'], config['youtube']['sort'], config['download']['quota_pause'], pytz.timezone(config['twitch']['channels'][channel]['timezone'])))
+        vodloaders.append(vodloader(sl, channel, twitch, hook, config['twitch']['channels'][channel], config['youtube']['json'], config['download']['directory'], config['download']['keep'], config['youtube']['upload'], config['youtube']['sort'], config['download']['quota_pause'], pytz.timezone(config['twitch']['channels'][channel]['timezone'])))
     try:
         while True:
             time.sleep(600)

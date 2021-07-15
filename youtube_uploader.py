@@ -261,9 +261,9 @@ class youtube_uploader():
         playlist_items = self.get_playlist_items(playlist_id)
         videos = self.get_videos_from_playlist_items(playlist_items)
         videos = self.sort_playlist_by_timestamp(playlist_id, reverse=reverse, playlist_items=playlist_items, videos=videos)
-        domain = range(len(videos))
-        if reverse:
-            if videos:
+        if videos:
+            domain = range(len(videos))
+            if reverse:
                 for i in domain:
                     if video['timestamp'] == videos[i]['timestamp'] and video['part'] > videos[i]['part']:
                         self.add_video_to_playlist(video['id'], playlist_id, pos=i)
@@ -274,9 +274,6 @@ class youtube_uploader():
                 self.add_video_to_playlist(video['id'], playlist_id, pos=len(videos))
                 return len(videos)
             else:
-                self.add_video_to_playlist(video['id'], playlist_id, pos=0)
-        else:
-            if videos:
                 for i in domain:
                     if video['timestamp'] == videos[i]['timestamp'] and video['part'] < videos[i]['part']:
                         self.add_video_to_playlist(video['id'], playlist_id, pos=i)
@@ -286,6 +283,9 @@ class youtube_uploader():
                         return i
                 self.add_video_to_playlist(video['id'], playlist_id, pos=len(videos))
                 return len(videos)
+        else:
+            if reverse:
+                self.add_video_to_playlist(video['id'], playlist_id, pos=0)
             else:
                 self.add_video_to_playlist(video['id'], playlist_id, pos=-1)
                     

@@ -54,7 +54,7 @@ class vodloader_video(object):
         pass
     
     def get_stream(self, url, quality):
-        return streamlink.streams(url)[quality]
+        return self.parent.streamlink.streams(url)[quality]
 
     def buffload_stream(self):
         if not self.id in self.parent.status:
