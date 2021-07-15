@@ -29,7 +29,7 @@ def load_config(filename):
         if not 'timezone' in config['twitch']['channels'][channel] or config['twitch']['channels'][channel]['timezone'] == '':
             config['twitch']['channels'][channel]['timezone'] ='UTC'
         if not config['twitch']['channels'][channel]['timezone'] in pytz.all_timezones:
-            sys.exit(f'timezone entry for {channel} in {config_file} is invalid!')
+            sys.exit(f'timezone entry for {channel} in {filename} is invalid!')
     if not 'sort' in config['youtube']:
         config['youtube']['sort'] = True
     config.save()
