@@ -55,14 +55,11 @@ def setup_logger(logname, logpath="", debug=False):
     else:
         file_handler.setLevel(logging.INFO)
         stream_handler.setLevel(logging.INFO)
-    logger.addHandler(file_handler)
-    logger.addHandler(stream_handler)
-    sl_logger = logging.getLogger()
-    for handler in sl_logger.handlers:
-        sl_logger.removeHandler(handler)
-    sl_logger.addHandler(file_handler)
-    sl_logger.addHandler(stream_handler)
-    logging.getLoggerClass()
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers:
+        root_logger.removeHandler(handler)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(stream_handler)
     return logger
 
 def setup_streamlink():
