@@ -61,12 +61,12 @@ def get_new_user(email:str, user_key_size:int = USER_KEY_SIZE, directory_url:str
     net = client.ClientNetwork(user_key, user_agent=USER_AGENT)
     directory = messages.Directory.from_json(net.get(DIRECTORY_URL).json())
     user = client.ClientV2(directory=directory, net=net)
-    """ while True:
+    while True:
         tos_reply = input(f'Do you agree to the ToS of Let\'s Encrypt located at {user.directory.meta.terms_of_service} ? (Y/N): ').lower()
         if tos_reply == 'y':
             break
         elif tos_reply == 'n':
-            exit('You must agree to the ToS of Let\'s Encrypt in order to generate an SSL certificate for webhooks.') """
+            exit('You must agree to the ToS of Let\'s Encrypt in order to generate an SSL certificate for webhooks.')
     logger.info("Registering")
     regr = user.new_account(messages.NewRegistration.from_data(email=email, terms_of_service_agreed=True))
     return user, regr
