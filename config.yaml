@@ -19,6 +19,8 @@ twitch:
   webhook:
     host: mysupersecretdomain.com
     port: 42069
+    ssl_cert_manager: True
+    email: 'butts@gmail.com'
     ssl_cert: fullchain.pem
     ssl_key: privkey.pem
 youtube:
