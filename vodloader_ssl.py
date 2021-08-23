@@ -1,7 +1,7 @@
+import os
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
 from OpenSSL import crypto
-from OpenSSL.SSL import FILETYPE_PEM
 from acme import challenges
 from acme import client
 from acme import crypto_util
@@ -11,16 +11,23 @@ import josepy
 import logging
 from contextlib import contextmanager
 import pickle
+from datetime import datetime
+import time
+from threading import Thread
 
 DIRECTORY_URL = 'https://acme-staging-v02.api.letsencrypt.org/directory'
 USER_KEY_SIZE = 2048
 CERT_KEY_SIZE = 2048
-DOMAIN = 'retrontology.com'
 PORT = 80
 USER_AGENT = 'vodloader'
-EMAIL = 'retrontology@hotmail.com'
+SSL_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ssl')
+USER_FILENAME = 'letsencrypt.user'
+FULLCHAIN_FILENAME = 'fullchain.pem'
+PRIVKEY_FILENAME = 'privkey.pem'
 
 logger = logging.getLogger('vodloader.ssl')
+
+        
 
 def new_csr_comp(domain_name:str, key_pem:bytes=None, cert_key_size:int=CERT_KEY_SIZE):
     if key_pem is None:
@@ -80,9 +87,9 @@ def http01_validate(user:client.ClientV2, challenge:challenges.HTTP01, order:mes
         #input('Press Enter to advance...')
         user.answer_challenge(challenge, response)
         finalized_order = user.poll_and_finalize(order)
-    return finalized_order.fullchain_pem
+    return finalized_order.fullchain_pem.encode('UTF-8')
 
-def get_cert(user:client.ClientV2, domain:str, port:int=PORT, key_pem:bytes=None):
+def get_certs(user:client.ClientV2, domain:str, port:int=PORT, key_pem:bytes=None):
     logger.info("Generating CSR...")
     key_pem, csr_pem = new_csr_comp(domain, key_pem)
     
@@ -93,26 +100,89 @@ def get_cert(user:client.ClientV2, domain:str, port:int=PORT, key_pem:bytes=None
 
     return key_pem, fullchain_pem
 
-def user_save(user:client.ClientV2, regr:messages.RegistrationResource, path:str):
+def user_save(user:client.ClientV2, regr:messages.RegistrationResource, path:str=os.path.join(SSL_DIR, USER_FILENAME)):
     out = (user.net.key.to_json(), regr.to_json())
     with open(path, 'wb') as f:
         pickle.dump(out, f)
 
-def user_load(path:str):
-    with open(path, 'rb') as f:
-        key, regr = pickle.load(f)
-    regr = messages.RegistrationResource.from_json(regr)
-    key = josepy.JWKRSA.from_json(key)
-    net = client.ClientNetwork(key, user_agent=USER_AGENT, account=regr)
-    directory = messages.Directory.from_json(net.get(DIRECTORY_URL).json())
-    user = client.ClientV2(directory=directory, net=net)
-    return user, regr
+def user_load(path:str=os.path.join(SSL_DIR, USER_FILENAME)):
+    if os.path.isfile(path):
+        with open(path, 'rb') as f:
+            key, regr = pickle.load(f)
+        regr = messages.RegistrationResource.from_json(regr)
+        key = josepy.JWKRSA.from_json(key)
+        net = client.ClientNetwork(key, user_agent=USER_AGENT, account=regr)
+        directory = messages.Directory.from_json(net.get(DIRECTORY_URL).json())
+        user = client.ClientV2(directory=directory, net=net)
+        return user, regr
+    else:
+        raise Exception(f'{path} does not exist!')
 
-if __name__ == '__main__':
-    user, regr = get_new_user(EMAIL)
-    path = 'test.pickle'
-    user_save(user, regr, path)
-    user, regr = user_load(path)
-    certs = get_cert(user, DOMAIN)
-    print(certs[0])
-    print(certs[1])
+def cert_expiration_datetime(fullchain:bytes):
+    cert = crypto.load_certificate(crypto.FILETYPE_PEM, fullchain)
+    return datetime.strptime(cert.get_notAfter().decode('UTF-8'),'%Y%m%d%H%M%SZ')
+
+
+class cert_manager():
+
+    def __init__(self, email:str, domain:str):
+        self.email = email
+        self.domain = domain
+        self.privkey_path = os.path.join(SSL_DIR, PRIVKEY_FILENAME)
+        self.fullchain_path = os.path.join(SSL_DIR, FULLCHAIN_FILENAME)
+        self.user_path = os.path.join(SSL_DIR, USER_FILENAME)
+        self.setup_cert()
+    
+    def setup_cert(self):
+        if not os.path.isdir(SSL_DIR):
+            os.mkdir(SSL_DIR)
+        if os.path.isfile(self.user_path):
+            user, regr = user_load()
+        else:
+            user, regr = get_new_user(self.email)
+            user_save(user, regr)
+        if os.path.isfile(self.privkey_path):
+            privkey = self.read_privkey()
+            write_privkey = False
+        else:
+            privkey = None
+            write_privkey = True
+        if os.path.isfile(self.fullchain_path):
+            fullchain = self.read_fullchain()
+            if(cert_expiration_datetime(fullchain).timestamp() - 86400 < time.time()):
+                need_cert = True
+            else:
+                need_cert = False
+        else:
+            need_cert = True
+        if need_cert:
+            privkey, fullchain = get_certs(user, self.domain, key_pem=privkey)
+            if write_privkey:
+                self.write_privkey(privkey)
+            self.write_fullchain(fullchain)
+
+    def renew_loop(self, callback=None):
+        while True:
+            expiration = cert_expiration_datetime(self.read_fullchain()).timestamp() - 86400
+            time.sleep(expiration - time.time())
+            user, regr = user_load()
+            privkey, fullchain = get_certs(user, self.domain, key_pem=self.read_privkey())
+            self.write_fullchain(fullchain)
+            if callback:
+                Thread(target=callback).start()
+    
+    def start(self, callback=None):
+        self.renew_thread = Thread(target=self.renew_loop, args=(callback,))
+        self.renew_thread.start()
+
+    def read_fullchain(self):
+        return open(self.fullchain_path, 'rb').read()
+    
+    def read_privkey(self):
+        return open(self.privkey_path, 'rb').read()
+    
+    def write_fullchain(self, fullchain:bytes):
+        open(self.fullchain_path, 'wb').write(fullchain)
+    
+    def write_privkey(self, privkey:bytes):
+        open(self.privkey_path, 'wb').write(privkey)

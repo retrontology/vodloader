@@ -2,6 +2,7 @@ from vodloader_config import vodloader_config
 from vodloader import vodloader
 from twitchAPI.twitch import Twitch
 from twitchAPI.webhook import TwitchWebHook
+import vodloader_ssl
 from streamlink import Streamlink
 import sys
 import os
@@ -35,6 +36,13 @@ def load_config(filename):
     config.save()
     return config
 
+def setup_cert_manager(email, host, config):
+    cert_manager = vodloader_ssl.cert_manager()
+    config['twitch']['webhook']['ssl_cert'] = cert_manager.fullchain_path
+    config['twitch']['webhook']['ssl_key'] = cert_manager.privkey_path
+    config.save()
+    return cert_manager
+
 def setup_logger(logname, logpath="", debug=False):
     if not logpath or logpath == "":
         logpath = os.path.join(os.path.dirname(__file__), 'logs')
@@ -61,7 +69,7 @@ def setup_logger(logname, logpath="", debug=False):
     root_logger.addHandler(file_handler)
     root_logger.addHandler(stream_handler)
     return logger
-
+    
 def setup_streamlink():
     return Streamlink()
 
@@ -70,20 +78,35 @@ def setup_twitch(client_id, client_secret):
     twitch.authenticate_app([])
     return twitch
 
-def setup_webhook(host, port, client_id, cert, key, twitch):
+def setup_webhook(host, port, client_id, cert, key, twitch:Twitch):
     ssl_context = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
     ssl_context.load_cert_chain(certfile=cert, keyfile=key)
     hook = TwitchWebHook('https://' + host + ":" + str(port), client_id, port, ssl_context=ssl_context)
     hook.subscribe_least_seconds = 86400
     hook.authenticate(twitch)
     hook.start()
+    hook.unsubscribe_all(twitch)
     return hook
+
+def renew_webhook(webhook:TwitchWebHook, cert, key, twitch:Twitch, vodloaders:list[vodloader]):
+    host = webhook._host
+    port = webhook._port
+    client_id = twitch.app_id
+    for vl in vodloaders:
+        vl.webhook_unsubscribe()
+    webhook.stop()
+    webhook = setup_webhook(host, port, client_id, cert, key, twitch)
+    for vl in vodloaders:
+        vl.webhook = webhook
+        vl.webhook_subscribe()
 
 def main():
     args = parse_args()
     logger = setup_logger('vodloader', debug=args.debug)
     logger.info(f'Loading configuration from {args.config}')
     config = load_config(args.config)
+    if config['twitch']['webhook']['ssl_cert_manager']:
+        cert_manager = setup_cert_manager(config['twitch']['webhook']['email'], config['twitch']['webhook']['host'], config)
     logger.info(f'Logging into Twitch and initiating webhook')
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
     hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['webhook']['port'], config['twitch']['client_id'], config['twitch']['webhook']['ssl_cert'], config['twitch']['webhook']['ssl_key'], twitch)
@@ -93,6 +116,8 @@ def main():
     for channel in config['twitch']['channels']:
         vodloaders.append(vodloader(sl, channel, twitch, hook, config['twitch']['channels'][channel], config['youtube']['json'], config['download']['directory'], config['download']['keep'], config['youtube']['upload'], config['youtube']['sort'], config['download']['quota_pause'], pytz.timezone(config['twitch']['channels'][channel]['timezone'])))
     try:
+        if config['twitch']['webhook']['ssl_cert_manager']:
+            cert_manager.start(lambda: renew_webhook(hook, config['twitch']['webhook']['ssl_cert'], config['twitch']['webhook']['ssl_key'], twitch, vodloaders))
         while True:
             time.sleep(600)
     except:
