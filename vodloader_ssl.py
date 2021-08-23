@@ -15,7 +15,7 @@ from datetime import datetime
 import time
 from threading import Thread
 
-DIRECTORY_URL = 'https://acme-staging-v02.api.letsencrypt.org/directory'
+DIRECTORY_URL = 'https://acme-v02.api.letsencrypt.org/directory'
 USER_KEY_SIZE = 2048
 CERT_KEY_SIZE = 2048
 PORT = 80
@@ -26,8 +26,6 @@ FULLCHAIN_FILENAME = 'fullchain.pem'
 PRIVKEY_FILENAME = 'privkey.pem'
 
 logger = logging.getLogger('vodloader.ssl')
-
-        
 
 def new_csr_comp(domain_name:str, key_pem:bytes=None, cert_key_size:int=CERT_KEY_SIZE):
     if key_pem is None:
@@ -126,6 +124,7 @@ def cert_expiration_datetime(fullchain:bytes):
 class cert_manager():
 
     def __init__(self, email:str, domain:str):
+        self.stop = False
         self.email = email
         self.domain = domain
         self.privkey_path = os.path.join(SSL_DIR, PRIVKEY_FILENAME)
@@ -161,13 +160,19 @@ class cert_manager():
                 self.write_privkey(privkey)
             self.write_fullchain(fullchain)
 
+    def renew(self):
+        user, regr = user_load()
+        privkey, fullchain = get_certs(user, self.domain, key_pem=self.read_privkey())
+        self.write_fullchain(fullchain)
+
     def renew_loop(self, callback=None):
         while True:
             expiration = cert_expiration_datetime(self.read_fullchain()).timestamp() - 86400
-            time.sleep(expiration - time.time())
-            user, regr = user_load()
-            privkey, fullchain = get_certs(user, self.domain, key_pem=self.read_privkey())
-            self.write_fullchain(fullchain)
+            while time.time() < expiration:
+                if self.stop:
+                    return
+                time.sleep(1)
+            self.renew()
             if callback:
                 Thread(target=callback).start()
     

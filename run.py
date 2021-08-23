@@ -37,7 +37,7 @@ def load_config(filename):
     return config
 
 def setup_cert_manager(email, host, config):
-    cert_manager = vodloader_ssl.cert_manager()
+    cert_manager = vodloader_ssl.cert_manager(email, host)
     config['twitch']['webhook']['ssl_cert'] = cert_manager.fullchain_path
     config['twitch']['webhook']['ssl_key'] = cert_manager.privkey_path
     config.save()
@@ -88,7 +88,7 @@ def setup_webhook(host, port, client_id, cert, key, twitch:Twitch):
     hook.unsubscribe_all(twitch)
     return hook
 
-def renew_webhook(webhook:TwitchWebHook, cert, key, twitch:Twitch, vodloaders:list[vodloader]):
+def renew_webhook(webhook, cert, key, twitch, vodloaders):
     host = webhook._host
     port = webhook._port
     client_id = twitch.app_id
@@ -121,11 +121,14 @@ def main():
         while True:
             time.sleep(600)
     except:
+        if config['twitch']['webhook']['ssl_cert_manager']:
+            cert_manager.stop = True
         logger.info(f'Shutting down')
         for v in vodloaders:
             v.end = True
             v.webhook_unsubscribe()
         hook.stop()
+        
 
 if __name__ == '__main__':
     main()
