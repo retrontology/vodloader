@@ -10,6 +10,7 @@ from acme import standalone
 import josepy
 import logging
 from contextlib import contextmanager
+import pickle
 
 DIRECTORY_URL = 'https://acme-staging-v02.api.letsencrypt.org/directory'
 USER_KEY_SIZE = 2048
@@ -31,7 +32,7 @@ def new_csr_comp(domain_name:str, key_pem:bytes=None, cert_key_size:int=CERT_KEY
     return key_pem, csr_pem
 
 @contextmanager
-def challenge_server(http_01_resources:set, port:int):
+def challenge_server(http_01_resources:set, port:int=PORT):
     try:
         servers = standalone.HTTP01DualNetworkedServers(('', port), http_01_resources)
         servers.serve_forever()
@@ -71,7 +72,7 @@ def get_new_user(email:str, user_key_size:int = USER_KEY_SIZE, directory_url:str
     regr = user.new_account(messages.NewRegistration.from_data(email=email, terms_of_service_agreed=True))
     return user, regr
 
-def http01_validate(user:client.ClientV2, challenge:challenges.HTTP01, order:messages.OrderResource, port:int):
+def http01_validate(user:client.ClientV2, challenge:challenges.HTTP01, order:messages.OrderResource, port:int=PORT):
     response, validation = challenge.response_and_validation(user.net.key)
     response
     resource = standalone.HTTP01RequestHandler.HTTP01Resource(chall=challenge.chall, response=response, validation=validation)
@@ -81,7 +82,7 @@ def http01_validate(user:client.ClientV2, challenge:challenges.HTTP01, order:mes
         finalized_order = user.poll_and_finalize(order)
     return finalized_order.fullchain_pem
 
-def get_cert(user:client.ClientV2, domain:str, port:int, key_pem:bytes=None):
+def get_cert(user:client.ClientV2, domain:str, port:int=PORT, key_pem:bytes=None):
     logger.info("Generating CSR...")
     key_pem, csr_pem = new_csr_comp(domain, key_pem)
     
@@ -91,3 +92,27 @@ def get_cert(user:client.ClientV2, domain:str, port:int, key_pem:bytes=None):
     fullchain_pem = http01_validate(user, challenge, order, port)
 
     return key_pem, fullchain_pem
+
+def user_save(user:client.ClientV2, regr:messages.RegistrationResource, path:str):
+    out = (user.net.key.to_json(), regr.to_json())
+    with open(path, 'wb') as f:
+        pickle.dump(out, f)
+
+def user_load(path:str):
+    with open(path, 'rb') as f:
+        key, regr = pickle.load(f)
+    regr = messages.RegistrationResource.from_json(regr)
+    key = josepy.JWKRSA.from_json(key)
+    net = client.ClientNetwork(key, user_agent=USER_AGENT, account=regr)
+    directory = messages.Directory.from_json(net.get(DIRECTORY_URL).json())
+    user = client.ClientV2(directory=directory, net=net)
+    return user, regr
+
+if __name__ == '__main__':
+    user, regr = get_new_user(EMAIL)
+    path = 'test.pickle'
+    user_save(user, regr, path)
+    user, regr = user_load(path)
+    certs = get_cert(user, DOMAIN)
+    print(certs[0])
+    print(certs[1])
