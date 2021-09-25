@@ -1,7 +1,6 @@
 from vodloader_config import vodloader_config
 from vodloader import vodloader
-from twitchAPI.twitch import Twitch
-from twitchAPI.webhook import TwitchWebHook
+from twitchAPI import Twitch, EventSub
 import vodloader_ssl
 from streamlink import Streamlink
 import sys
@@ -78,24 +77,22 @@ def setup_twitch(client_id, client_secret):
     twitch.authenticate_app([])
     return twitch
 
-def setup_webhook(host, port, client_id, cert, key, twitch:Twitch):
+def setup_eventsub(host, port, client_id, cert, key, twitch:Twitch):
     ssl_context = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
     ssl_context.load_cert_chain(certfile=cert, keyfile=key)
-    hook = TwitchWebHook('https://' + host + ":" + str(port), client_id, port, ssl_context=ssl_context)
-    hook.subscribe_least_seconds = 86400
-    hook.authenticate(twitch)
+    hook = EventSub('https://' + host + ":" + str(port), client_id, port, twitch, ssl_context=ssl_context)
+    hook.unsubscribe_all()
     hook.start()
-    hook.unsubscribe_all(twitch)
     return hook
 
-def renew_webhook(webhook, cert, key, twitch, vodloaders):
+def renew_webhook(webhook:EventSub, cert, key, twitch:Twitch, vodloaders):
     host = webhook._host
     port = webhook._port
     client_id = twitch.app_id
     for vl in vodloaders:
         vl.webhook_unsubscribe()
     webhook.stop()
-    webhook = setup_webhook(host, port, client_id, cert, key, twitch)
+    webhook = setup_eventsub(host, port, client_id, cert, key, twitch)
     for vl in vodloaders:
         vl.webhook = webhook
         vl.webhook_subscribe()
@@ -109,7 +106,7 @@ def main():
         cert_manager = setup_cert_manager(config['twitch']['webhook']['email'], config['twitch']['webhook']['host'], config)
     logger.info(f'Logging into Twitch and initiating webhook')
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
-    hook = setup_webhook(config['twitch']['webhook']['host'], config['twitch']['webhook']['port'], config['twitch']['client_id'], config['twitch']['webhook']['ssl_cert'], config['twitch']['webhook']['ssl_key'], twitch)
+    hook = setup_eventsub(config['twitch']['webhook']['host'], config['twitch']['webhook']['port'], config['twitch']['client_id'], config['twitch']['webhook']['ssl_cert'], config['twitch']['webhook']['ssl_key'], twitch)
     logger.info(f'Initiating vodloaders')
     sl = setup_streamlink()
     vodloaders = []

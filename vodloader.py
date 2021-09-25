@@ -1,4 +1,4 @@
-from twitchAPI.types import VideoType
+from twitchAPI.types import VideoType, EventSubSubscriptionConflict, EventSubSubscriptionTimeout, EventSubSubscriptionError
 from time import sleep
 from threading import Thread
 import logging
@@ -86,20 +86,20 @@ class vodloader(object):
 
     def webhook_unsubscribe(self):
         if self.webhook_uuid:
-            success = self.webhook.unsubscribe(self.webhook_uuid)
+            success = self.webhook.unsubscribe_topic(self.webhook_uuid)
             if success:
-                self.webhook_uuid = ''
-                self.logger.info(f'Unsubscribed from webhook for {self.channel}')
+                self.webhook_uuid = None
+                self.logger.info(f'Unsubscribed from eventsub for {self.channel}')
             return success
 
     def webhook_subscribe(self):
-        success, uuid = self.webhook.subscribe_stream_changed(self.user_id, self.callback_stream_changed)
-        if success:
+        try:
+            uuid = self.webhook.listen_stream_online(self.user_id, self.callback_stream_changed)
             self.webhook_uuid = uuid
-            self.logger.info(f'Subscribed to webhook for {self.channel}')
-        else:
+            self.logger.info(f'Subscribed to eventsub for {self.channel}')
+        except (EventSubSubscriptionConflict, EventSubSubscriptionTimeout, EventSubSubscriptionError)  as e:
+            self.logger.error(e)
             self.webhook_uuid = None
-        return success
 
     def get_user_id(self):
         user_info = self.twitch.get_users(logins=[self.channel])
