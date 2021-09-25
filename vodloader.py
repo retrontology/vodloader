@@ -55,6 +55,9 @@ class vodloader(object):
     def __del__(self):
         self.webhook_unsubscribe()
 
+    async def callback_online(self, data: dict):
+        self.logger.info(data)
+
     def callback_stream_changed(self, uuid, data):
         self.logger.info(f'Received webhook callback for {self.channel}')
         if data['type'] == 'live':
@@ -94,10 +97,9 @@ class vodloader(object):
 
     def webhook_subscribe(self):
         try:
-            uuid = self.webhook.listen_stream_online(self.user_id, self.callback_stream_changed)
-            self.webhook_uuid = uuid
+            self.webhook_uuid = self.webhook.listen_stream_online(self.user_id, self.callback_online)
             self.logger.info(f'Subscribed to eventsub for {self.channel}')
-        except (EventSubSubscriptionConflict, EventSubSubscriptionTimeout, EventSubSubscriptionError)  as e:
+        except (EventSubSubscriptionConflict, EventSubSubscriptionTimeout, EventSubSubscriptionError) as e:
             self.logger.error(e)
             self.webhook_uuid = None
 

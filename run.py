@@ -12,6 +12,7 @@ import time
 import pytz
 import argparse
 
+SSL_PORT = 443
 
 def parse_args():
     parser = argparse.ArgumentParser(prog='vodloader', description='Automate uploading Twitch streams to YouTube')
@@ -106,7 +107,7 @@ def main():
         cert_manager = setup_cert_manager(config['twitch']['webhook']['email'], config['twitch']['webhook']['host'], config)
     logger.info(f'Logging into Twitch and initiating webhook')
     twitch = setup_twitch(config['twitch']['client_id'], config['twitch']['client_secret'])
-    hook = setup_eventsub(config['twitch']['webhook']['host'], config['twitch']['webhook']['port'], config['twitch']['client_id'], config['twitch']['webhook']['ssl_cert'], config['twitch']['webhook']['ssl_key'], twitch)
+    hook = setup_eventsub(config['twitch']['webhook']['host'], SSL_PORT, config['twitch']['client_id'], config['twitch']['webhook']['ssl_cert'], config['twitch']['webhook']['ssl_key'], twitch)
     logger.info(f'Initiating vodloaders')
     sl = setup_streamlink()
     vodloaders = []
