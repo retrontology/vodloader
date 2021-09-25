@@ -57,6 +57,12 @@ class vodloader(object):
 
     async def callback_online(self, data: dict):
         self.logger.info(data)
+    
+    async def callback_offline(self, data: dict):
+        self.logger.info(data)
+    
+    async def callback_channel_update(self, data:dict):
+        self.logger.info(data)
 
     def callback_stream_changed(self, uuid, data):
         self.logger.info(f'Received webhook callback for {self.channel}')
@@ -89,15 +95,20 @@ class vodloader(object):
 
     def webhook_unsubscribe(self):
         if self.webhook_uuid:
-            success = self.webhook.unsubscribe_topic(self.webhook_uuid)
-            if success:
-                self.webhook_uuid = None
-                self.logger.info(f'Unsubscribed from eventsub for {self.channel}')
-            return success
+            success = set()
+            for uuid in self.webhook_uuid:
+                success.add(self.webhook.unsubscribe_topic(uuid))
+            self.webhook_uuid = None
+            return all(success)
+        else:
+            return True
 
     def webhook_subscribe(self):
         try:
-            self.webhook_uuid = self.webhook.listen_stream_online(self.user_id, self.callback_online)
+            online_uuid = self.webhook.listen_stream_online(self.user_id, self.callback_online)
+            offline_uuid = self.webhook.listen_stream_offline(self.user_id, self.callback_offline)
+            channel_update_uuid = self.webhook.listen_channel_update(self.user_id, self.callback_offline)
+            self.webhook_uuid = {online_uuid, offline_uuid, channel_update_uuid}
             self.logger.info(f'Subscribed to eventsub for {self.channel}')
         except (EventSubSubscriptionConflict, EventSubSubscriptionTimeout, EventSubSubscriptionError) as e:
             self.logger.error(e)
