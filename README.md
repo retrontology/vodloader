@@ -33,7 +33,6 @@ You need to set up your config file before you run the program so it knows what 
           * "Some Other Tag"
    * **webhook**
      * **host**: The domain/address of the host machine.
-     * **port**: Some arbitrary port that the webhook client will listen on. Ideally >= 1024
      * **ssl_cert_manager**: (True/False) Whether you want vodloader to manage your Let's Encrypt SSL certificate process or not. You will need to agree to the ToS of Let's Encrypt through the application on the first start and provide your email in the specified field if you specify True. If you specify False here, you need to fill out the ssl_cert and ssl_key fields yourself.
      * **email**: Email address used to register for certificate on Let's Encrypt. Only used if ssl_cert_manager is True
      * **ssl_cert**: The ssl certificate file for your HTTPS server. **It needs to not be self-signed and for the correct domain/address or the webhook will not work!** I recommend using [Let's Encrypt](https://letsencrypt.org/) to obtain a free certificate.
@@ -57,3 +56,6 @@ optional arguments:
   -c config.yaml, --config config.yaml
   -d, --debug
 ```
+
+## Port Notes
+This program uses port 443 for EventSubs as this is required by Twitch and the library being used to communicate with it. If you choose to use the ssl certificate manager, port 80 will also be used. This also means if you are running this on linux, you need to run the program and install the pip requirements with root as these ports are not accessible by non-priviledged users.
