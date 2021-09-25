@@ -40,7 +40,7 @@ class vodloader_chapters(object):
         count = 1
         for i in range(1, len(self.timestamps)):
             if self.timestamps[i][1] != self.timestamps[i-1][1]:
-                out += f'{self.timestamps[i][1]} {self.timestamps[i][0]}\n'
+                out += f'{self.timestamps[i][0]} {self.timestamps[i][1]}\n'
                 count += 1
         if count > 2:
             return out
@@ -52,7 +52,7 @@ class vodloader_chapters(object):
         count = 1
         for i in range(1, len(self.timestamps)):
             if self.timestamps[i][2] != self.timestamps[i-1][2]:
-                out += f'{self.timestamps[i][2]} {self.timestamps[i][0]}\n'
+                out += f'{self.timestamps[i][0]} {self.timestamps[i][2]}\n'
                 count += 1
         if count > 2:
             return out

@@ -56,32 +56,25 @@ class vodloader(object):
         self.webhook_unsubscribe()
 
     async def callback_online(self, data: dict):
-        self.logger.info(data)
+        if not self.live:
+            self.live = True
+            self.logger.info(f'{self.channel} has gone live!')
+            data = self.twitch.get_streams(user_id=self.user_id)['data'][0]
+            url = 'https://www.twitch.tv/' + self.channel
+            self.livestream = vodloader_video(self, url, data, backlog=False, quality=self.quality)
     
     async def callback_offline(self, data: dict):
-        self.logger.info(data)
+        self.live = False
+        self.logger.info(f'{self.channel} has gone offline')
     
     async def callback_channel_update(self, data:dict):
-        self.logger.info(data)
-
-    def callback_stream_changed(self, uuid, data):
-        self.logger.info(f'Received webhook callback for {self.channel}')
-        if data['type'] == 'live':
-            if not self.live:
-                self.live = True
-                self.logger.info(f'{self.channel} has gone live!')
-                url = 'https://www.twitch.tv/' + self.channel
-                self.livestream = vodloader_video(self, url, data, backlog=False, quality=self.quality)
-            else:
-                self.live = True
-                if self.livestream.chapters.get_current_game() != data["game_name"]:
-                    self.logger.info(f'{self.channel} has changed game to {data["game_name"]}')
-                if self.livestream.chapters.get_current_title() != data["title"]:
-                    self.logger.info(f'{self.channel} has changed their title to {data["title"]}')
-                self.livestream.chapters.append(data['game_name'], data['title'])
-        else:
-            self.live = False
-            self.logger.info(f'{self.channel} has gone offline')
+        if self.live:
+            data = data['event']
+            if self.livestream.chapters.get_current_game() != data["category_name"]:
+                self.logger.info(f'{self.channel} has changed game to {data["category_name"]}')
+            if self.livestream.chapters.get_current_title() != data["title"]:
+                self.logger.info(f'{self.channel} has changed their title to {data["title"]}')
+            self.livestream.chapters.append(data['category_name'], data['title'])
 
     def get_live(self):
         data = self.twitch.get_streams(user_id=self.user_id)
@@ -99,6 +92,7 @@ class vodloader(object):
             for uuid in self.webhook_uuid:
                 success.add(self.webhook.unsubscribe_topic(uuid))
             self.webhook_uuid = None
+            self.logger.info(f'Unsubscribed from eventsub for {self.channel}')
             return all(success)
         else:
             return True
@@ -107,7 +101,7 @@ class vodloader(object):
         try:
             online_uuid = self.webhook.listen_stream_online(self.user_id, self.callback_online)
             offline_uuid = self.webhook.listen_stream_offline(self.user_id, self.callback_offline)
-            channel_update_uuid = self.webhook.listen_channel_update(self.user_id, self.callback_offline)
+            channel_update_uuid = self.webhook.listen_channel_update(self.user_id, self.callback_channel_update)
             self.webhook_uuid = {online_uuid, offline_uuid, channel_update_uuid}
             self.logger.info(f'Subscribed to eventsub for {self.channel}')
         except (EventSubSubscriptionConflict, EventSubSubscriptionTimeout, EventSubSubscriptionError) as e:
