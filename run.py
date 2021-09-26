@@ -1,3 +1,4 @@
+import twitchAPI
 from vodloader_config import vodloader_config
 from vodloader import vodloader
 from twitchAPI import Twitch, EventSub
@@ -68,6 +69,9 @@ def setup_logger(logname, logpath="", debug=False):
         root_logger.removeHandler(handler)
     root_logger.addHandler(file_handler)
     root_logger.addHandler(stream_handler)
+    twitchapi_logger = logging.getLogger('twitchAPI')
+    twitchapi_logger.addHandler(file_handler)
+    twitchapi_logger.addHandler(stream_handler)
     return logger
     
 def setup_streamlink():
