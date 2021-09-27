@@ -103,7 +103,9 @@ class youtube_uploader():
                     self.add_video_to_playlist(response["id"], self.youtube_args['playlistId'], pos=0)
             self.parent.status[id] = True
             self.parent.status.save()
-            if not keep: os.remove(path)
+            if not keep: 
+                sleep(1)
+                os.remove(path)
         else:
             self.logger.info(f'Could not upload {path}')
     

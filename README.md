@@ -18,7 +18,7 @@ You need to set up your config file before you run the program so it knows what 
   * **client_secret**: The client secret of your registered Twitch application to interface with the Twitch API. This is received from the [Twitch Developer Portal](https://dev.twitch.tv/console/apps).
   * **channels**:
     * **Some_Channel_Name**: This is where you put the name of the Twitch channel you want to archive. You may make multiple entries for multiple channels, but there must be a youtube_param child for each one.
-      * **backlog**: (True/False) Whether you want to upload the current VOD backlog available on Twitch (currently expiremental support so use at your own risk)
+      * **backlog**: (True/False) Whether you want to upload the current VOD backlog available on Twitch
       * **chapters**: ("games"/"titles"/False) Create chapters for YouTube based on either game or title changes. Can be set to False to disable
       * **quality**: The stream quality to be passed to streamlink for downloading. Can be left blank and will default to "best"
       * **timezone**: The time zone of the streamer to localize the time for the time formatted titles and descriptions. If left blank will default to UTC
@@ -33,7 +33,8 @@ You need to set up your config file before you run the program so it knows what 
           * "Some Other Tag"
    * **webhook**
      * **host**: The domain/address of the host machine.
-     * **port**: Some arbitrary port that the webhook client will listen on. Ideally >= 1024
+     * **ssl_cert_manager**: (True/False) Whether you want vodloader to manage your Let's Encrypt SSL certificate process or not. You will need to agree to the ToS of Let's Encrypt through the application on the first start and provide your email in the specified field if you specify True. If you specify False here, you need to fill out the ssl_cert and ssl_key fields yourself.
+     * **email**: Email address used to register for certificate on Let's Encrypt. Only used if ssl_cert_manager is True
      * **ssl_cert**: The ssl certificate file for your HTTPS server. **It needs to not be self-signed and for the correct domain/address or the webhook will not work!** I recommend using [Let's Encrypt](https://letsencrypt.org/) to obtain a free certificate.
      * **ssl_key**: The ssl private keyfile for your HTTPS server.
 * **youtube**:
@@ -55,3 +56,6 @@ optional arguments:
   -c config.yaml, --config config.yaml
   -d, --debug
 ```
+
+## Port Notes
+This program uses port 443 for EventSubs as this is required by Twitch and the library being used to communicate with it. If you choose to use the ssl certificate manager, port 80 will also be used. This also means if you are running this on linux, you need to run the program and install the pip requirements with root as these ports are not accessible by non-priviledged users.

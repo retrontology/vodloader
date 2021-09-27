@@ -1,4 +1,4 @@
-from twitchAPI.types import VideoType
+from twitchAPI.types import VideoType, EventSubSubscriptionConflict, EventSubSubscriptionTimeout, EventSubSubscriptionError
 from time import sleep
 from threading import Thread
 import logging
@@ -55,24 +55,26 @@ class vodloader(object):
     def __del__(self):
         self.webhook_unsubscribe()
 
-    def callback_stream_changed(self, uuid, data):
-        self.logger.info(f'Received webhook callback for {self.channel}')
-        if data['type'] == 'live':
-            if not self.live:
-                self.live = True
-                self.logger.info(f'{self.channel} has gone live!')
-                url = 'https://www.twitch.tv/' + self.channel
-                self.livestream = vodloader_video(self, url, data, backlog=False, quality=self.quality)
-            else:
-                self.live = True
-                if self.livestream.chapters.get_current_game() != data["game_name"]:
-                    self.logger.info(f'{self.channel} has changed game to {data["game_name"]}')
-                if self.livestream.chapters.get_current_title() != data["title"]:
-                    self.logger.info(f'{self.channel} has changed their title to {data["title"]}')
-                self.livestream.chapters.append(data['game_name'], data['title'])
-        else:
-            self.live = False
-            self.logger.info(f'{self.channel} has gone offline')
+    async def callback_online(self, data: dict):
+        if not self.live:
+            self.live = True
+            self.logger.info(f'{self.channel} has gone live!')
+            data = self.twitch.get_streams(user_id=self.user_id)['data'][0]
+            url = 'https://www.twitch.tv/' + self.channel
+            self.livestream = vodloader_video(self, url, data, backlog=False, quality=self.quality)
+    
+    async def callback_offline(self, data: dict):
+        self.live = False
+        self.logger.info(f'{self.channel} has gone offline')
+    
+    async def callback_channel_update(self, data:dict):
+        if self.live:
+            data = data['event']
+            if self.livestream.chapters.get_current_game() != data["category_name"]:
+                self.logger.info(f'{self.channel} has changed game to {data["category_name"]}')
+            if self.livestream.chapters.get_current_title() != data["title"]:
+                self.logger.info(f'{self.channel} has changed their title to {data["title"]}')
+            self.livestream.chapters.append(data['category_name'], data['title'])
 
     def get_live(self):
         data = self.twitch.get_streams(user_id=self.user_id)
@@ -86,20 +88,25 @@ class vodloader(object):
 
     def webhook_unsubscribe(self):
         if self.webhook_uuid:
-            success = self.webhook.unsubscribe(self.webhook_uuid)
-            if success:
-                self.webhook_uuid = ''
-                self.logger.info(f'Unsubscribed from webhook for {self.channel}')
-            return success
+            success = set()
+            for uuid in self.webhook_uuid:
+                success.add(self.webhook.unsubscribe_topic(uuid))
+            self.webhook_uuid = None
+            self.logger.info(f'Unsubscribed from eventsub for {self.channel}')
+            return all(success)
+        else:
+            return True
 
     def webhook_subscribe(self):
-        success, uuid = self.webhook.subscribe_stream_changed(self.user_id, self.callback_stream_changed)
-        if success:
-            self.webhook_uuid = uuid
-            self.logger.info(f'Subscribed to webhook for {self.channel}')
-        else:
+        try:
+            online_uuid = self.webhook.listen_stream_online(self.user_id, self.callback_online)
+            offline_uuid = self.webhook.listen_stream_offline(self.user_id, self.callback_offline)
+            channel_update_uuid = self.webhook.listen_channel_update(self.user_id, self.callback_channel_update)
+            self.webhook_uuid = {online_uuid, offline_uuid, channel_update_uuid}
+            self.logger.info(f'Subscribed to eventsub for {self.channel}')
+        except (EventSubSubscriptionConflict, EventSubSubscriptionTimeout, EventSubSubscriptionError) as e:
+            self.logger.error(e)
             self.webhook_uuid = None
-        return success
 
     def get_user_id(self):
         user_info = self.twitch.get_users(logins=[self.channel])
