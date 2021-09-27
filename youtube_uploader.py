@@ -190,9 +190,13 @@ class youtube_uploader():
         tvid = youtube_uploader.parse_tags(video, 'tvid')
         if tvid:
             tvid = tvid.split('p', 1)
-            id = int(tvid[0])
-            if len(tvid) > 1: part = int(tvid[1])
-            else: part = None
+            id = "".join(filter(str.isdigit, tvid[0]))
+            id = int(id)
+            if len(tvid) > 1:
+                part = "".join(filter(str.isdigit, tvid[1]))
+                part = int(tvid[1])
+            else:
+                part = None
             return id, part
         else: return None, None
     
