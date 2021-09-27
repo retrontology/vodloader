@@ -189,12 +189,12 @@ class youtube_uploader():
     def get_tvid_from_yt_video(video):
         tvid = youtube_uploader.parse_tags(video, 'tvid')
         if tvid:
-            tvid = tvid.split('p', 1)
+            tvid = tvid.split('p')
             id = "".join(filter(str.isdigit, tvid[0]))
             id = int(id)
             if len(tvid) > 1:
                 part = "".join(filter(str.isdigit, tvid[1]))
-                part = int(tvid[1])
+                part = int(part)
             else:
                 part = None
             return id, part
