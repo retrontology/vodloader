@@ -14,6 +14,7 @@ import pytz
 import argparse
 
 SSL_PORT = 443
+DEFAULT_RETRIES = 10
 
 def parse_args():
     parser = argparse.ArgumentParser(prog='vodloader', description='Automate uploading Twitch streams to YouTube')
@@ -85,7 +86,18 @@ def setup_twitch(client_id, client_secret):
 def setup_eventsub(host, port, client_id, cert, key, twitch:Twitch):
     ssl_context = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
     ssl_context.load_cert_chain(certfile=cert, keyfile=key)
-    hook = EventSub('https://' + host + ":" + str(port), client_id, port, twitch, ssl_context=ssl_context)
+    webhook_retries = 0
+    while True:
+        try:
+            hook = EventSub('https://' + host + ":" + str(port), client_id, port, twitch, ssl_context=ssl_context)
+            break
+        except Exception as e:
+            logger.error(e)
+            if webhook_retries > DEFAULT_RETRIES:
+                raise RetryExceeded()
+            else:
+                time.sleep(1)
+                webhook_retries += 1
     hook.unsubscribe_all()
     hook.start()
     return hook
@@ -103,8 +115,6 @@ def renew_webhook(webhook:EventSub, cert, key, twitch:Twitch, vodloaders):
         vl.webhook_subscribe()
 
 def main():
-    args = parse_args()
-    logger = setup_logger('vodloader', debug=args.debug)
     logger.info(f'Loading configuration from {args.config}')
     config = load_config(args.config)
     if config['twitch']['webhook']['ssl_cert_manager']:
@@ -131,6 +141,9 @@ def main():
             v.webhook_unsubscribe()
         hook.stop()
         
+class RetryExceeded(Exception): pass
 
 if __name__ == '__main__':
+    args = parse_args()
+    logger = setup_logger('vodloader', debug=args.debug)
     main()
