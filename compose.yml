@@ -1,0 +1,17 @@
+services:
+  vodloader:
+    build: ./app
+    volumes:
+      - socket_volume:/opt/maierbox/socket
+  nginx:
+    build: ./nginx
+    ports:
+      - 80:80
+    depends_on:
+      maierbox:
+        condition: service_healthy
+        restart: true
+volumes:
+  socket_volume:
+  static_volume:
+  media_volume:

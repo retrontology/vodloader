@@ -16,12 +16,6 @@ twitch:
         tags:
         - GTA RP
         - nopixel
-  webhook:
-    host: mysupersecretdomain.com
-    ssl_cert_manager: True
-    email: 'butts@gmail.com'
-    ssl_cert: fullchain.pem
-    ssl_key: privkey.pem
 youtube:
   upload: true
   json: secrets.json
