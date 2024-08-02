@@ -46,7 +46,9 @@ def setup_logger(level=logging.INFO, path='logs'):
     stream_handler.setFormatter(format)
     file_handler.setLevel(level)
     stream_handler.setLevel(level)
-    return logger
+    logger.handlers.append(file_handler)
+    logger.handlers.append(stream_handler)
+    return logging.getLogger('vodloader')
 
 async def main():
 
@@ -89,6 +91,7 @@ async def main():
     try:
         input('press Enter to shut down...')
     finally:
+        await eventsub.unsubscribe_all()
         await eventsub.stop()
         await twitch.close()
 

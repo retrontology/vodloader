@@ -18,7 +18,7 @@ class Channel():
         quality: str='best',
         timezone: str='America/New_York',
     ):
-        self.logger = logging.getLogger(f'Channel.{name}')
+        self.logger = logging.getLogger(f'vodloader.channel.{name}')
         self.name = name
         self.user_id = user_id
         self.twitch = twitch
@@ -51,6 +51,7 @@ class Channel():
             quality,
             timezone,
         )
+        self.logger.info('Subscribing to webhooks')
         await eventsub.listen_stream_online(self.user_id, self.on_online)
         await eventsub.listen_stream_offline(self.user_id, self.on_offline)
         return self
