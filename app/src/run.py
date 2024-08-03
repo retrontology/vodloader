@@ -1,7 +1,7 @@
 import argparse
 import os
 import logging, logging.handlers
-from twitchAPI.twitch import Twitch
+from twitchAPI.twitch import Twitch, TwitchAPIException
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from .channel import Channel
@@ -13,6 +13,7 @@ DEFAULT_CONFIG = default=os.path.join(
     os.path.dirname(__file__),
     'config.yml'
 )
+TARGET_SCOPE = []
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -69,9 +70,15 @@ async def main():
         config['twitch']['client_secret'],
     )
 
+    # Authenticate Twitch User
+    auth = UserAuthenticator(twitch, TARGET_SCOPE, url='http://localhost')
+    auth_url = auth.return_auth_url()
+    print(auth_url)
+    code = input('Enter the code: ')
+    token, refresh = await auth.authenticate(user_token=code)
+    await twitch.set_user_authentication(token, TARGET_SCOPE, refresh)
+
     # Initialize Webhook
-    auth = UserAuthenticator(twitch, [])
-    await auth.authenticate()
     logger.info(f'Initializing EventSub Webhook')
     eventsub = EventSubWebhook(f"https://{config['host']}", 8000, twitch)
     await eventsub.unsubscribe_all()

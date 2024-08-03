@@ -22,7 +22,7 @@ class Channel():
         eventsub: EventSubWebhook,
         quality: str='best',
     ):
-        self.logger = logging.getLogger(f'vodloader.{name}}')
+        self.logger = logging.getLogger(f'vodloader.{name}')
         self.name = name
         self.id = id
         self.url = 'https://www.twitch.tv/' + self.name
