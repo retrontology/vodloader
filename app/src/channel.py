@@ -6,6 +6,10 @@ from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, Cha
 from twitchAPI.helper import first
 from .util import get_live
 from .video import LiveStream
+from pathlib import Path
+import asyncio
+
+RETRY_COUNT = 5
 
 class Channel():
     
@@ -14,6 +18,7 @@ class Channel():
         name: str,
         id: str,
         live: bool,
+        download_dir: Path,
         twitch: Twitch,
         eventsub: EventSubWebhook,
         backlog: bool=False,
@@ -21,7 +26,7 @@ class Channel():
         quality: str='best',
         timezone: str='America/New_York',
     ):
-        self.logger = logging.getLogger(f'vodloader.channel.{name}')
+        self.logger = logging.getLogger(f'vodloader.channel.{type(self).__name__}')
         self.name = name
         self.id = id
         self.url = 'https://www.twitch.tv/' + self.name
@@ -32,6 +37,7 @@ class Channel():
         self.chapters = chapters
         self.quality = quality
         self.timezone = timezone
+        self.download_dir = download_dir
         self.subscriptions = []
 
 
@@ -39,6 +45,7 @@ class Channel():
     async def create(
         cls,
         name: str,
+        download_dir: Path,
         twitch: Twitch,
         eventsub: EventSubWebhook,
         backlog: bool=False,
@@ -52,6 +59,7 @@ class Channel():
             name,
             user.id,
             live,
+            download_dir,
             twitch,
             eventsub,
             backlog,
@@ -63,19 +71,31 @@ class Channel():
         return self
 
     async def on_online(self, event: StreamOnlineEvent):
-        if not self.live:
+        if event.event.type == 'live' and not self.live:
             self.live = True
-            self.logger.info(f'{self.channel} has gone live!')
-            streams = await self.twitch.get_streams(user_id=self.id)
-            stream = streams['data'][0]
-            self.livestream = LiveStream(stream, backlog=False, quality=self.quality)
+            self.logger.info(f'{self.name} has gone live!')
+            stream = None
+            retry = 0
+            while stream == None:
+                stream = await first(self.twitch.get_streams(user_id=self.id))
+                if stream == None:
+                    retry += 1
+                    if retry == RETRY_COUNT:
+                        raise StreamUnretrievable()
+                    else:
+                        self.logger.warn(f'Could not retrieve current livestream from Twitch. Retrying #{retry}/{RETRY_COUNT}')
+                        await asyncio.sleep(5)
+            self.livestream = LiveStream(stream, self.download_dir, quality=self.quality)
+            await self.livestream.download_stream()
+            self.live = False
+            self.livestream = None
 
     async def on_offline(self, event: StreamOfflineEvent):
         self.live = False
-        self.logger.info(f'{self.channel} has gone offline')
+        self.logger.info(f'{self.name} has gone offline')
     
     async def on_update(self, event: ChannelUpdateEvent):
-        self.logger.info(f'{self.channel} has updated it\'s information')
+        self.logger.info(f'{self.name} has updated its information')
 
     async def get_live(self):
         self.live = get_live(self.twitch, self.id)
@@ -101,3 +121,5 @@ class Channel():
 
     def __str__(self):
         return self.name
+
+class StreamUnretrievable(Exception): pass

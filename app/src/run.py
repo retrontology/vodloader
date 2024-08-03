@@ -7,6 +7,7 @@ from twitchAPI.eventsub.webhook import EventSubWebhook
 from .channel import Channel
 from .config import Config
 import asyncio
+from pathlib import Path
 
 DEFAULT_CONFIG = default=os.path.join(
     os.path.dirname(__file__),
@@ -57,6 +58,9 @@ async def main():
     logger = setup_logger(args.debug)
     logger.info(f'Loading configuration from {args.config}')
     config = Config(args.config)
+    download_dir = Path(config['download']['directory'])
+    if not download_dir.exists():
+        download_dir.mkdir()
 
     # Log into Twitch
     logger.info(f'Logging into Twitch')
@@ -78,6 +82,7 @@ async def main():
         channel_config = config['twitch']['channels'][channel_name]
         channel = await Channel.create(
             channel_name,
+            download_dir,
             twitch,
             eventsub,
             channel_config['backlog'],
@@ -86,7 +91,6 @@ async def main():
             channel_config['timezone'],
         )
         channels.append(channel)
-        await channel.unsubscribe()
 
     try:
         input('press Enter to shut down...')
