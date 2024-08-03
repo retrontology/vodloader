@@ -4,7 +4,7 @@ import logging, logging.handlers
 from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.eventsub.webhook import EventSubWebhook
-from channels import Channel
+from channel import Channel
 from config import Config
 import asyncio
 
