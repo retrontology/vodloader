@@ -1,4 +1,3 @@
-import streamlink
 import logging
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
@@ -21,25 +20,18 @@ class Channel():
         download_dir: Path,
         twitch: Twitch,
         eventsub: EventSubWebhook,
-        backlog: bool=False,
-        chapters: str='titles',
         quality: str='best',
-        timezone: str='America/New_York',
     ):
-        self.logger = logging.getLogger(f'vodloader.channel.{type(self).__name__}')
+        self.logger = logging.getLogger(f'vodloader.{name}}')
         self.name = name
         self.id = id
         self.url = 'https://www.twitch.tv/' + self.name
         self.live = live
         self.twitch = twitch
         self.eventsub = eventsub
-        self.backlog = backlog
-        self.chapters = chapters
         self.quality = quality
-        self.timezone = timezone
         self.download_dir = download_dir
         self.subscriptions = []
-
 
     @classmethod
     async def create(
@@ -48,10 +40,7 @@ class Channel():
         download_dir: Path,
         twitch: Twitch,
         eventsub: EventSubWebhook,
-        backlog: bool=False,
-        chapters: str='titles',
-        quality: str='best',
-        timezone: str='America/New_York',
+        quality: str = 'best',
     ):
         user = await first(twitch.get_users(logins=[name]))
         live = await get_live(twitch, user.id)
@@ -62,10 +51,7 @@ class Channel():
             download_dir,
             twitch,
             eventsub,
-            backlog,
-            chapters,
             quality,
-            timezone,
         )
         await self.subscribe()
         return self

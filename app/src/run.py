@@ -85,10 +85,7 @@ async def main():
             download_dir,
             twitch,
             eventsub,
-            channel_config['backlog'],
-            channel_config['chapters'],
             channel_config['quality'],
-            channel_config['timezone'],
         )
         channels.append(channel)
 
