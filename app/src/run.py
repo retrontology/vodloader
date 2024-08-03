@@ -4,8 +4,8 @@ import logging, logging.handlers
 from twitchAPI.twitch import Twitch
 from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.eventsub.webhook import EventSubWebhook
-from channel import Channel
-from config import Config
+from .channel import Channel
+from .config import Config
 import asyncio
 
 DEFAULT_CONFIG = default=os.path.join(
@@ -75,18 +75,18 @@ async def main():
 
     channels = []
     for channel_name in config['twitch']['channels']:
-        channel = config['twitch']['channels'][channel_name]
-        channels.append(
-            await Channel.create(
-                channel_name,
-                twitch,
-                eventsub,
-                channel['backlog'],
-                channel['chapters'],
-                channel['quality'],
-                channel['timezone'],
-            )
+        channel_config = config['twitch']['channels'][channel_name]
+        channel = await Channel.create(
+            channel_name,
+            twitch,
+            eventsub,
+            channel_config['backlog'],
+            channel_config['chapters'],
+            channel_config['quality'],
+            channel_config['timezone'],
         )
+        channels.append(channel)
+        await channel.unsubscribe()
 
     try:
         input('press Enter to shut down...')

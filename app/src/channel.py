@@ -32,6 +32,7 @@ class Channel():
         self.chapters = chapters
         self.quality = quality
         self.timezone = timezone
+        self.subscriptions = []
 
 
     @classmethod
@@ -82,9 +83,21 @@ class Channel():
     
     async def subscribe(self):
         self.logger.info('Subscribing to webhooks')
-        await self.eventsub.listen_stream_online(self.id, self.on_online)
-        await self.eventsub.listen_stream_offline(self.id, self.on_offline)
-        await self.eventsub.listen_channel_update_v2(self.id, self.on_update)
+        self.subscriptions = []
+        self.subscriptions.append(
+            await self.eventsub.listen_stream_online(self.id, self.on_online)
+        )
+        self.subscriptions.append(
+            await self.eventsub.listen_stream_offline(self.id, self.on_offline)
+        )
+        self.subscriptions.append(
+            await self.eventsub.listen_channel_update_v2(self.id, self.on_update)
+        )
+
+    async def unsubscribe(self):
+        self.logger.info('Unsubscribing from webhooks')
+        for sub in self.subscriptions:
+            await self.eventsub.unsubscribe_topic(sub)
 
     def __str__(self):
         return self.name
