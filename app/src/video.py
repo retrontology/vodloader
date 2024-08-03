@@ -44,7 +44,7 @@ class Video():
 class LiveStream(Video):
     
     def __init__(self, stream:Stream, directory:Path, quality='best'):
-        self.name = f'{stream.user_login}-{stream.id}.{VIDEO_EXTENSION}'
+        self.name = f'{stream.user_login}-{stream.title}-{stream.id}.{VIDEO_EXTENSION}'
         super().__init__(
             id=stream.id,
             url=f'https://twitch.tv/{stream.user_login}',
