@@ -5,8 +5,10 @@ from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, Cha
 from twitchAPI.helper import first
 from .util import get_live
 from .video import LiveStream
+from .database import BaseDatabase
 from pathlib import Path
 import asyncio
+from datetime import datetime
 
 RETRY_COUNT = 5
 
@@ -14,6 +16,7 @@ class Channel():
     
     def __init__(
         self,
+        database: BaseDatabase,
         name: str,
         id: str,
         live: bool,
@@ -23,6 +26,7 @@ class Channel():
         quality: str='best',
     ):
         self.logger = logging.getLogger(f'vodloader.{name}')
+        self.database = database
         self.name = name
         self.id = id
         self.url = 'https://www.twitch.tv/' + self.name
@@ -36,6 +40,7 @@ class Channel():
     @classmethod
     async def create(
         cls,
+        database: BaseDatabase,
         name: str,
         download_dir: Path,
         twitch: Twitch,
@@ -45,6 +50,7 @@ class Channel():
         user = await first(twitch.get_users(logins=[name]))
         live = await get_live(twitch, user.id)
         self = cls(
+            database,
             name,
             user.id,
             live,
@@ -53,6 +59,7 @@ class Channel():
             eventsub,
             quality,
         )
+        await database.add_twitch_user(user.id, user.login, name, True)
         await self.subscribe()
         return self
 
@@ -72,16 +79,23 @@ class Channel():
                         self.logger.warn(f'Could not retrieve current livestream from Twitch. Retrying #{retry}/{RETRY_COUNT}')
                         await asyncio.sleep(5)
             self.livestream = LiveStream(stream, self.download_dir, quality=self.quality)
-            await self.livestream.download_stream()
+            download_task = asyncio.create_task(
+                self.livestream.download_stream()
+            )
+            await self.database.on_stream_online(event.event)
+            await download_task
             self.live = False
             self.livestream = None
+            await self.database.end_twitch_stream(event.event.id, datetime.now())
 
     async def on_offline(self, event: StreamOfflineEvent):
         self.live = False
         self.logger.info(f'{self.name} has gone offline')
+        await self.database.on_stream_offline(event.event)
     
     async def on_update(self, event: ChannelUpdateEvent):
         self.logger.info(f'{self.name} has updated its information')
+        await self.database.on_channel_update(event.event)
 
     async def get_live(self):
         self.live = get_live(self.twitch, self.id)

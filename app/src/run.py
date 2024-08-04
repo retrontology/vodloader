@@ -6,6 +6,7 @@ from twitchAPI.oauth import UserAuthenticator
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from .channel import Channel
 from .config import Config
+from .database import *
 import asyncio
 from pathlib import Path
 
@@ -14,6 +15,7 @@ DEFAULT_CONFIG = default=os.path.join(
     'config.yml'
 )
 TARGET_SCOPE = []
+DATABASE = None
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -63,6 +65,9 @@ async def main():
     if not download_dir.exists():
         download_dir.mkdir()
 
+    #Initialize database
+    database = await SQLLiteDatabase.create('test.sql')
+
     # Log into Twitch
     logger.info(f'Logging into Twitch')
     twitch = await Twitch(
@@ -84,10 +89,12 @@ async def main():
     await eventsub.unsubscribe_all()
     eventsub.start()
 
+    # Initialize channels
     channels = []
     for channel_name in config['twitch']['channels']:
         channel_config = config['twitch']['channels'][channel_name]
         channel = await Channel.create(
+            database,
             channel_name,
             download_dir,
             twitch,
@@ -96,6 +103,7 @@ async def main():
         )
         channels.append(channel)
 
+    # Main loop & cleanup
     try:
         input('press Enter to shut down...')
     finally:
