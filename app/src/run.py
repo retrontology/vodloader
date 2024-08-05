@@ -91,23 +91,17 @@ async def main():
 
     # Initialize channels
     channels = []
-    tasks = []
     for channel_name in config['twitch']['channels']:
         channel_config = config['twitch']['channels'][channel_name]
-        tasks.append(
-            asyncio.create_task(
-                Channel.create(
-                    database,
-                    channel_name,
-                    download_dir,
-                    twitch,
-                    eventsub,
-                    channel_config['quality'],
-                )
-            )
+        channel = await Channel.create(
+            database,
+            channel_name,
+            download_dir,
+            twitch,
+            eventsub,
+            channel_config['quality'],
         )
-    for task in tasks:
-        channels.append(await task)
+        channels.append(channel)
 
     # Main loop & cleanup
     try:
