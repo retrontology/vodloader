@@ -2,6 +2,10 @@ import aiosqlite
 from pathlib import Path
 from datetime import datetime
 from twitchAPI.object.eventsub import StreamOnlineData, StreamOfflineData, ChannelUpdateData
+import asyncio
+from datetime import datetime
+from uuid import uuid4
+from twitchAPI.twitch import Stream
 
 class BaseDatabase():
 
@@ -40,6 +44,9 @@ class BaseDatabase():
             CREATE TABLE IF NOT EXISTS twitch_stream (
                 id UNSIGNED BIGINT NOT NULL UNIQUE,
                 user UNSIGNED INT NOT NULL,
+                title VARCHAR(140) NOT NULL,
+                category_name VARCHAR(256) NOT NULL,
+                category_id UNSIGNED INT NOT NULL,
                 started_at DATETIME NOT NULL,
                 ended_at DATETIME,
                 PRIMARY KEY (id),
@@ -51,12 +58,13 @@ class BaseDatabase():
         await cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS twitch_channel_update (
-                id INT PRIMARY KEY,
+                id VARCHAR(36) NOT NULL UNIQUE,
                 user UNSIGNED INT NOT NULL,
                 timestamp DATETIME NOT NULL,
                 title VARCHAR(140) NOT NULL,
                 category_name VARCHAR(256) NOT NULL,
-                category_id id USIGNED INT NOT NULL,
+                category_id id UNSIGNED INT NOT NULL,
+                PRIMARY KEY (id),
                 FOREIGN KEY (user) REFERENCES twitch_user(id)
             );
             """
@@ -66,7 +74,7 @@ class BaseDatabase():
             """
             CREATE TABLE IF NOT EXISTS youtube_video (
                 id VARCHAR(12) NOT NULL UNIQUE,
-                video USIGNED INT NOT NULL UNIQUE,
+                video UNSIGNED INT NOT NULL UNIQUE,
                 uploaded BOOL NOT NULL DEFAULT 0,
                 PRIMARY KEY (id),
                 FOREIGN KEY (video) REFERENCES video_file(id)
@@ -77,12 +85,13 @@ class BaseDatabase():
         await cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS video_file (
-                id INT PRIMARY KEY,
+                id VARCHAR(36) NOT NULL UNIQUE,
                 stream UNSIGNED INT NOT NULL,
                 user UNSIGNED INT NOT NULL,
                 started_at DATETIME NOT NULL,
                 ended_at DATETIME,
                 part UNSIGNED SMALLINT NOT NULL DEFAULT 0,
+                PRIMARY KEY (id),
                 FOREIGN KEY (stream) REFERENCES twitch_stream(id),
                 FOREIGN KEY (user) REFERENCES twitch_user(id)
             );
@@ -113,6 +122,9 @@ class BaseDatabase():
             self,
             id:str|int,
             user:str|int,
+            title:str,
+            category_name:str,
+            category_id:str|int,
             started_at:datetime,
             ended_at:datetime=None
         ):
@@ -120,11 +132,11 @@ class BaseDatabase():
         await cursor.execute(
             f"""
             INSERT INTO twitch_stream 
-            (id, user, started_at, ended_at)
+            (id, user, title, category_name, category_id, started_at, ended_at)
             VALUES
-            ({self.char}, {self.char}, {self.char}, {self.char});
+            ({self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char});
             """,
-            (id, user, started_at, ended_at)
+            (id, user, title, category_name, category_id, started_at, ended_at)
         )
         await self.connection.commit()
         await cursor.close()
@@ -150,18 +162,20 @@ class BaseDatabase():
             category_name:str,
             category_id:str|int
         ):
+        update_id = uuid4().__str__()
         cursor = await self.connection.cursor()
         await cursor.execute(
             f"""
             INSERT INTO twitch_channel_update
-            (user, timestamp, title, category_name, category_id)
+            (id, user, timestamp, title, category_name, category_id)
             VALUES
-            ({self.char}, {self.char}, {self.char}, {self.char}, {self.char});
+            ({self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char});
             """,
-            (user, timestamp, title, category_name, category_id)
+            (update_id, user, timestamp, title, category_name, category_id)
         )
         await self.connection.commit()
         await cursor.close()
+        return update_id
 
     async def add_youtube_video(self, id:str, uploaded:bool=False):
         cursor = await self.connection.cursor()
@@ -198,15 +212,30 @@ class BaseDatabase():
             ended_at:datetime = None,
             part:str|int = 0,
         ):
+        video_id = uuid4().__str__()
         cursor = await self.connection.cursor()
         await cursor.execute(
             f"""
             INSERT INTO video_file 
-            (stream, user, started_at, ended_at, part)
+            (id, stream, user, started_at, ended_at, part)
             VALUES
-            ({self.char}, {self.char});
+            ({self.char},{self.char}, {self.char}, {self.char}, {self.char}, {self.char});
             """,
-            (stream, user, started_at, ended_at, part)
+            (video_id, stream, user, started_at, ended_at, part)
+        )
+        await self.connection.commit()
+        await cursor.close()
+        return video_id
+    
+    async def end_video_file(self, id:str|int, ended_at:datetime):
+        cursor = await self.connection.cursor()
+        await cursor.execute(
+            f"""
+            UPDATE video_file
+            SET ended_at = {self.char}
+            WHERE id = {self.char};
+            """,
+            (ended_at, id)
         )
         await self.connection.commit()
         await cursor.close()
@@ -235,12 +264,27 @@ class BaseDatabase():
             category_id=data.category_id
         )
     
-    async def on_stream_online(self, data:StreamOnlineData):
-        await self.add_twitch_stream(
-            id=data.id,
-            user=data.broadcaster_user_id,
-            started_at=data.started_at
+    async def on_stream_online(self, data:StreamOnlineData, stream:Stream):
+        stream_task = asyncio.create_task(
+            self.add_twitch_stream(
+                id=data.id,
+                user=data.broadcaster_user_id,
+                title=stream.title,
+                category_id=stream.game_id,
+                category_name=stream.game_name,
+                started_at=data.started_at
+            )
         )
+        video_task = asyncio.create_task(
+            self.add_video_file(
+                stream=data.id,
+                user=data.broadcaster_user_id,
+                started_at=datetime.now()
+            )
+        )
+        await stream_task
+        video_id = await video_task
+        return video_id
 
     async def on_stream_offline(self, data:StreamOfflineData):
         pass

@@ -79,14 +79,13 @@ class Channel():
                         self.logger.warn(f'Could not retrieve current livestream from Twitch. Retrying #{retry}/{RETRY_COUNT}')
                         await asyncio.sleep(5)
             self.livestream = LiveStream(stream, self.download_dir, quality=self.quality)
-            download_task = asyncio.create_task(
-                self.livestream.download_stream()
-            )
-            await self.database.on_stream_online(event.event)
-            await download_task
+            video_id = await self.database.on_stream_online(event.event, stream)
+            await self.livestream.download_stream()
+            ended_at = datetime.now()
             self.live = False
             self.livestream = None
-            await self.database.end_twitch_stream(event.event.id, datetime.now())
+            await self.database.end_twitch_stream(event.event.id, ended_at)
+            await self.database.end_video_file(video_id, ended_at)
 
     async def on_offline(self, event: StreamOfflineEvent):
         self.live = False
@@ -104,20 +103,31 @@ class Channel():
     async def subscribe(self):
         self.logger.info('Subscribing to webhooks')
         self.subscriptions = []
-        self.subscriptions.append(
-            await self.eventsub.listen_stream_online(self.id, self.on_online)
-        )
-        self.subscriptions.append(
-            await self.eventsub.listen_stream_offline(self.id, self.on_offline)
-        )
-        self.subscriptions.append(
-            await self.eventsub.listen_channel_update_v2(self.id, self.on_update)
-        )
+        tasks = [
+            asyncio.create_task(
+                self.eventsub.listen_stream_online(self.id, self.on_online)
+            ),
+            asyncio.create_task(
+                self.eventsub.listen_stream_offline(self.id, self.on_offline)
+            ),
+            asyncio.create_task(
+                self.eventsub.listen_channel_update_v2(self.id, self.on_update)
+            )
+        ]
+        for task in tasks:
+            self.subscriptions.append(await task)
 
     async def unsubscribe(self):
         self.logger.info('Unsubscribing from webhooks')
+        tasks = []
         for sub in self.subscriptions:
-            await self.eventsub.unsubscribe_topic(sub)
+            tasks.append(
+                asyncio.create_task(
+                    self.eventsub.unsubscribe_topic(sub)
+                )
+            )
+        for task in tasks:
+            await task
 
     def __str__(self):
         return self.name
