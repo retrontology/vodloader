@@ -103,11 +103,10 @@ class Channel():
     async def on_offline(self, event: StreamOfflineEvent):
         self.live = False
         self.logger.info(f'{self.name} has gone offline')
-        await self.database.on_stream_offline(event.event)
     
     async def on_update(self, event: ChannelUpdateEvent):
         self.logger.info(f'{self.name} has updated its information')
-        update_id = await self.add_twitch_update(
+        update_id = await self.database.add_twitch_update(
             user=event.event.broadcaster_user_id,
             timestamp=datetime.now(),
             title=event.event.title,

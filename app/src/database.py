@@ -1,7 +1,6 @@
 import aiosqlite
 from pathlib import Path
 from datetime import datetime
-from twitchAPI.object.eventsub import StreamOnlineData, StreamOfflineData, ChannelUpdateData
 from datetime import datetime
 from uuid import uuid4
 from twitchAPI.twitch import Stream
@@ -333,7 +332,7 @@ class BaseDatabase():
             VALUES
             ({self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char});
             """,
-            (video_id, stream, quality, path, user, started_at, ended_at, part)
+            (video_id, stream, quality, path.__str__(), user, started_at, ended_at, part)
         )
         await self.connection.commit()
         await cursor.close()
@@ -352,7 +351,7 @@ class BaseDatabase():
         await self.connection.commit()
         await cursor.close()
     
-    async def get_video_file(self, id:str, path:Path):
+    async def get_video_file(self, id:str|None, path:Path|None):
 
         if id == path == None:
             raise Exception('One of "id" or "path" must be specified')
@@ -375,7 +374,7 @@ class BaseDatabase():
                 SELECT * FROM video_file
                 WHERE path = {self.char};
                 """,
-                (path,)
+                (path.__str__(),)
             )
         video_file = await cursor.fetchone()
         await cursor.close()
