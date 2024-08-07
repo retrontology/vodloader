@@ -107,8 +107,17 @@ class BaseDatabase():
             """
             CREATE TABLE IF NOT EXISTS twitch_client (
                 id INT NOT NULL UNIQUE,
-                client_id VARCHAR(30) NOT NULL UNIQUE,
+                client_id VARCHAR(30) NOT NULL,
                 client_secret VARCHAR(30) NOT NULL,
+                PRIMARY KEY (id)
+            );
+            """
+        )
+        await self.connection.commit()
+        await cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS twitch_auth (
+                id INT NOT NULL UNIQUE,
                 auth_token VARCHAR(30) DEFAULT NULL,
                 refresh_token VARCHAR(50) DEFAULT NULL,
                 PRIMARY KEY (id)
@@ -370,23 +379,14 @@ class BaseDatabase():
                 (path,)
             )
         video_file = await cursor.fetchone()
+        await cursor.close()
         return video_file
     
-    """
-    CREATE TABLE IF NOT EXISTS twitch_auth (
-        id INT,
-        client_id VARCHAR(30) NOT NULL UNIQUE,
-        client_secret VARCHAR(30) NOT NULL,
-        auth_token VARCHAR(30) DEFAULT NULL,
-        refresh_token VARCHAR(50) DEFAULT NULL,
-        PRIMARY KEY (client_id)
-    );
-    """
     async def set_twitch_client(self, client_id:str, client_secret:str):
         cursor = await self.connection.cursor()
         await cursor.execute(
             f"""
-            INSERT INTO twitch_auth 
+            INSERT INTO twitch_client
             (id, client_id, client_secret)
             VALUES
             ({self.char}, {self.char}, {self.char})
@@ -395,21 +395,24 @@ class BaseDatabase():
             """,
             (CLIENT_NUM, client_id, client_secret, client_id, client_secret)
         )
+        await self.connection.commit()
+        await cursor.close()
     
     async def get_twitch_client(self) -> tuple[str, str]|None:
         cursor = await self.connection.cursor()
         await cursor.execute(
             f"""
             SELECT client_id, client_secret
-            FROM twitch_auth
+            FROM twitch_client
             WHERE id = {self.char}
             """,
             (CLIENT_NUM,)
         )
-        result = cursor.fetchone()
+        result = await cursor.fetchone()
+        await cursor.close()
         return result
     
-    async def set_twitch_auth(self):
+    async def set_twitch_auth(self, token, refresh_token):
         cursor = await self.connection.cursor()
         await cursor.execute(
             f"""
@@ -419,9 +422,11 @@ class BaseDatabase():
             ({self.char}, {self.char}, {self.char})
             ON CONFLICT(id) DO UPDATE SET
             auth_token={self.char}, refresh_token={self.char};
-            """
+            """,
+            (CLIENT_NUM, token, refresh_token, token, refresh_token)
         )
-        await cursor.fetchone()
+        await self.connection.commit()
+        await cursor.close()
 
     async def get_twitch_auth(self) -> tuple[str, str]|None:
         cursor = await self.connection.cursor()
@@ -433,7 +438,8 @@ class BaseDatabase():
             """,
             (CLIENT_NUM,)
         )
-        result = cursor.fetchone()
+        result = await cursor.fetchone()
+        await cursor.close()
         return result
 
     # High level functions

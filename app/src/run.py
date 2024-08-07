@@ -1,12 +1,12 @@
 import argparse
 import os
 import logging, logging.handlers
-from twitchAPI.twitch import Twitch, TwitchAPIException
-from twitchAPI.oauth import UserAuthenticator
+from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from .channel import Channel
 from .config import Config
 from .database import *
+from .oauth import DBUserAuthenticationStorageHelper
 import asyncio
 from pathlib import Path
 
@@ -67,6 +67,10 @@ async def main():
 
     #Initialize database
     database = await SQLLiteDatabase.create('test.sql')
+    await database.set_twitch_client(
+        config['twitch']['client_id'],
+        config['twitch']['client_secret']
+    )
 
     # Log into Twitch
     logger.info(f'Logging into Twitch')
@@ -76,12 +80,12 @@ async def main():
     )
 
     # Authenticate Twitch User
-    auth = UserAuthenticator(twitch, TARGET_SCOPE, url='http://localhost')
-    auth_url = auth.return_auth_url()
-    print(auth_url)
-    code = input('Enter the code: ')
-    token, refresh = await auth.authenticate(user_token=code)
-    await twitch.set_user_authentication(token, TARGET_SCOPE, refresh)
+    auth = DBUserAuthenticationStorageHelper(
+        twitch=twitch,
+        scopes=TARGET_SCOPE,
+        database=database,
+    )
+    await auth.bind()
 
     # Initialize Webhook
     logger.info(f'Initializing EventSub Webhook')
