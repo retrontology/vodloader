@@ -59,7 +59,7 @@ class Channel():
             eventsub,
             quality,
         )
-        await database.add_twitch_user(user.id, user.login, name, True)
+        await database.add_twitch_user(user.id, user.login, name, True, quality)
         await self.subscribe()
         return self
 
