@@ -66,7 +66,18 @@ async def main():
         download_dir.mkdir()
 
     #Initialize database
-    database = await SQLLiteDatabase.create('test.sql')
+    mysql = False
+    if mysql:
+        database = await MySQLDatabase.create(
+            host=config['database']['host'],
+            port=config['database']['port'],
+            user=config['database']['user'],
+            password=config['database']['password'],
+            schema=config['database']['schema'],
+            loop=loop
+        )
+    else:
+        database = await SQLLiteDatabase.create('test.sql')
     await database.set_twitch_client(
         config['twitch']['client_id'],
         config['twitch']['client_secret']
@@ -117,4 +128,5 @@ async def main():
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())

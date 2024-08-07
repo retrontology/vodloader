@@ -1,9 +1,10 @@
 import aiosqlite
+import aiomysql
 from pathlib import Path
 from datetime import datetime
 from datetime import datetime
 from uuid import uuid4
-from twitchAPI.twitch import Stream
+from asyncio import BaseEventLoop
 
 CLIENT_NUM = 0
 
@@ -25,12 +26,15 @@ class BaseDatabase():
     async def connect(self) -> None:
         pass
 
+    def duplicate(self, column:str):
+        return 'ON DUPLICATE KEY UPDATE'
+
     async def initialize(self) -> None:
         cursor = await self.connection.cursor()
         await cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS twitch_user (
-                id UNSIGNED BIGINT NOT NULL UNIQUE,
+                id INT UNSIGNED NOT NULL UNIQUE,
                 login VARCHAR(25) NOT NULL UNIQUE,
                 name VARCHAR(25) NOT NULL UNIQUE,
                 active BOOL NOT NULL DEFAULT 0,
@@ -43,11 +47,11 @@ class BaseDatabase():
         await cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS twitch_stream (
-                id UNSIGNED BIGINT NOT NULL UNIQUE,
-                user UNSIGNED INT NOT NULL,
+                id BIGINT UNSIGNED NOT NULL UNIQUE,
+                user INT UNSIGNED NOT NULL,
                 title VARCHAR(140) NOT NULL,
                 category_name VARCHAR(256) NOT NULL,
-                category_id UNSIGNED INT NOT NULL,
+                category_id INT UNSIGNED NOT NULL,
                 started_at DATETIME NOT NULL,
                 ended_at DATETIME,
                 PRIMARY KEY (id),
@@ -60,12 +64,30 @@ class BaseDatabase():
             """
             CREATE TABLE IF NOT EXISTS twitch_channel_update (
                 id VARCHAR(36) NOT NULL UNIQUE,
-                user UNSIGNED INT NOT NULL,
+                user INT UNSIGNED NOT NULL,
                 timestamp DATETIME NOT NULL,
                 title VARCHAR(140) NOT NULL,
                 category_name VARCHAR(256) NOT NULL,
-                category_id id UNSIGNED INT NOT NULL,
+                category_id INT UNSIGNED NOT NULL,
                 PRIMARY KEY (id),
+                FOREIGN KEY (user) REFERENCES twitch_user(id)
+            );
+            """
+        )
+        await self.connection.commit()
+        await cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS video_file (
+                id VARCHAR(36) NOT NULL UNIQUE,
+                stream BIGINT UNSIGNED NOT NULL,
+                user INT UNSIGNED NOT NULL,
+                quality VARCHAR(8),
+                path VARCHAR(4096),
+                started_at DATETIME NOT NULL,
+                ended_at DATETIME,
+                part SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+                PRIMARY KEY (id),
+                FOREIGN KEY (stream) REFERENCES twitch_stream(id),
                 FOREIGN KEY (user) REFERENCES twitch_user(id)
             );
             """
@@ -75,28 +97,10 @@ class BaseDatabase():
             """
             CREATE TABLE IF NOT EXISTS youtube_video (
                 id VARCHAR(12) NOT NULL UNIQUE,
-                video UNSIGNED INT NOT NULL UNIQUE,
+                video VARCHAR(36) NOT NULL UNIQUE,
                 uploaded BOOL NOT NULL DEFAULT 0,
                 PRIMARY KEY (id),
                 FOREIGN KEY (video) REFERENCES video_file(id)
-            );
-            """
-        )
-        await self.connection.commit()
-        await cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS video_file (
-                id VARCHAR(36) NOT NULL UNIQUE,
-                stream UNSIGNED INT NOT NULL,
-                user UNSIGNED INT NOT NULL,
-                quality VARCHAR(8),
-                path VARCHAR(4096),
-                started_at DATETIME NOT NULL,
-                ended_at DATETIME,
-                part UNSIGNED SMALLINT NOT NULL DEFAULT 0,
-                PRIMARY KEY (id),
-                FOREIGN KEY (stream) REFERENCES twitch_stream(id),
-                FOREIGN KEY (user) REFERENCES twitch_user(id)
             );
             """
         )
@@ -142,7 +146,7 @@ class BaseDatabase():
             (id, login, name, active, quality)
             VALUES
             ({self.char}, {self.char}, {self.char}, {self.char}, {self.char})
-            ON CONFLICT(id) DO UPDATE SET
+            {self.duplicate('id')}
             active={self.char}, quality={self.char};
             """,
             (id, login, name, active, quality, active, quality)
@@ -388,7 +392,7 @@ class BaseDatabase():
             (id, client_id, client_secret)
             VALUES
             ({self.char}, {self.char}, {self.char})
-            ON CONFLICT(id) DO UPDATE SET
+            {self.duplicate('id')}
             client_id={self.char}, client_secret={self.char};
             """,
             (CLIENT_NUM, client_id, client_secret, client_id, client_secret)
@@ -418,7 +422,7 @@ class BaseDatabase():
             (id, auth_token, refresh_token)
             VALUES
             ({self.char}, {self.char}, {self.char})
-            ON CONFLICT(id) DO UPDATE SET
+            {self.duplicate('id')}
             auth_token={self.char}, refresh_token={self.char};
             """,
             (CLIENT_NUM, token, refresh_token, token, refresh_token)
@@ -440,7 +444,6 @@ class BaseDatabase():
         await cursor.close()
         return result
 
-
 class SQLLiteDatabase(BaseDatabase):
 
     char = '?'
@@ -451,10 +454,37 @@ class SQLLiteDatabase(BaseDatabase):
 
     async def connect(self) -> None:
         self.connection = await aiosqlite.connect(self.path)
+    
+    def duplicate(self, column:str):
+        return f'ON CONFLICT({column}) DO UPDATE SET'
 
 class MySQLDatabase(BaseDatabase):
 
     char = '%s'
 
-    def __init__(self) -> None:
+    def __init__(
+            self,
+            host: str,
+            port: str|int,
+            user: str,
+            password: str,
+            schema: str,
+            loop: BaseEventLoop
+        ) -> None:
+        self.host=host
+        self.port=port
+        self.user=user
+        self.password=password
+        self.schema=schema
+        self.loop=loop
         super().__init__()
+
+    async def connect(self) -> None:
+        self.connection = await aiomysql.connect(
+            host=self.host,
+            port=self.port,
+            user=self.user,
+            password=self.password,
+            db=self.schema,
+            loop=self.loop,
+        )
