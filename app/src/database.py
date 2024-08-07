@@ -2,7 +2,6 @@ import aiosqlite
 from pathlib import Path
 from datetime import datetime
 from twitchAPI.object.eventsub import StreamOnlineData, StreamOfflineData, ChannelUpdateData
-import asyncio
 from datetime import datetime
 from uuid import uuid4
 from twitchAPI.twitch import Stream
@@ -441,31 +440,6 @@ class BaseDatabase():
         result = await cursor.fetchone()
         await cursor.close()
         return result
-
-    # High level functions
-
-    async def on_channel_update(self, data:ChannelUpdateData):
-        update_id = await self.add_twitch_update(
-            user=data.broadcaster_user_id,
-            timestamp=datetime.now(),
-            title=data.title,
-            category_name=data.category_name,
-            category_id=data.category_id
-        )
-        return update_id
-    
-    async def on_stream_online(self, data:StreamOnlineData, stream:Stream):
-        await self.add_twitch_stream(
-            id=data.id,
-            user=data.broadcaster_user_id,
-            title=stream.title,
-            category_id=stream.game_id,
-            category_name=stream.game_name,
-            started_at=data.started_at
-        )
-
-    async def on_stream_offline(self, data:StreamOfflineData):
-        pass
 
 
 class SQLLiteDatabase(BaseDatabase):

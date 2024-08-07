@@ -65,6 +65,7 @@ class Channel():
 
     async def on_online(self, event: StreamOnlineEvent):
         if event.event.type == 'live' and not self.live:
+
             self.live = True
             self.logger.info(f'{self.name} has gone live!')
             stream = None
@@ -78,14 +79,26 @@ class Channel():
                     else:
                         self.logger.warn(f'Could not retrieve current livestream from Twitch. Retrying #{retry}/{RETRY_COUNT}')
                         await asyncio.sleep(5)
-            self.livestream = LiveStream(stream, self.download_dir, quality=self.quality)
-            video_id = await self.database.on_stream_online(event.event, stream)
+
+            self.livestream = LiveStream(
+                database=self.database,
+                stream=stream,
+                directory=self.download_dir,
+                quality=self.quality)
+            
+            await self.database.add_twitch_stream(
+                id=event.event.id,
+                user=event.event.broadcaster_user_id,
+                title=stream.title,
+                category_id=stream.game_id,
+                category_name=stream.game_name,
+                started_at=event.event.started_at
+            )
             await self.livestream.download_stream()
             ended_at = datetime.now()
             self.live = False
             self.livestream = None
             await self.database.end_twitch_stream(event.event.id, ended_at)
-            await self.database.end_video_file(video_id, ended_at)
 
     async def on_offline(self, event: StreamOfflineEvent):
         self.live = False
@@ -94,7 +107,13 @@ class Channel():
     
     async def on_update(self, event: ChannelUpdateEvent):
         self.logger.info(f'{self.name} has updated its information')
-        await self.database.on_channel_update(event.event)
+        update_id = await self.add_twitch_update(
+            user=event.event.broadcaster_user_id,
+            timestamp=datetime.now(),
+            title=event.event.title,
+            category_name=event.event.category_name,
+            category_id=event.event.category_id
+        )
 
     async def get_live(self):
         self.live = get_live(self.twitch, self.id)

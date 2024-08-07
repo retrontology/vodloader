@@ -56,9 +56,10 @@ class Video():
 
 class LiveStream(Video):
     
-    def __init__(self, stream:Stream, directory:Path, quality='best'):
+    def __init__(self, database:BaseDatabase, stream:Stream, directory:Path, quality='best'):
         self.name = f'{stream.user_login}-{stream.title}-{stream.id}.{VIDEO_EXTENSION}'
         super().__init__(
+            database=database,
             id=stream.id,
             url=f'https://twitch.tv/{stream.user_login}',
             channel=stream.user_login,
