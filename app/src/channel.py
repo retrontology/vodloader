@@ -121,6 +121,21 @@ class Channel():
     async def subscribe(self):
         self.logger.info('Subscribing to webhooks')
         self.subscriptions = []
+        
+        self.subscriptions.append(
+            await self.eventsub.listen_stream_online(self.id, self.on_online)
+        )
+        self.subscriptions.append(
+            await self.eventsub.listen_stream_offline(self.id, self.on_offline)
+        )
+        self.subscriptions.append(
+            await self.eventsub.listen_channel_update_v2(self.id, self.on_update)
+        )
+        
+    
+    async def subscribe_async(self):
+        self.logger.info('Subscribing to webhooks')
+        self.subscriptions = []
         tasks = [
             asyncio.create_task(
                 self.eventsub.listen_stream_online(self.id, self.on_online)
