@@ -8,7 +8,7 @@ from .video import LiveStream
 from .database import BaseDatabase
 from pathlib import Path
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 
 RETRY_COUNT = 5
 
@@ -95,7 +95,7 @@ class Channel():
                 started_at=event.event.started_at
             )
             await self.livestream.download_stream()
-            ended_at = datetime.now()
+            ended_at = datetime.now(timezone.utc)
             self.live = False
             self.livestream = None
             await self.database.end_twitch_stream(event.event.id, ended_at)
@@ -108,7 +108,7 @@ class Channel():
         self.logger.info(f'{self.name} has updated its information')
         update_id = await self.database.add_twitch_update(
             user=event.event.broadcaster_user_id,
-            timestamp=datetime.now(),
+            timestamp=datetime.now(timezone.utc),
             title=event.event.title,
             category_name=event.event.category_name,
             category_id=event.event.category_id

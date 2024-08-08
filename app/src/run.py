@@ -66,7 +66,7 @@ async def main():
         download_dir.mkdir()
 
     #Initialize database
-    mysql = False
+    mysql = True
     if mysql:
         database = await MySQLDatabase.create(
             host=config['database']['host'],
@@ -74,7 +74,6 @@ async def main():
             user=config['database']['user'],
             password=config['database']['password'],
             schema=config['database']['schema'],
-            loop=loop
         )
     else:
         database = await SQLLiteDatabase.create('test.sql')
@@ -128,5 +127,4 @@ async def main():
 
 
 if __name__ == '__main__':
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    asyncio.run(main())

@@ -5,7 +5,7 @@ from twitchAPI.object.api import Stream
 import logging
 from pathlib import Path
 from .database import BaseDatabase
-from datetime import datetime
+from datetime import datetime, timezone
 
 CHUNK_SIZE = 8192
 MAX_VIDEO_LENGTH = 60*(60*12-15)
@@ -14,12 +14,13 @@ VIDEO_EXTENSION = 'ts'
 
 class Video():
 
-    def __init__(self, database:BaseDatabase, id, url, channel, path, quality='best'):
+    def __init__(self, database:BaseDatabase, id, url, channel, channel_id, path, quality='best'):
         self.logger = logging.getLogger(f'vodloader.{channel}.{type(self).__name__}')
         self.database = database
         self.stream_id = id
         self.url = url
         self.channel = channel
+        self.channel_id = channel_id
         self.path = Path(path)
         self.quality = quality
         self.video_id = None
@@ -35,10 +36,10 @@ class Video():
         self.logger.info(f'Downloading stream from {self.url} to {self.path}')
         self.video_id = await self.database.add_video_file(
             stream=self.stream_id,
-            user=self.channel,
+            user=self.channel_id,
             quality=self.quality,
             path=self.path,
-            started_at=datetime.now(),
+            started_at=datetime.now(timezone.utc),
         )
         stream = self.get_stream()
         buffer = stream.open()
@@ -50,7 +51,7 @@ class Video():
         buffer.close()
         await self.database.end_video_file(
             id=self.video_id,
-            ended_at=datetime.now()
+            ended_at=datetime.now(timezone.utc)
         )
         self.logger.info(f'Finished downloading stream from {self.url} to {self.path}')
 
@@ -63,6 +64,7 @@ class LiveStream(Video):
             id=stream.id,
             url=f'https://twitch.tv/{stream.user_login}',
             channel=stream.user_login,
+            channel_id=stream.user_id,
             path=directory.joinpath(self.name),
             quality=quality
         )

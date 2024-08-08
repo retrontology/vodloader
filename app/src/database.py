@@ -4,14 +4,13 @@ from pathlib import Path
 from datetime import datetime
 from datetime import datetime
 from uuid import uuid4
-from asyncio import BaseEventLoop
+import asyncio
 
 CLIENT_NUM = 0
 
 class BaseDatabase():
 
     char = None
-    connection = None
 
     def __init__(self) -> None:
         pass
@@ -23,14 +22,15 @@ class BaseDatabase():
         await database.initialize()
         return database
 
-    async def connect(self) -> None:
+    async def connect(self):
         pass
 
     def duplicate(self, column:str):
         return 'ON DUPLICATE KEY UPDATE'
 
     async def initialize(self) -> None:
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS twitch_user (
@@ -43,7 +43,7 @@ class BaseDatabase():
             );
             """
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS twitch_stream (
@@ -59,7 +59,7 @@ class BaseDatabase():
             );
             """
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS twitch_channel_update (
@@ -74,7 +74,7 @@ class BaseDatabase():
             );
             """
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS video_file (
@@ -92,7 +92,7 @@ class BaseDatabase():
             );
             """
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS youtube_video (
@@ -104,7 +104,7 @@ class BaseDatabase():
             );
             """
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS twitch_client (
@@ -115,7 +115,7 @@ class BaseDatabase():
             );
             """
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.execute(
             """
             CREATE TABLE IF NOT EXISTS twitch_auth (
@@ -126,8 +126,9 @@ class BaseDatabase():
             );
             """
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.close()
+        connection.close()
 
     # Low level functions
 
@@ -139,7 +140,8 @@ class BaseDatabase():
             active:bool,
             quality:str,
         ):
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             INSERT INTO twitch_user 
@@ -151,8 +153,9 @@ class BaseDatabase():
             """,
             (id, login, name, active, quality, active, quality)
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.close()
+        connection.close()
     
     async def get_twitch_user(
             self,
@@ -167,7 +170,8 @@ class BaseDatabase():
         if not (any(i) and not any(i)):
             raise Exception('Only one of "id", "login", or "name" must be specified')
         
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         if id:
             await cursor.execute(
                 f"""
@@ -193,6 +197,8 @@ class BaseDatabase():
                 (name,)
             )
         twitch_user = await cursor.fetchone()
+        await cursor.close()
+        connection.close()
         return twitch_user
 
     async def add_twitch_stream(
@@ -205,7 +211,8 @@ class BaseDatabase():
             started_at:datetime,
             ended_at:datetime=None
         ):
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             INSERT INTO twitch_stream 
@@ -215,11 +222,13 @@ class BaseDatabase():
             """,
             (id, user, title, category_name, category_id, started_at, ended_at)
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.close()
+        connection.close()
     
     async def end_twitch_stream(self, id:str|int, ended_at:datetime):
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             UPDATE twitch_stream
@@ -228,11 +237,13 @@ class BaseDatabase():
             """,
             (ended_at, id)
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.close()
+        connection.close()
     
     async def get_twitch_stream(self, id:str|int):
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             SELECT * FROM twitch_stream
@@ -241,6 +252,8 @@ class BaseDatabase():
             (id,)
         )
         twitch_stream = await cursor.fetchone()
+        await cursor.close()
+        connection.close()
         return twitch_stream
 
     async def add_twitch_update(
@@ -251,8 +264,9 @@ class BaseDatabase():
             category_name:str,
             category_id:str|int
         ):
+        connection = await self.connect()
         update_id = uuid4().__str__()
-        cursor = await self.connection.cursor()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             INSERT INTO twitch_channel_update
@@ -262,12 +276,14 @@ class BaseDatabase():
             """,
             (update_id, user, timestamp, title, category_name, category_id)
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.close()
+        connection.close()
         return update_id
     
     async def get_twitch_update(self, id:str):
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             SELECT * FROM twitch_channel_update
@@ -276,10 +292,13 @@ class BaseDatabase():
             (id,)
         )
         twitch_stream = await cursor.fetchone()
+        await cursor.close()
+        connection.close()
         return twitch_stream
 
     async def add_youtube_video(self, id:str, uploaded:bool=False):
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             INSERT INTO youtube_video 
@@ -289,11 +308,13 @@ class BaseDatabase():
             """,
             (id, uploaded)
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.close()
+        connection.close()
     
     async def youtube_video_uploaded(self, id:str, uploaded:bool = True):
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             UPDATE youtube_video
@@ -302,11 +323,13 @@ class BaseDatabase():
             """,
             (uploaded, id)
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.close()
+        connection.close()
     
     async def get_youtube_video(self, id:str):
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             SELECT * FROM youtube_video
@@ -315,6 +338,8 @@ class BaseDatabase():
             (id,)
         )
         twitch_stream = await cursor.fetchone()
+        await cursor.close()
+        connection.close()
         return twitch_stream
     
     async def add_video_file(
@@ -327,8 +352,9 @@ class BaseDatabase():
             ended_at:datetime = None,
             part:str|int = 0,
         ):
+        connection = await self.connect()
         video_id = uuid4().__str__()
-        cursor = await self.connection.cursor()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             INSERT INTO video_file 
@@ -336,14 +362,16 @@ class BaseDatabase():
             VALUES
             ({self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char});
             """,
-            (video_id, stream, quality, path.__str__(), user, started_at, ended_at, part)
+            (video_id, stream, user, quality, path.__str__(), started_at, ended_at, part)
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.close()
+        connection.close()
         return video_id
     
     async def end_video_file(self, id:str|int, ended_at:datetime):
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             UPDATE video_file
@@ -352,8 +380,9 @@ class BaseDatabase():
             """,
             (ended_at, id)
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.close()
+        connection.close()
     
     async def get_video_file(self, id:str|None, path:Path|None):
 
@@ -363,7 +392,8 @@ class BaseDatabase():
         if not (any(i) and not any(i)):
             raise Exception('Only one of "id" or "path" must be specified')
         
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         if id:
             await cursor.execute(
                 f"""
@@ -382,10 +412,12 @@ class BaseDatabase():
             )
         video_file = await cursor.fetchone()
         await cursor.close()
+        connection.close()
         return video_file
     
     async def set_twitch_client(self, client_id:str, client_secret:str):
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             INSERT INTO twitch_client
@@ -397,11 +429,13 @@ class BaseDatabase():
             """,
             (CLIENT_NUM, client_id, client_secret, client_id, client_secret)
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.close()
+        connection.close()
     
     async def get_twitch_client(self) -> tuple[str, str]|None:
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             SELECT client_id, client_secret
@@ -412,10 +446,12 @@ class BaseDatabase():
         )
         result = await cursor.fetchone()
         await cursor.close()
+        connection.close()
         return result
     
     async def set_twitch_auth(self, token, refresh_token):
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             INSERT INTO twitch_auth 
@@ -427,11 +463,13 @@ class BaseDatabase():
             """,
             (CLIENT_NUM, token, refresh_token, token, refresh_token)
         )
-        await self.connection.commit()
+        await connection.commit()
         await cursor.close()
+        connection.close()
 
     async def get_twitch_auth(self) -> tuple[str, str]|None:
-        cursor = await self.connection.cursor()
+        connection = await self.connect()
+        cursor = await connection.cursor()
         await cursor.execute(
             f"""
             SELECT auth_token, refresh_token
@@ -442,6 +480,7 @@ class BaseDatabase():
         )
         result = await cursor.fetchone()
         await cursor.close()
+        connection.close()
         return result
 
 class SQLLiteDatabase(BaseDatabase):
@@ -452,8 +491,9 @@ class SQLLiteDatabase(BaseDatabase):
         self.path = Path(path)
         super().__init__()
 
-    async def connect(self) -> None:
-        self.connection = await aiosqlite.connect(self.path)
+    async def connect(self):
+        connection = await aiosqlite.connect(self.path)
+        return connection
     
     def duplicate(self, column:str):
         return f'ON CONFLICT({column}) DO UPDATE SET'
@@ -469,22 +509,21 @@ class MySQLDatabase(BaseDatabase):
             user: str,
             password: str,
             schema: str,
-            loop: BaseEventLoop
         ) -> None:
         self.host=host
         self.port=port
         self.user=user
         self.password=password
         self.schema=schema
-        self.loop=loop
         super().__init__()
 
-    async def connect(self) -> None:
-        self.connection = await aiomysql.connect(
+    async def connect(self):
+        connection = await aiomysql.connect(
             host=self.host,
             port=self.port,
             user=self.user,
             password=self.password,
             db=self.schema,
-            loop=self.loop,
+            loop=asyncio.get_event_loop(),
         )
+        return connection
