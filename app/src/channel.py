@@ -109,7 +109,7 @@ class Channel():
     async def on_update(self, event: ChannelUpdateEvent):
         self.logger.info(f'{self.name} has updated its information')
         update = TwitchChannelUpdate(
-            id=uuid4(),
+            id=uuid4().__str__(),
             channel=event.event.broadcaster_user_id,
             timestamp=datetime.now(timezone.utc),
             title=event.event.title,

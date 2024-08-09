@@ -37,9 +37,9 @@ class Video():
         ):
         self.logger.info(f'Downloading stream from {self.url} to {self.path}')
         video_file = VideoFile(
-            id=uuid4(),
+            id=uuid4().__str__(),
             stream=self.stream_id,
-            user=self.channel_id,
+            channel=self.channel_id,
             quality=self.quality,
             path=self.path,
             started_at=datetime.now(timezone.utc),

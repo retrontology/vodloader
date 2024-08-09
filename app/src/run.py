@@ -3,12 +3,13 @@ import os
 import logging, logging.handlers
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
-from .channel import Channel
 from .config import Config
 from .database import *
 from .oauth import DBUserAuthenticationStorageHelper
+from .models import *
 import asyncio
 from pathlib import Path
+from .vodloader import VODLoader
 
 DEFAULT_CONFIG = default=os.path.join(
     os.path.dirname(__file__),
@@ -61,7 +62,7 @@ async def main():
     logger = setup_logger(args.debug)
     logger.info(f'Loading configuration from {args.config}')
     config = Config(args.config)
-    download_dir = Path(config['download']['directory'])
+    download_dir = Path()
     if not download_dir.exists():
         download_dir.mkdir()
 
@@ -81,6 +82,10 @@ async def main():
         config['twitch']['client_id'],
         config['twitch']['client_secret']
     )
+
+    # Sync channels from config to DB
+    for channel_name in config['twitch']['channels']:
+        channel = TwitchChannel
 
     # Log into Twitch
     logger.info(f'Logging into Twitch')
@@ -103,19 +108,14 @@ async def main():
     await eventsub.unsubscribe_all()
     eventsub.start()
 
-    # Initialize channels
-    channels = []
-    for channel_name in config['twitch']['channels']:
-        channel_config = config['twitch']['channels'][channel_name]
-        channel = await Channel.create(
-            database,
-            channel_name,
-            download_dir,
-            twitch,
-            eventsub,
-            channel_config['quality'],
-        )
-        channels.append(channel)
+    # Initialize VODLoader
+    vodloader = VODLoader(
+        database=database,
+        twitch=twitch,
+        eventsub=eventsub,
+        download_dir=config['download']['directory']
+    )
+    await vodloader.start()
 
     # Main loop & cleanup
     try:

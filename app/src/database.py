@@ -67,7 +67,7 @@ class BaseDatabase():
             id: str|int|None = None,
             login: str|None = None,
             name: str|None = None,
-        ) -> TwitchChannel:
+        ) -> TwitchChannel | None:
 
         if id == login == name == None:
             raise Exception('One of "id", "login", or "name" must be specified')
@@ -101,11 +101,13 @@ class BaseDatabase():
                 """,
                 (name,)
             )
-        channel_args = await cursor.fetchone()
+        args = await cursor.fetchone()
         await cursor.close()
         await connection.close()
-        channel = TwitchChannel(*channel_args)
-        return channel
+        if args:
+            return TwitchChannel(*args)
+        else:
+            return None
 
     async def get_twitch_channels(self) -> List[TwitchChannel]:
         connection = await self.connect()
@@ -156,7 +158,7 @@ class BaseDatabase():
         stream.ended_at = ended_at
         return stream
     
-    async def get_twitch_stream(self, id:str|int) -> TwitchStream:
+    async def get_twitch_stream(self, id:str|int) -> TwitchStream | None:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
@@ -166,11 +168,13 @@ class BaseDatabase():
             """,
             (id,)
         )
-        stream_args = await cursor.fetchone()
+        args = await cursor.fetchone()
         await cursor.close()
         await connection.close()
-        stream = TwitchStream(*stream_args)
-        return stream
+        if args:
+            return TwitchStream(*args)
+        else:
+            return None
 
     async def add_twitch_update(self, update: TwitchChannelUpdate) -> None:
         connection = await self.connect()
@@ -190,7 +194,7 @@ class BaseDatabase():
         await connection.close()
         return update_id
     
-    async def get_twitch_update(self, id:str) -> TwitchChannelUpdate:
+    async def get_twitch_update(self, id:str) -> TwitchChannelUpdate | None:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
@@ -200,11 +204,13 @@ class BaseDatabase():
             """,
             (id,)
         )
-        update_args = await cursor.fetchone()
+        args = await cursor.fetchone()
         await cursor.close()
         await connection.close()
-        update = TwitchChannelUpdate(*update_args)
-        return update
+        if args:
+            return TwitchChannelUpdate(*args)
+        else:
+            return None
 
     async def add_youtube_video(self, video: YoutubeVideo) -> None:
         connection = await self.connect()
@@ -237,7 +243,7 @@ class BaseDatabase():
         await cursor.close()
         await connection.close()
     
-    async def get_youtube_video(self, id:str) -> YoutubeVideo:
+    async def get_youtube_video(self, id:str) -> YoutubeVideo | None:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
@@ -247,11 +253,13 @@ class BaseDatabase():
             """,
             (id,)
         )
-        video_args = await cursor.fetchone()
+        args = await cursor.fetchone()
         await cursor.close()
         await connection.close()
-        video = YoutubeVideo(*video_args)
-        return video
+        if args:
+            return YoutubeVideo(*args)
+        else:
+            return None
     
     async def add_video_file(self, video: VideoFile) -> None:
         connection = await self.connect()
@@ -286,7 +294,7 @@ class BaseDatabase():
         video.ended_at = ended_at
         return video
     
-    async def get_video_file(self, id:str|None, path:Path|None) -> VideoFile:
+    async def get_video_file(self, id:str|None, path:Path|None) -> VideoFile | None:
 
         if id == path == None:
             raise Exception('One of "id" or "path" must be specified')
@@ -312,11 +320,13 @@ class BaseDatabase():
                 """,
                 (path.__str__(),)
             )
-        video_args = await cursor.fetchone()
+        args = await cursor.fetchone()
         await cursor.close()
         await connection.close()
-        video = VideoFile(*video_args)
-        return video
+        if args:
+            return VideoFile(*args)
+        else:
+            return None
     
     async def set_twitch_client(self, client_id:str, client_secret:str) -> None:
         connection = await self.connect()

@@ -8,6 +8,9 @@ class Model():
     table_name:str = None
     table_command:str = None
 
+    def __eq__(self, other):
+        return self.name == other.name and self.age == other.age
+
 
 class TwitchChannel(Model):
 

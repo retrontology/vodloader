@@ -1,5 +1,6 @@
 from .database import BaseDatabase
 from .channel import Channel
+from .models import *
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from pathlib import Path
@@ -18,20 +19,26 @@ class VODLoader():
         self.database = database
         self.twitch = twitch
         self.eventsub = eventsub
-        self.download_dir = download_dir
+        self.download_dir = Path(download_dir)
         self.channels = []
 
 
     async def start(self):
         db_channels = await self.database.get_twitch_channels()
         self.channels = []
-        for db_channel in db_channels:
-            channel = await Channel.create(
-                database=self.database,
-                name=db_channel.name,
-                download_dir=self.download_dir,
-                twitch=self.twitch,
-                eventsub=self.eventsub,
-                quality=db_channel.quality,
-            )
-            self.channels.append(channel)
+        for channel in db_channels:
+            await self.add_channel(channel)
+
+    async def add_channel(self, channel: TwitchChannel):
+        channel = await Channel.create(
+            database=self.database,
+            name=channel.name,
+            download_dir=self.download_dir,
+            twitch=self.twitch,
+            eventsub=self.eventsub,
+            quality=channel.quality,
+        )
+        self.channels.append(channel)
+
+    async def remove_channel(self, channel: TwitchChannel):
+        pass
