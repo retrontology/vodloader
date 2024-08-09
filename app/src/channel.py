@@ -9,6 +9,8 @@ from .database import BaseDatabase
 from pathlib import Path
 import asyncio
 from datetime import datetime, timezone
+from .models import *
+from uuid import uuid4
 
 RETRY_COUNT = 5
 
@@ -59,7 +61,6 @@ class Channel():
             eventsub,
             quality,
         )
-        await database.add_twitch_user(user.id, user.login, name, True, quality)
         await self.subscribe()
         return self
 
@@ -86,19 +87,20 @@ class Channel():
                 directory=self.download_dir,
                 quality=self.quality)
             
-            await self.database.add_twitch_stream(
+            twitch_stream = TwitchStream(
                 id=event.event.id,
-                user=event.event.broadcaster_user_id,
+                channel=event.event.broadcaster_user_id,
                 title=stream.title,
                 category_id=stream.game_id,
                 category_name=stream.game_name,
                 started_at=event.event.started_at
             )
+            await self.database.add_twitch_stream(twitch_stream)
             await self.livestream.download_stream()
             ended_at = datetime.now(timezone.utc)
             self.live = False
             self.livestream = None
-            await self.database.end_twitch_stream(event.event.id, ended_at)
+            await self.database.end_twitch_stream(twitch_stream, ended_at)
 
     async def on_offline(self, event: StreamOfflineEvent):
         self.live = False
@@ -106,13 +108,15 @@ class Channel():
     
     async def on_update(self, event: ChannelUpdateEvent):
         self.logger.info(f'{self.name} has updated its information')
-        update_id = await self.database.add_twitch_update(
-            user=event.event.broadcaster_user_id,
+        update = TwitchChannelUpdate(
+            id=uuid4(),
+            channel=event.event.broadcaster_user_id,
             timestamp=datetime.now(timezone.utc),
             title=event.event.title,
             category_name=event.event.category_name,
             category_id=event.event.category_id
         )
+        await self.database.add_twitch_update(update)
 
     async def get_live(self):
         self.live = get_live(self.twitch, self.id)

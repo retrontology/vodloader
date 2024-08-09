@@ -6,6 +6,8 @@ import logging
 from pathlib import Path
 from .database import BaseDatabase
 from datetime import datetime, timezone
+from .models import *
+from uuid import uuid4
 
 CHUNK_SIZE = 8192
 MAX_VIDEO_LENGTH = 60*(60*12-15)
@@ -34,13 +36,15 @@ class Video():
             chunk_size=CHUNK_SIZE,
         ):
         self.logger.info(f'Downloading stream from {self.url} to {self.path}')
-        self.video_id = await self.database.add_video_file(
+        video_file = VideoFile(
+            id=uuid4(),
             stream=self.stream_id,
             user=self.channel_id,
             quality=self.quality,
             path=self.path,
             started_at=datetime.now(timezone.utc),
         )
+        await self.database.add_video_file(video_file)
         stream = self.get_stream()
         buffer = stream.open()
         with open(self.path, 'wb') as f:
@@ -50,7 +54,7 @@ class Video():
                 data = buffer.read(chunk_size)
         buffer.close()
         await self.database.end_video_file(
-            id=self.video_id,
+            video=video_file,
             ended_at=datetime.now(timezone.utc)
         )
         self.logger.info(f'Finished downloading stream from {self.url} to {self.path}')

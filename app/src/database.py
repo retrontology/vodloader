@@ -6,6 +6,8 @@ from datetime import datetime
 from uuid import uuid4
 import asyncio
 from .models import *
+from aiosqlite import Connection as SQLiteConnection
+from aiomysql import Connection as MySQLConnection
 
 CLIENT_NUM = 0
 
@@ -23,7 +25,7 @@ class BaseDatabase():
         await database.initialize()
         return database
 
-    async def connect(self):
+    async def connect(self) -> SQLiteConnection|MySQLConnection:
         pass
 
     def duplicate(self, column:str):
@@ -42,37 +44,30 @@ class BaseDatabase():
 
     # Low level functions
 
-    async def add_twitch_user(
-            self,
-            id:str|int,
-            login:str,
-            name:str,
-            active:bool,
-            quality:str,
-        ):
+    async def add_twitch_channel(self, channel: TwitchChannel) -> None:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            INSERT INTO twitch_user 
+            INSERT INTO {TwitchChannel.table_name} 
             (id, login, name, active, quality)
             VALUES
             ({self.char}, {self.char}, {self.char}, {self.char}, {self.char})
             {self.duplicate('id')}
             active={self.char}, quality={self.char};
             """,
-            (id, login, name, active, quality, active, quality)
+            (channel.id, channel.login, channel.name, channel.active, channel.quality, channel.active, channel.quality)
         )
         await connection.commit()
         await cursor.close()
-        connection.close()
+        await connection.close()
     
-    async def get_twitch_user(
+    async def get_twitch_channel(
             self,
-            id:str|int|None=None,
-            login:str|None=None,
-            name:str|None=None,
-        ):
+            id: str|int|None = None,
+            login: str|None = None,
+            name: str|None = None,
+        ) -> TwitchChannel:
 
         if id == login == name == None:
             raise Exception('One of "id", "login", or "name" must be specified')
@@ -85,7 +80,7 @@ class BaseDatabase():
         if id:
             await cursor.execute(
                 f"""
-                SELECT * FROM twitch_user
+                SELECT * FROM {TwitchChannel.table_name}
                 WHERE id = {self.char};
                 """,
                 (id,)
@@ -93,7 +88,7 @@ class BaseDatabase():
         elif login:
             await cursor.execute(
                 f"""
-                SELECT * FROM twitch_user
+                SELECT * FROM {TwitchChannel.table_name}
                 WHERE login = {self.char};
                 """,
                 (login,)
@@ -101,141 +96,133 @@ class BaseDatabase():
         elif name:
             await cursor.execute(
                 f"""
-                SELECT * FROM twitch_user
+                SELECT * FROM {TwitchChannel.table_name}
                 WHERE name = {self.char};
                 """,
                 (name,)
             )
-        twitch_user = await cursor.fetchone()
+        channel_args = await cursor.fetchone()
         await cursor.close()
-        connection.close()
-        return twitch_user
+        await connection.close()
+        channel = TwitchChannel(*channel_args)
+        return channel
 
-    async def get_twitch_users(self):
+    async def get_twitch_channels(self) -> List[TwitchChannel]:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            SELECT * FROM twitch_user;
+            SELECT * FROM {TwitchChannel.table_name};
             """
         )
-        twitch_users = await cursor.fetchall()
+        channels_args = await cursor.fetchall()
         await cursor.close()
-        connection.close()
-        return twitch_users
+        await connection.close()
+        channels = []
+        for channel_args in channels_args:
+            channels.append(TwitchChannel(*channel_args))
+        return channels
 
-    async def add_twitch_stream(
-            self,
-            id:str|int,
-            user:str|int,
-            title:str,
-            category_name:str,
-            category_id:str|int,
-            started_at:datetime,
-            ended_at:datetime=None
-        ):
+    async def add_twitch_stream(self, stream: TwitchStream) -> None:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            INSERT INTO twitch_stream 
-            (id, user, title, category_name, category_id, started_at, ended_at)
+            INSERT INTO {TwitchStream.table_name}
+            (id, channel, title, category_name, category_id, started_at, ended_at)
             VALUES
             ({self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char});
             """,
-            (id, user, title, category_name, category_id, started_at, ended_at)
+            (stream.id, stream.channel, stream.title, stream.category_name, stream.category_id, stream.started_at, stream.ended_at)
         )
         await connection.commit()
         await cursor.close()
-        connection.close()
+        await connection.close()
     
-    async def end_twitch_stream(self, id:str|int, ended_at:datetime):
+    async def end_twitch_stream(self, stream: TwitchStream, ended_at: datetime) -> TwitchStream:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            UPDATE twitch_stream
+            UPDATE {TwitchStream.table_name}
             SET ended_at = {self.char}
             WHERE id = {self.char};
             """,
-            (ended_at, id)
+            (ended_at, stream.id)
         )
         await connection.commit()
         await cursor.close()
-        connection.close()
+        await connection.close()
+        stream.ended_at = ended_at
+        return stream
     
-    async def get_twitch_stream(self, id:str|int):
+    async def get_twitch_stream(self, id:str|int) -> TwitchStream:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            SELECT * FROM twitch_stream
+            SELECT * FROM {TwitchStream.table_name}
             WHERE id = {self.char}
             """,
             (id,)
         )
-        twitch_stream = await cursor.fetchone()
+        stream_args = await cursor.fetchone()
         await cursor.close()
-        connection.close()
-        return twitch_stream
+        await connection.close()
+        stream = TwitchStream(*stream_args)
+        return stream
 
-    async def add_twitch_update(
-            self,
-            user:str|int,
-            timestamp:datetime,
-            title:str,
-            category_name:str,
-            category_id:str|int
-        ):
+    async def add_twitch_update(self, update: TwitchChannelUpdate) -> None:
         connection = await self.connect()
         update_id = uuid4().__str__()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            INSERT INTO twitch_channel_update
-            (id, user, timestamp, title, category_name, category_id)
+            INSERT INTO {TwitchChannelUpdate.table_name}
+            (id, channel, timestamp, title, category_name, category_id)
             VALUES
             ({self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char});
             """,
-            (update_id, user, timestamp, title, category_name, category_id)
+            (update.id, update.channel, update.timestamp, update.title, update.category_name, update.category_id)
         )
         await connection.commit()
         await cursor.close()
-        connection.close()
+        await connection.close()
         return update_id
     
-    async def get_twitch_update(self, id:str):
+    async def get_twitch_update(self, id:str) -> TwitchChannelUpdate:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            SELECT * FROM twitch_channel_update
+            SELECT * FROM {TwitchChannelUpdate.table_name}
             WHERE id = {self.char};
             """,
             (id,)
         )
-        twitch_stream = await cursor.fetchone()
+        update_args = await cursor.fetchone()
         await cursor.close()
-        connection.close()
-        return twitch_stream
+        await connection.close()
+        update = TwitchChannelUpdate(*update_args)
+        return update
 
-    async def add_youtube_video(self, id:str, uploaded:bool=False):
+    async def add_youtube_video(self, video: YoutubeVideo) -> None:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            INSERT INTO youtube_video 
+            INSERT INTO {YoutubeVideo.table_name} 
             (id, uploaded)
             VALUES
             ({self.char}, {self.char});
             """,
-            (id, uploaded)
+            (YoutubeVideo.id, YoutubeVideo.uploaded)
         )
         await connection.commit()
         await cursor.close()
-        connection.close()
+        await connection.close()
     
-    async def youtube_video_uploaded(self, id:str, uploaded:bool = True):
+    async def youtube_video_uploaded(self, id:str, uploaded:bool = True) -> None:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
@@ -248,66 +235,58 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        connection.close()
+        await connection.close()
     
-    async def get_youtube_video(self, id:str):
+    async def get_youtube_video(self, id:str) -> YoutubeVideo:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            SELECT * FROM youtube_video
+            SELECT * FROM {YoutubeVideo.table_name}
             WHERE id = {self.char};
             """,
             (id,)
         )
-        twitch_stream = await cursor.fetchone()
+        video_args = await cursor.fetchone()
         await cursor.close()
-        connection.close()
-        return twitch_stream
+        await connection.close()
+        video = YoutubeVideo(*video_args)
+        return video
     
-    async def add_video_file(
-            self,
-            stream:str|int,
-            user:str|int,
-            quality:str,
-            path:Path,
-            started_at:datetime,
-            ended_at:datetime = None,
-            part:str|int = 0,
-        ):
+    async def add_video_file(self, video: VideoFile) -> None:
         connection = await self.connect()
-        video_id = uuid4().__str__()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            INSERT INTO video_file 
-            (id, stream, user, quality, path, started_at, ended_at, part)
+            INSERT INTO {VideoFile.table_name} 
+            (id, stream, channel, quality, path, started_at, ended_at, part)
             VALUES
             ({self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char}, {self.char});
             """,
-            (video_id, stream, user, quality, path.__str__(), started_at, ended_at, part)
+            (video.id, video.stream, video.channel, video.quality, video.path.__str__(), video.started_at, video.ended_at, video.part)
         )
         await connection.commit()
         await cursor.close()
-        connection.close()
-        return video_id
+        await connection.close()
     
-    async def end_video_file(self, id:str|int, ended_at:datetime):
+    async def end_video_file(self, video: VideoFile, ended_at:datetime) -> VideoFile:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            UPDATE video_file
+            UPDATE {VideoFile.table_name}
             SET ended_at = {self.char}
             WHERE id = {self.char};
             """,
-            (ended_at, id)
+            (ended_at, video.id)
         )
         await connection.commit()
         await cursor.close()
-        connection.close()
+        await connection.close()
+        video.ended_at = ended_at
+        return video
     
-    async def get_video_file(self, id:str|None, path:Path|None):
+    async def get_video_file(self, id:str|None, path:Path|None) -> VideoFile:
 
         if id == path == None:
             raise Exception('One of "id" or "path" must be specified')
@@ -320,7 +299,7 @@ class BaseDatabase():
         if id:
             await cursor.execute(
                 f"""
-                SELECT * FROM video_file
+                SELECT * FROM {VideoFile.table_name}
                 WHERE id = {self.char};
                 """,
                 (id,)
@@ -328,22 +307,23 @@ class BaseDatabase():
         elif path:
             await cursor.execute(
                 f"""
-                SELECT * FROM video_file
+                SELECT * FROM {VideoFile.table_name}
                 WHERE path = {self.char};
                 """,
                 (path.__str__(),)
             )
-        video_file = await cursor.fetchone()
+        video_args = await cursor.fetchone()
         await cursor.close()
-        connection.close()
-        return video_file
+        await connection.close()
+        video = VideoFile(*video_args)
+        return video
     
-    async def set_twitch_client(self, client_id:str, client_secret:str):
+    async def set_twitch_client(self, client_id:str, client_secret:str) -> None:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            INSERT INTO twitch_client
+            INSERT INTO {TwitchClient.table_name}
             (id, client_id, client_secret)
             VALUES
             ({self.char}, {self.char}, {self.char})
@@ -354,7 +334,7 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        connection.close()
+        await connection.close()
     
     async def get_twitch_client(self) -> tuple[str, str]|None:
         connection = await self.connect()
@@ -362,14 +342,14 @@ class BaseDatabase():
         await cursor.execute(
             f"""
             SELECT client_id, client_secret
-            FROM twitch_client
+            FROM {TwitchClient.table_name}
             WHERE id = {self.char}
             """,
             (CLIENT_NUM,)
         )
         result = await cursor.fetchone()
         await cursor.close()
-        connection.close()
+        await connection.close()
         return result
     
     async def set_twitch_auth(self, token, refresh_token):
@@ -377,7 +357,7 @@ class BaseDatabase():
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            INSERT INTO twitch_auth 
+            INSERT INTO {TwitchAuth.table_name} 
             (id, auth_token, refresh_token)
             VALUES
             ({self.char}, {self.char}, {self.char})
@@ -388,7 +368,7 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        connection.close()
+        await connection.close()
 
     async def get_twitch_auth(self) -> tuple[str, str]|None:
         connection = await self.connect()
@@ -396,14 +376,14 @@ class BaseDatabase():
         await cursor.execute(
             f"""
             SELECT auth_token, refresh_token
-            FROM twitch_auth
+            FROM {TwitchAuth.table_name}
             WHERE id = {self.char}
             """,
             (CLIENT_NUM,)
         )
         result = await cursor.fetchone()
         await cursor.close()
-        connection.close()
+        await connection.close()
         return result
 
 class SQLLiteDatabase(BaseDatabase):
@@ -429,13 +409,13 @@ class MySQLDatabase(BaseDatabase):
             self,
             host: str,
             port: str|int,
-            user: str,
+            channel: str,
             password: str,
             schema: str,
         ) -> None:
         self.host=host
         self.port=port
-        self.user=user
+        self.channel=channel
         self.password=password
         self.schema=schema
         super().__init__()
@@ -444,7 +424,7 @@ class MySQLDatabase(BaseDatabase):
         connection = await aiomysql.connect(
             host=self.host,
             port=self.port,
-            user=self.user,
+            channel=self.channel,
             password=self.password,
             db=self.schema,
             loop=asyncio.get_event_loop(),
