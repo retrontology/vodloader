@@ -32,104 +32,13 @@ class BaseDatabase():
     async def initialize(self) -> None:
         connection = await self.connect()
         cursor = await connection.cursor()
-        await cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS twitch_user (
-                id INT UNSIGNED NOT NULL UNIQUE,
-                login VARCHAR(25) NOT NULL UNIQUE,
-                name VARCHAR(25) NOT NULL UNIQUE,
-                active BOOL NOT NULL DEFAULT 0,
-                quality VARCHAR(8),
-                PRIMARY KEY (id)
-            );
-            """
-        )
-        await connection.commit()
-        await cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS twitch_stream (
-                id BIGINT UNSIGNED NOT NULL UNIQUE,
-                user INT UNSIGNED NOT NULL,
-                title VARCHAR(140) NOT NULL,
-                category_name VARCHAR(256) NOT NULL,
-                category_id INT UNSIGNED NOT NULL,
-                started_at DATETIME NOT NULL,
-                ended_at DATETIME,
-                PRIMARY KEY (id),
-                FOREIGN KEY (user) REFERENCES twitch_user(id)
-            );
-            """
-        )
-        await connection.commit()
-        await cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS twitch_channel_update (
-                id VARCHAR(36) NOT NULL UNIQUE,
-                user INT UNSIGNED NOT NULL,
-                timestamp DATETIME NOT NULL,
-                title VARCHAR(140) NOT NULL,
-                category_name VARCHAR(256) NOT NULL,
-                category_id INT UNSIGNED NOT NULL,
-                PRIMARY KEY (id),
-                FOREIGN KEY (user) REFERENCES twitch_user(id)
-            );
-            """
-        )
-        await connection.commit()
-        await cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS video_file (
-                id VARCHAR(36) NOT NULL UNIQUE,
-                stream BIGINT UNSIGNED NOT NULL,
-                user INT UNSIGNED NOT NULL,
-                quality VARCHAR(8),
-                path VARCHAR(4096),
-                started_at DATETIME NOT NULL,
-                ended_at DATETIME,
-                part SMALLINT UNSIGNED NOT NULL DEFAULT 0,
-                PRIMARY KEY (id),
-                FOREIGN KEY (stream) REFERENCES twitch_stream(id),
-                FOREIGN KEY (user) REFERENCES twitch_user(id)
-            );
-            """
-        )
-        await connection.commit()
-        await cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS youtube_video (
-                id VARCHAR(12) NOT NULL UNIQUE,
-                video VARCHAR(36) NOT NULL UNIQUE,
-                uploaded BOOL NOT NULL DEFAULT 0,
-                PRIMARY KEY (id),
-                FOREIGN KEY (video) REFERENCES video_file(id)
-            );
-            """
-        )
-        await connection.commit()
-        await cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS twitch_client (
-                id INT NOT NULL UNIQUE,
-                client_id VARCHAR(30) NOT NULL,
-                client_secret VARCHAR(30) NOT NULL,
-                PRIMARY KEY (id)
-            );
-            """
-        )
-        await connection.commit()
-        await cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS twitch_auth (
-                id INT NOT NULL UNIQUE,
-                auth_token VARCHAR(30) DEFAULT NULL,
-                refresh_token VARCHAR(50) DEFAULT NULL,
-                PRIMARY KEY (id)
-            );
-            """
-        )
-        await connection.commit()
+
+        for model in MODELS:
+            await cursor.execute(model.table_command)
+            await connection.commit()
+        
         await cursor.close()
-        connection.close()
+        await connection.close()
 
     # Low level functions
 

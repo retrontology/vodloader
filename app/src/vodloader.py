@@ -3,6 +3,7 @@ from .channel import Channel
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from pathlib import Path
+from .models import TwitchChannel
 
 
 class VODLoader():

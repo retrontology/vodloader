@@ -1,11 +1,27 @@
 from datetime import datetime
 from pathlib import Path
+from typing import List
 
 
-class Model(): pass
+class Model(): 
+    
+    table_name:str = None
+    table_command:str = None
 
 
-class TwitchUser(Model):
+class TwitchChannel(Model):
+
+    table_name = 'twitch_channel'
+    table_command = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id INT UNSIGNED NOT NULL UNIQUE,
+            login VARCHAR(25) NOT NULL UNIQUE,
+            name VARCHAR(25) NOT NULL UNIQUE,
+            active BOOL NOT NULL DEFAULT 0,
+            quality VARCHAR(8),
+            PRIMARY KEY (id)
+        );
+        """
 
     id: int
     login: str
@@ -30,9 +46,24 @@ class TwitchUser(Model):
 
 
 class TwitchStream(Model):
+
+    table_name = 'twitch_stream'
+    table_command = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id BIGINT UNSIGNED NOT NULL UNIQUE,
+            channel INT UNSIGNED NOT NULL,
+            title VARCHAR(140) NOT NULL,
+            category_name VARCHAR(256) NOT NULL,
+            category_id INT UNSIGNED NOT NULL,
+            started_at DATETIME NOT NULL,
+            ended_at DATETIME,
+            PRIMARY KEY (id),
+            FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id)
+        );
+        """
     
     id: int
-    user: int
+    channel: int
     title: str
     category_name: str
     category_id: int
@@ -42,7 +73,7 @@ class TwitchStream(Model):
     def __init__(
             self,
             id: str|int,
-            user: str|int,
+            channel: str|int,
             title: str,
             category_name: str,
             category_id: str|int,
@@ -51,7 +82,7 @@ class TwitchStream(Model):
     ) -> None:
         
         self.id = int(id)
-        self.user = int(user)
+        self.channel = int(channel)
         self.title = title
         self.category_name = category_name
         self.category_id = int(category_id)
@@ -60,9 +91,23 @@ class TwitchStream(Model):
 
 
 class TwitchChannelUpdate(Model):
+
+    table_name = 'twitch_channel_update'
+    table_command = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id VARCHAR(36) NOT NULL UNIQUE,
+            channel INT UNSIGNED NOT NULL,
+            timestamp DATETIME NOT NULL,
+            title VARCHAR(140) NOT NULL,
+            category_name VARCHAR(256) NOT NULL,
+            category_id INT UNSIGNED NOT NULL,
+            PRIMARY KEY (id),
+            FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id)
+        );
+        """
     
     id: str
-    user: int
+    channel: int
     timestamp: datetime
     title: str
     category_name: str
@@ -71,7 +116,7 @@ class TwitchChannelUpdate(Model):
     def __init__(
             self,
             id: str,
-            user: str|int,
+            channel: str|int,
             timestamp: datetime,
             title: str,
             category_name: str,
@@ -79,7 +124,7 @@ class TwitchChannelUpdate(Model):
     ) -> None:
         
         self.id = id
-        self.user = int(user)
+        self.channel = int(channel)
         self.timestamp = timestamp
         self.title = title
         self.category_name = category_name
@@ -88,9 +133,26 @@ class TwitchChannelUpdate(Model):
 
 class VideoFile(Model):
 
+    table_name = 'video_file'
+    table_command = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id VARCHAR(36) NOT NULL UNIQUE,
+            stream BIGINT UNSIGNED NOT NULL,
+            channel INT UNSIGNED NOT NULL,
+            quality VARCHAR(8),
+            path VARCHAR(4096),
+            started_at DATETIME NOT NULL,
+            ended_at DATETIME,
+            part SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+            PRIMARY KEY (id),
+            FOREIGN KEY (stream) REFERENCES {TwitchStream.table_name}(id),
+            FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id)
+        );
+        """
+
     id: str
     stream: int
-    user: int
+    channel: int
     quality: int
     path: Path
     started_at: datetime
@@ -101,7 +163,7 @@ class VideoFile(Model):
             self,
             id: str,
             stream: str|int,
-            user: str|int,
+            channel: str|int,
             quality: str,
             path: str|Path,
             started_at: datetime,
@@ -111,7 +173,7 @@ class VideoFile(Model):
         
         self.id = id
         self.stream = int(stream)
-        self.user = int(user)
+        self.channel = int(channel)
         self.quality = quality
         self.path = Path(path)
         self.started_at = started_at
@@ -120,6 +182,17 @@ class VideoFile(Model):
 
 
 class YoutubeVideo(Model):
+
+    table_name = 'youtube_video'
+    table_command = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id VARCHAR(12) NOT NULL UNIQUE,
+            video VARCHAR(36) NOT NULL UNIQUE,
+            uploaded BOOL NOT NULL DEFAULT 0,
+            PRIMARY KEY (id),
+            FOREIGN KEY (video) REFERENCES {VideoFile.table_name}(id)
+        );
+        """
 
     id: str
     video: str
@@ -139,6 +212,16 @@ class YoutubeVideo(Model):
 
 class TwitchClient(Model):
 
+    table_name = 'twitch_client'
+    table_command = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id INT NOT NULL UNIQUE,
+            client_id VARCHAR(30) NOT NULL,
+            client_secret VARCHAR(30) NOT NULL,
+            PRIMARY KEY (id)
+        );
+        """
+
     id: int
     client_id: str
     client_secret: str
@@ -157,6 +240,16 @@ class TwitchClient(Model):
 
 class TwitchAuth(Model):
 
+    table_name = 'twitch_auth'
+    table_command = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id INT NOT NULL UNIQUE,
+            auth_token VARCHAR(30) DEFAULT NULL,
+            refresh_token VARCHAR(50) DEFAULT NULL,
+            PRIMARY KEY (id)
+        );
+        """
+
     id: int
     auth_token: str
     refresh_token: str
@@ -171,3 +264,14 @@ class TwitchAuth(Model):
         self.id = int(id)
         self.auth_token = auth_token
         self.refresh_token = refresh_token
+
+
+MODELS: List[Model] = [
+    TwitchChannel,
+    TwitchStream,
+    TwitchChannelUpdate,
+    VideoFile,
+    YoutubeVideo,
+    TwitchClient,
+    TwitchAuth
+]

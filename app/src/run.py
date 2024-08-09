@@ -66,7 +66,7 @@ async def main():
         download_dir.mkdir()
 
     #Initialize database
-    mysql = True
+    mysql = False
     if mysql:
         database = await MySQLDatabase.create(
             host=config['database']['host'],
