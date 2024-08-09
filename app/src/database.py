@@ -5,6 +5,7 @@ from datetime import datetime
 from datetime import datetime
 from uuid import uuid4
 import asyncio
+from .models import *
 
 CLIENT_NUM = 0
 
@@ -200,6 +201,19 @@ class BaseDatabase():
         await cursor.close()
         connection.close()
         return twitch_user
+
+    async def get_twitch_users(self):
+        connection = await self.connect()
+        cursor = await connection.cursor()
+        await cursor.execute(
+            f"""
+            SELECT * FROM twitch_user;
+            """
+        )
+        twitch_users = await cursor.fetchall()
+        await cursor.close()
+        connection.close()
+        return twitch_users
 
     async def add_twitch_stream(
             self,
