@@ -3,29 +3,21 @@ import os
 import logging, logging.handlers
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
-from .config import Config
 from .database import *
 from .oauth import DBUserAuthenticationStorageHelper
 from .models import *
+from .util import get_download_dir
 import asyncio
 from pathlib import Path
 from .vodloader import VODLoader
+from dotenv import load_dotenv
 
-DEFAULT_CONFIG = default=os.path.join(
-    os.path.dirname(__file__),
-    'config.yml'
-)
 TARGET_SCOPE = []
-DATABASE = None
 
 def parse_args():
     parser = argparse.ArgumentParser(
         prog='vodloader',
         description='Automate uploading Twitch streams to YouTube'
-    )
-    parser.add_argument(
-        '-c', '--config',
-        default=DEFAULT_CONFIG,
     )
     parser.add_argument(
         '-d', '--debug',
@@ -57,37 +49,23 @@ def setup_logger(level=logging.INFO, path='logs'):
 
 async def main():
 
-    # Initialize args, config, and logger
+    # Initialize args, and logger
     args = parse_args()
     logger = setup_logger(args.debug)
-    logger.info(f'Loading configuration from {args.config}')
-    config = Config(args.config)
-    download_dir = Path()
+
+    # Initialize download dir
+    download_dir = get_download_dir()
     if not download_dir.exists():
         download_dir.mkdir()
-
+    
     #Initialize database
-    mysql = False
-    if mysql:
-        database = await MySQLDatabase.create(
-            host=config['database']['host'],
-            port=config['database']['port'],
-            user=config['database']['user'],
-            password=config['database']['password'],
-            schema=config['database']['schema'],
-        )
-    else:
-        database = await SQLLiteDatabase.create('test.sql')
-    await database.set_twitch_client(
-        config['twitch']['client_id'],
-        config['twitch']['client_secret']
-    )
+    database = await get_db()
 
     # Log into Twitch
     logger.info(f'Logging into Twitch')
     twitch = await Twitch(
-        config['twitch']['client_id'],
-        config['twitch']['client_secret'],
+        os.environ['TWITCH_CLIENT_ID'],
+        os.environ['TWITCH_CLIENT_SECRET'],
     )
 
     # Authenticate Twitch User
@@ -100,7 +78,7 @@ async def main():
 
     # Initialize Webhook
     logger.info(f'Initializing EventSub Webhook')
-    eventsub = EventSubWebhook(f"https://{config['host']}", 8000, twitch)
+    eventsub = EventSubWebhook(f"https://{os.environ['WEBHOOK_HOST']}", 8000, twitch)
     await eventsub.unsubscribe_all()
     eventsub.start()
 
@@ -109,7 +87,7 @@ async def main():
         database=database,
         twitch=twitch,
         eventsub=eventsub,
-        download_dir=config['download']['directory']
+        download_dir=download_dir
     )
     await vodloader.start()
 

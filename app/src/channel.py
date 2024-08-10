@@ -5,7 +5,7 @@ from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, Cha
 from twitchAPI.helper import first
 from .util import get_live
 from .video import LiveStream
-from .database import BaseDatabase
+from .database import get_db
 from pathlib import Path
 import asyncio
 from datetime import datetime, timezone
@@ -18,7 +18,6 @@ class Channel():
     
     def __init__(
         self,
-        database: BaseDatabase,
         name: str,
         login: str,
         id: str,
@@ -29,7 +28,6 @@ class Channel():
         quality: str='best',
     ):
         self.logger = logging.getLogger(f'vodloader.{name}')
-        self.database = database
         self.name = name
         self.login = login
         self.id = id
@@ -45,14 +43,12 @@ class Channel():
     async def from_channel(
         self,
         channel: TwitchChannel,
-        database: BaseDatabase,
         download_dir: Path,
         twitch: Twitch,
         eventsub: EventSubWebhook
     ):
         live = await get_live(twitch, channel.id)
         self = Channel(
-            database=database,
             name=channel.name,
             login=channel.login,
             id=channel.id,
@@ -68,7 +64,6 @@ class Channel():
     @classmethod
     async def create(
         cls,
-        database: BaseDatabase,
         name: str,
         download_dir: Path,
         twitch: Twitch,
@@ -83,10 +78,10 @@ class Channel():
             active=True,
             quality=quality
         )
+        database = await get_db()
         await database.add_twitch_channel(channel)
         self = await cls.from_channel(
             channel=channel,
-            database=database,
             download_dir=download_dir,
             twitch=twitch,
             eventsub=eventsub
@@ -112,7 +107,6 @@ class Channel():
                         await asyncio.sleep(5)
 
             self.livestream = LiveStream(
-                database=self.database,
                 stream=stream,
                 directory=self.download_dir,
                 quality=self.quality)
@@ -125,12 +119,13 @@ class Channel():
                 category_name=stream.game_name,
                 started_at=event.event.started_at
             )
-            await self.database.add_twitch_stream(twitch_stream)
+            database = await get_db()
+            await database.add_twitch_stream(twitch_stream)
             await self.livestream.download_stream()
             ended_at = datetime.now(timezone.utc)
             self.live = False
             self.livestream = None
-            await self.database.end_twitch_stream(twitch_stream, ended_at)
+            await database.end_twitch_stream(twitch_stream, ended_at)
 
     async def on_offline(self, event: StreamOfflineEvent):
         self.live = False
@@ -146,7 +141,8 @@ class Channel():
             category_name=event.event.category_name,
             category_id=event.event.category_id
         )
-        await self.database.add_twitch_update(update)
+        database = await get_db()
+        await database.add_twitch_update(update)
 
     async def get_live(self):
         self.live = get_live(self.twitch, f'{self.id}')

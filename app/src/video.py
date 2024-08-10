@@ -4,7 +4,7 @@ from streamlink.plugins.twitch import TwitchHLSStream
 from twitchAPI.object.api import Stream
 import logging
 from pathlib import Path
-from .database import BaseDatabase
+from .database import get_db
 from datetime import datetime, timezone
 from .models import *
 from uuid import uuid4
@@ -16,9 +16,8 @@ VIDEO_EXTENSION = 'ts'
 
 class Video():
 
-    def __init__(self, database:BaseDatabase, id, url, channel, channel_id, path, quality='best'):
+    def __init__(self, id, url, channel, channel_id, path, quality='best'):
         self.logger = logging.getLogger(f'vodloader.{channel}.{type(self).__name__}')
-        self.database = database
         self.stream_id = id
         self.url = url
         self.channel = channel
@@ -44,7 +43,8 @@ class Video():
             path=self.path,
             started_at=datetime.now(timezone.utc),
         )
-        await self.database.add_video_file(video_file)
+        database = await get_db()
+        await database.add_video_file(video_file)
         stream = self.get_stream()
         buffer = stream.open()
         with open(self.path, 'wb') as f:
@@ -53,7 +53,7 @@ class Video():
                 f.write(data)
                 data = buffer.read(chunk_size)
         buffer.close()
-        await self.database.end_video_file(
+        await database.end_video_file(
             video=video_file,
             ended_at=datetime.now(timezone.utc)
         )
@@ -61,10 +61,9 @@ class Video():
 
 class LiveStream(Video):
     
-    def __init__(self, database:BaseDatabase, stream:Stream, directory:Path, quality='best'):
+    def __init__(self, stream:Stream, directory:Path, quality='best'):
         self.name = f'{stream.user_login}-{stream.title}-{stream.id}.{VIDEO_EXTENSION}'
         super().__init__(
-            database=database,
             id=stream.id,
             url=f'https://twitch.tv/{stream.user_login}',
             channel=stream.user_login,
