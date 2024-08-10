@@ -83,10 +83,6 @@ async def main():
         config['twitch']['client_secret']
     )
 
-    # Sync channels from config to DB
-    for channel_name in config['twitch']['channels']:
-        channel = TwitchChannel
-
     # Log into Twitch
     logger.info(f'Logging into Twitch')
     twitch = await Twitch(
