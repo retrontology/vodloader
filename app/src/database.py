@@ -61,7 +61,41 @@ class BaseDatabase():
         await connection.commit()
         await cursor.close()
         await connection.close()
-    
+
+    async def activate_twitch_channel(self, channel: TwitchChannel) -> TwitchChannel:
+        connection = await self.connect()
+        cursor = await connection.cursor()
+        await cursor.execute(
+            f"""
+            UPDATE {TwitchChannel.table_name}
+            SET active = {self.char}
+            WHERE id = {self.char};
+            """,
+            (True, channel.id)
+        )
+        await connection.commit()
+        await cursor.close()
+        await connection.close()
+        channel.active = True
+        return channel
+
+    async def deactivate_twitch_channel(self, channel: TwitchChannel) -> TwitchChannel:
+        connection = await self.connect()
+        cursor = await connection.cursor()
+        await cursor.execute(
+            f"""
+            UPDATE {TwitchChannel.table_name}
+            SET active = {self.char}
+            WHERE id = {self.char};
+            """,
+            (False, channel.id)
+        )
+        await connection.commit()
+        await cursor.close()
+        await connection.close()
+        channel.active = False
+        return channel
+
     async def get_twitch_channel(
             self,
             id: str|int|None = None,
@@ -228,7 +262,7 @@ class BaseDatabase():
         await cursor.close()
         await connection.close()
     
-    async def youtube_video_uploaded(self, id:str, uploaded:bool = True) -> None:
+    async def youtube_video_uploaded(self, video: YoutubeVideo) -> YoutubeVideo:
         connection = await self.connect()
         cursor = await connection.cursor()
         await cursor.execute(
@@ -237,11 +271,13 @@ class BaseDatabase():
             SET uploaded = {self.char}
             WHERE id = {self.char};
             """,
-            (uploaded, id)
+            (True, video.id)
         )
         await connection.commit()
         await cursor.close()
         await connection.close()
+        video.uploaded = True
+        return video
     
     async def get_youtube_video(self, id:str) -> YoutubeVideo | None:
         connection = await self.connect()

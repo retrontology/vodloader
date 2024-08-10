@@ -4,9 +4,16 @@ from .models import *
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from pathlib import Path
+from typing import Dict
 
 
 class VODLoader():
+
+    database: BaseDatabase
+    twitch: Twitch
+    eventsub: EventSubWebhook
+    download_dir: Path
+    channels: Dict[str, Channel]
     
     def __init__(
             self,
@@ -20,25 +27,48 @@ class VODLoader():
         self.twitch = twitch
         self.eventsub = eventsub
         self.download_dir = Path(download_dir)
-        self.channels = []
+        self.channels = {}
 
 
     async def start(self):
         db_channels = await self.database.get_twitch_channels()
-        self.channels = []
+        self.channels = {}
         for channel in db_channels:
-            await self.add_channel(channel)
+            channel = await Channel.from_channel(
+                channel=channel,
+                database=self.database,
+                download_dir=self.download_dir,
+                twitch=self.twitch,
+                eventsub=self.eventsub
+            )
+            self.channels[channel.login] = channel
 
-    async def add_channel(self, channel: TwitchChannel):
+    async def add_channel(self, name: str, quality: str):
+
+        name = name.lower()
+
+        if channel in self.channels:
+            raise RuntimeError('Channel already exists in VODLoader')
+
         channel = await Channel.create(
             database=self.database,
-            name=channel.name,
+            name=name,
             download_dir=self.download_dir,
             twitch=self.twitch,
             eventsub=self.eventsub,
-            quality=channel.quality,
+            quality=quality,
         )
-        self.channels.append(channel)
+        self.channels[channel.login] = channel
 
-    async def remove_channel(self, channel: TwitchChannel):
-        pass
+    async def remove_channel(self, name: str):
+        name = name.lower()
+        channel = self.channels.pop(name)
+        await channel.unsubscribe()
+        channel = TwitchChannel(
+            id=channel.id,
+            login=channel.login,
+            name=channel.name,
+            active=True,
+            quality=channel.quality
+        )
+        await self.database.deactivate_twitch_channel(channel)

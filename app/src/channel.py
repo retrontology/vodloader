@@ -20,6 +20,7 @@ class Channel():
         self,
         database: BaseDatabase,
         name: str,
+        login: str,
         id: str,
         live: bool,
         download_dir: Path,
@@ -30,6 +31,7 @@ class Channel():
         self.logger = logging.getLogger(f'vodloader.{name}')
         self.database = database
         self.name = name
+        self.login = login
         self.id = id
         self.url = 'https://www.twitch.tv/' + self.name
         self.live = live
@@ -39,6 +41,30 @@ class Channel():
         self.download_dir = download_dir
         self.subscriptions = []
 
+    @classmethod
+    async def from_channel(
+        self,
+        channel: TwitchChannel,
+        database: BaseDatabase,
+        download_dir: Path,
+        twitch: Twitch,
+        eventsub: EventSubWebhook
+    ):
+        live = await get_live(twitch, channel.id)
+        self = Channel(
+            database=database,
+            name=channel.name,
+            login=channel.login,
+            id=channel.id,
+            live=live,
+            download_dir=download_dir,
+            twitch=twitch,
+            eventsub=eventsub,
+            quality=channel.quality
+        )
+        await self.subscribe()
+        return self
+    
     @classmethod
     async def create(
         cls,
@@ -50,16 +76,20 @@ class Channel():
         quality: str = 'best',
     ):
         user = await first(twitch.get_users(logins=[name]))
-        live = await get_live(twitch, user.id)
-        self = cls(
-            database,
-            name,
-            user.id,
-            live,
-            download_dir,
-            twitch,
-            eventsub,
-            quality,
+        channel = TwitchChannel(
+            id=user.id,
+            login=user.login,
+            name=user.display_name,
+            active=True,
+            quality=quality
+        )
+        await database.add_twitch_channel(channel)
+        self = await cls.from_channel(
+            channel=channel,
+            database=database,
+            download_dir=download_dir,
+            twitch=twitch,
+            eventsub=eventsub
         )
         await self.subscribe()
         return self
@@ -72,7 +102,7 @@ class Channel():
             stream = None
             retry = 0
             while stream == None:
-                stream = await first(self.twitch.get_streams(user_id=self.id))
+                stream = await first(self.twitch.get_streams(user_id=f'{self.id}'))
                 if stream == None:
                     retry += 1
                     if retry == RETRY_COUNT:
@@ -119,7 +149,7 @@ class Channel():
         await self.database.add_twitch_update(update)
 
     async def get_live(self):
-        self.live = get_live(self.twitch, self.id)
+        self.live = get_live(self.twitch, f'{self.id}')
         return self.live
     
     async def subscribe(self):
@@ -127,13 +157,13 @@ class Channel():
         self.subscriptions = []
         
         self.subscriptions.append(
-            await self.eventsub.listen_stream_online(self.id, self.on_online)
+            await self.eventsub.listen_stream_online(f'{self.id}', self.on_online)
         )
         self.subscriptions.append(
-            await self.eventsub.listen_stream_offline(self.id, self.on_offline)
+            await self.eventsub.listen_stream_offline(f'{self.id}', self.on_offline)
         )
         self.subscriptions.append(
-            await self.eventsub.listen_channel_update_v2(self.id, self.on_update)
+            await self.eventsub.listen_channel_update_v2(f'{self.id}', self.on_update)
         )
         
     
@@ -142,13 +172,13 @@ class Channel():
         self.subscriptions = []
         tasks = [
             asyncio.create_task(
-                self.eventsub.listen_stream_online(self.id, self.on_online)
+                self.eventsub.listen_stream_online(f'{self.id}', self.on_online)
             ),
             asyncio.create_task(
-                self.eventsub.listen_stream_offline(self.id, self.on_offline)
+                self.eventsub.listen_stream_offline(f'{self.id}', self.on_offline)
             ),
             asyncio.create_task(
-                self.eventsub.listen_channel_update_v2(self.id, self.on_update)
+                self.eventsub.listen_channel_update_v2(f'{self.id}', self.on_update)
             )
         ]
         for task in tasks:
