@@ -1,4 +1,4 @@
-from .database import BaseDatabase
+from .database import get_db
 from .channel import Channel
 from .models import *
 from twitchAPI.twitch import Twitch
@@ -9,7 +9,6 @@ from typing import Dict
 
 class VODLoader():
 
-    database: BaseDatabase
     twitch: Twitch
     eventsub: EventSubWebhook
     download_dir: Path
@@ -17,13 +16,11 @@ class VODLoader():
     
     def __init__(
             self,
-            database:BaseDatabase,
             twitch:Twitch,
             eventsub:EventSubWebhook,
             download_dir:Path
     ):
 
-        self.database = database
         self.twitch = twitch
         self.eventsub = eventsub
         self.download_dir = Path(download_dir)
@@ -31,12 +28,12 @@ class VODLoader():
 
 
     async def start(self):
-        db_channels = await self.database.get_twitch_channels()
+        database = await get_db()
+        db_channels = await database.get_twitch_channels()
         self.channels = {}
         for channel in db_channels:
             channel = await Channel.from_channel(
                 channel=channel,
-                database=self.database,
                 download_dir=self.download_dir,
                 twitch=self.twitch,
                 eventsub=self.eventsub
@@ -51,7 +48,6 @@ class VODLoader():
             raise RuntimeError('Channel already exists in VODLoader')
 
         channel = await Channel.create(
-            database=self.database,
             name=name,
             download_dir=self.download_dir,
             twitch=self.twitch,
@@ -61,6 +57,7 @@ class VODLoader():
         self.channels[channel.login] = channel
 
     async def remove_channel(self, name: str):
+        database = await get_db()
         name = name.lower()
         channel = self.channels.pop(name)
         await channel.unsubscribe()

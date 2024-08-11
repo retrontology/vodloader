@@ -85,7 +85,6 @@ async def main():
 
     # Initialize VODLoader
     vodloader = VODLoader(
-        database=database,
         twitch=twitch,
         eventsub=eventsub,
         download_dir=download_dir
