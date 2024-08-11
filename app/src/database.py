@@ -458,13 +458,13 @@ class MySQLDatabase(BaseDatabase):
             self,
             host: str,
             port: str|int,
-            channel: str,
+            user: str,
             password: str,
             schema: str,
         ) -> None:
         self.host=host
         self.port=port
-        self.channel=channel
+        self.user=user
         self.password=password
         self.schema=schema
         super().__init__()
@@ -473,7 +473,7 @@ class MySQLDatabase(BaseDatabase):
         connection = await aiomysql.connect(
             host=self.host,
             port=self.port,
-            channel=self.channel,
+            user=self.user,
             password=self.password,
             db=self.schema,
             loop=asyncio.get_event_loop(),
