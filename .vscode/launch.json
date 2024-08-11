@@ -12,9 +12,7 @@
             "module": "src.run",
             "python": "${workspaceFolder}/app/bin/python",
             "console": "integratedTerminal",
-            "args": [
-                "-c", "${workspaceFolder}/app/config.yml",
-            ]
+            "args": []
         }
     ]
 }

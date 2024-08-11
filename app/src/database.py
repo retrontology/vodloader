@@ -43,7 +43,8 @@ class BaseDatabase():
             await connection.commit()
         
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
 
     # Low level functions
 
@@ -63,7 +64,8 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
 
     async def activate_twitch_channel(self, channel: TwitchChannel) -> TwitchChannel:
         connection = await self.connect()
@@ -78,7 +80,8 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         channel.active = True
         return channel
 
@@ -95,7 +98,8 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         channel.active = False
         return channel
 
@@ -140,7 +144,8 @@ class BaseDatabase():
             )
         args = await cursor.fetchone()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         if args:
             return TwitchChannel(*args)
         else:
@@ -156,7 +161,8 @@ class BaseDatabase():
         )
         channels_args = await cursor.fetchall()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         channels = []
         for channel_args in channels_args:
             channels.append(TwitchChannel(*channel_args))
@@ -176,7 +182,8 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
     
     async def end_twitch_stream(self, stream: TwitchStream, ended_at: datetime) -> TwitchStream:
         connection = await self.connect()
@@ -191,7 +198,8 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         stream.ended_at = ended_at
         return stream
     
@@ -207,7 +215,8 @@ class BaseDatabase():
         )
         args = await cursor.fetchone()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         if args:
             return TwitchStream(*args)
         else:
@@ -228,7 +237,8 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         return update_id
     
     async def get_twitch_update(self, id:str) -> TwitchChannelUpdate | None:
@@ -243,7 +253,8 @@ class BaseDatabase():
         )
         args = await cursor.fetchone()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         if args:
             return TwitchChannelUpdate(*args)
         else:
@@ -263,7 +274,8 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
     
     async def youtube_video_uploaded(self, video: YoutubeVideo) -> YoutubeVideo:
         connection = await self.connect()
@@ -278,7 +290,8 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         video.uploaded = True
         return video
     
@@ -294,7 +307,8 @@ class BaseDatabase():
         )
         args = await cursor.fetchone()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         if args:
             return YoutubeVideo(*args)
         else:
@@ -314,7 +328,8 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
     
     async def end_video_file(self, video: VideoFile, ended_at:datetime) -> VideoFile:
         connection = await self.connect()
@@ -329,7 +344,8 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         video.ended_at = ended_at
         return video
     
@@ -361,7 +377,8 @@ class BaseDatabase():
             )
         args = await cursor.fetchone()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         if args:
             return VideoFile(*args)
         else:
@@ -383,7 +400,8 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
     
     async def get_twitch_client(self) -> tuple[str, str]|None:
         connection = await self.connect()
@@ -398,7 +416,8 @@ class BaseDatabase():
         )
         result = await cursor.fetchone()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         return result
     
     async def set_twitch_auth(self, token, refresh_token):
@@ -417,7 +436,8 @@ class BaseDatabase():
         )
         await connection.commit()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
 
     async def get_twitch_auth(self) -> tuple[str, str]|None:
         connection = await self.connect()
@@ -432,7 +452,8 @@ class BaseDatabase():
         )
         result = await cursor.fetchone()
         await cursor.close()
-        await connection.close()
+        closer = connection.close()
+        if closer: await closer
         return result
 
 class SQLLiteDatabase(BaseDatabase):
