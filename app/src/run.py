@@ -61,6 +61,7 @@ async def main():
     
     #Initialize database
     database = await get_db()
+    await database.initialize()
 
     # Log into Twitch
     logger.info(f'Logging into Twitch')
