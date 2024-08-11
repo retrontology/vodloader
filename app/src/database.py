@@ -463,7 +463,7 @@ class MySQLDatabase(BaseDatabase):
             schema: str,
         ) -> None:
         self.host=host
-        self.port=port
+        self.port=int(port)
         self.user=user
         self.password=password
         self.schema=schema
