@@ -68,4 +68,4 @@ class VODLoader():
             active=True,
             quality=channel.quality
         )
-        await self.database.deactivate_twitch_channel(channel)
+        await database.deactivate_twitch_channel(channel)
