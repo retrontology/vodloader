@@ -32,6 +32,7 @@ class Video():
         session = streamlink.Streamlink()
         if token:
             session.set_option('http-headers', {'Authorization': f'OAuth {token}'})
+            session.set_option('webbrowser-headless', False)
         return session.streams(self.url)[self.quality]
 
     async def download_stream(
