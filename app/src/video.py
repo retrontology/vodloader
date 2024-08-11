@@ -13,6 +13,7 @@ CHUNK_SIZE = 8192
 MAX_VIDEO_LENGTH = 60*(60*12-15)
 RETRY_COUNT = 10
 VIDEO_EXTENSION = 'ts'
+MAX_LENGTH=60*(60*12-15)
 
 class Video():
 
@@ -27,8 +28,11 @@ class Video():
         self.video_id = None
         self.stream = self.get_stream()
         
-    def get_stream(self) -> TwitchHLSStream:
-        return streamlink.streams(self.url)[self.quality]
+    def get_stream(self, token=None) -> TwitchHLSStream:
+        session = streamlink.Streamlink()
+        if token:
+            session.set_option('http-headers', {'Authorization': f'OAuth {token}'})
+        return session.streams(self.url)[self.quality]
 
     async def download_stream(
             self,
@@ -45,7 +49,8 @@ class Video():
         )
         database = await get_db()
         await database.add_video_file(video_file)
-        stream = self.get_stream()
+        tokens = await database.get_twitch_auth()
+        stream = self.get_stream(tokens[0] if tokens else None)
         buffer = stream.open()
         with open(self.path, 'wb') as f:
             data = buffer.read(chunk_size)

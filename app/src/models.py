@@ -146,7 +146,7 @@ class VideoFile(Model):
             path VARCHAR(4096),
             started_at DATETIME NOT NULL,
             ended_at DATETIME,
-            part SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+            part SMALLINT UNSIGNED NOT NULL DEFAULT 1,
             PRIMARY KEY (id),
             FOREIGN KEY (stream) REFERENCES {TwitchStream.table_name}(id),
             FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id)
@@ -171,7 +171,7 @@ class VideoFile(Model):
             path: str|Path,
             started_at: datetime,
             ended_at: datetime = None,
-            part: str|int = 0
+            part: str|int = 1
     ) -> None:
         
         self.id = id
