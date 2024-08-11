@@ -508,10 +508,10 @@ async def get_db() -> BaseDatabase:
     if os.environ['DB_TYPE'].lower() == 'sqlite':
         if 'DB_PATH' not in os.environ:
             os.environ['DB_PATH'] = DEFAULT_PATH
-        database = await SQLLiteDatabase('test.sql')
+        database = SQLLiteDatabase('test.sql')
 
     elif os.environ['DB_TYPE'].lower() == 'mysql':
-        database = await MySQLDatabase(
+        database = MySQLDatabase(
             host=os.environ['DB_HOST'],
             port=os.environ['DB_PORT'],
             user=os.environ['DB_USER'],
