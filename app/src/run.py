@@ -49,7 +49,8 @@ def setup_logger(level=logging.INFO, path='logs'):
 
 async def main():
 
-    # Initialize args, and logger
+    # Initialize env, args, and logger
+    load_dotenv()
     args = parse_args()
     logger = setup_logger(args.debug)
 
