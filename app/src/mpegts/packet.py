@@ -3,6 +3,8 @@ from .header import PacketHeader
 from .adaptation import PacketAdapatationField
 from .payload import PacketPayload
 
+PACKET_SIZE = 188
+
 class Packet(MPEGTSLayer):
 
     header: PacketHeader

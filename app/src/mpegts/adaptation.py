@@ -1,6 +1,7 @@
 from .util import MPEGTSLayer
 from .pcr import ProgramClockReference
 from .private import PacketPrivateData
+from .extension import PacketAdapatationExtension
 
 ADAPTATION_SIZE = 1
 SPLICE_SIZE = 1

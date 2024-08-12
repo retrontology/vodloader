@@ -43,13 +43,13 @@ class PacketHeader(MPEGTSLayer):
         if sync != SYNC_BYTE:
             raise SyncByteMismatch
         
-        self.TEI = bool(self.mask_header(data, MASK_TEI))
-        self.PUSI = bool(self.mask_header(data, MASK_PUSI))
-        self.TP = bool(self.mask_header(data, MASK_TP))
-        self.PID = self.mask_header(data, MASK_PID)
-        self.TSC = TransportScramblingControl(self.mask_header(data, MASK_TSC))
-        self.AFC = AdaptationFieldControl(self.mask_header(data, MASK_AFC))
-        self.CC = self.mask_header(data, MASK_CC)
+        self.TEI = bool(self.mask(data, MASK_TEI))
+        self.PUSI = bool(self.mask(data, MASK_PUSI))
+        self.TP = bool(self.mask(data, MASK_TP))
+        self.PID = self.mask(data, MASK_PID)
+        self.TSC = TransportScramblingControl(self.mask(data, MASK_TSC))
+        self.AFC = AdaptationFieldControl(self.mask(data, MASK_AFC))
+        self.CC = self.mask(data, MASK_CC)
     
     def __sizeof__(self) -> int:
         return HEADER_SIZE

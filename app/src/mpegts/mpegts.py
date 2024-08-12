@@ -1,4 +1,5 @@
 from pathlib import Path
+from .packet import *
 
 
 class MPEGTSFile():
@@ -6,9 +7,16 @@ class MPEGTSFile():
     def __init__(self, path: Path|str):
         self.path = Path(path)
         self._reader = open(self.path, 'rb')
-        self.index_packets()
 
-    def index_packets(self):
-        self.index = []
-
-        return self.index
+    def parse(self):
+        
+        self.packets = []
+        offset = 0
+        while True:
+            self._reader.seek(offset)
+            try:
+                self.packets.append(Packet(self._reader))
+            except Exception as e:
+                print(e)
+                break
+            offset += PACKET_SIZE
