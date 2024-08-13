@@ -1,18 +1,104 @@
 from datetime import datetime
 from pathlib import Path
 from typing import List
+from .database import *
 
 
-class Model(): 
+class BaseModel(): 
     
     table_name:str = None
     table_command:str = None
 
-    def __eq__(self, other):
-        return self.name == other.name and self.age == other.age
+    def _get_extra_attributes(self):
+        default_attributes = BaseModel.__dict__
+        extra_attributes = []
+        for attribute in list(self.__dict__):
+            if  attribute not in default_attributes:
+                extra_attributes.append(attribute)
+        return extra_attributes
+    
+    @classmethod
+    async def initialize(cls):
+        db = await get_db()
+        connection = await db.connect()
+        cursor = await connection.cursor()
+        await cursor.execute(cls.table_command)
+        await connection.commit()
+        await cursor.close()
+        closer = connection.close()
+        if closer: await closer
+
+    async def save(self):
+
+        attributes = self._get_extra_attributes()
+        values = [self.__getattribute__(x) for x in attributes]
+        values.extend(values)
+
+        db = await get_db()
+        connection = await db.connect()
+        cursor = await connection.cursor()
+        await cursor.execute(
+            f"""
+            INSERT INTO {self.table_name} 
+            ({', '.join(attributes)})
+            VALUES
+            ({', '.join([db.char for x in attributes])})
+            {db.duplicate('id')}
+            {', '.join([f'{x}={db.char}' for x in attributes])};
+            """,
+            values
+        )
+        await connection.commit()
+        await cursor.close()
+        closer = connection.close()
+        if closer: await closer
+
+    @classmethod
+    async def find(cls, **kwargs):
+
+        if not kwargs:
+            raise RuntimeError('At least one key must be specified to find a model')
+
+        db = await get_db()
+
+        where_clause = 'WHERE'
+        values = []
+        for key in kwargs:
+            where_clause += f' {key}={db.char}'
+            values.append(kwargs[key])
+
+        connection = await db.connect()
+        cursor = await connection.cursor()
+        await cursor.execute(
+            f"""
+            SELECT * FROM {cls.table_name}
+            {where_clause};
+            """,
+            values
+        )
+        args = await cursor.fetchone()
+        await cursor.close()
+        closer = connection.close()
+        if closer: await closer
+
+        if args:
+            return cls(*args)
+        else:
+            return None
 
 
-class TwitchChannel(Model):
+class EndableModel(BaseModel):
+
+    async def end(self, end: datetime = None):
+
+        if end == None:
+            end = datetime.now()
+        
+        self.ended_at = end
+        await self.save()
+
+
+class TwitchChannel(BaseModel):
 
     table_name = 'twitch_channel'
     table_command = f"""
@@ -47,8 +133,16 @@ class TwitchChannel(Model):
         self.active = active
         self.quality = quality
 
+    async def activate(self):
+        self.active = True
+        await self.save()
+    
+    async def deactivate(self):
+        self.active = False
+        await self.save()
 
-class TwitchStream(Model):
+
+class TwitchStream(EndableModel):
 
     table_name = 'twitch_stream'
     table_command = f"""
@@ -93,7 +187,7 @@ class TwitchStream(Model):
         self.ended_at = ended_at
 
 
-class TwitchChannelUpdate(Model):
+class TwitchChannelUpdate(BaseModel):
 
     table_name = 'twitch_channel_update'
     table_command = f"""
@@ -134,7 +228,7 @@ class TwitchChannelUpdate(Model):
         self.category_id = int(category_id)
 
 
-class VideoFile(Model):
+class VideoFile(EndableModel):
 
     table_name = 'video_file'
     table_command = f"""
@@ -184,7 +278,7 @@ class VideoFile(Model):
         self.part = int(part)
 
 
-class YoutubeVideo(Model):
+class YoutubeVideo(BaseModel):
 
     table_name = 'youtube_video'
     table_command = f"""
@@ -211,9 +305,13 @@ class YoutubeVideo(Model):
         self.id = id
         self.video = video
         self.uploaded = uploaded
+    
+    async def set_uploaded(self, uploaded: bool = True):
+        self.uploaded = uploaded
+        await self.save()
 
 
-class TwitchClient(Model):
+class TwitchClient(BaseModel):
 
     table_name = 'twitch_client'
     table_command = f"""
@@ -239,9 +337,22 @@ class TwitchClient(Model):
         self.id = int(id)
         self.client_id = client_id
         self.client_secret = client_secret
+    
+    @classmethod
+    async def set_client(cls, client_id:str, client_secret:str) -> None:
+        client = cls(0, client_id, client_secret)
+        await client.save()
+    
+    @classmethod
+    async def get_client(self) -> tuple[str, str]|None:
+        client = await self.find(id=0)
+        if client:
+            return (client.client_id, client.client_secret)
+        else:
+            return None
 
 
-class TwitchAuth(Model):
+class TwitchAuth(BaseModel):
 
     table_name = 'twitch_auth'
     table_command = f"""
@@ -268,8 +379,21 @@ class TwitchAuth(Model):
         self.auth_token = auth_token
         self.refresh_token = refresh_token
 
+    @classmethod
+    async def set_auth(cls, auth_token:str, refresh_token:str) -> None:
+        client = cls(0, auth_token, refresh_token)
+        await client.save()
+    
+    @classmethod
+    async def get_auth(self) -> tuple[str, str]|None:
+        client = await self.find(id=0)
+        if client:
+            return (client.auth_token, client.refresh_token)
+        else:
+            return None
 
-MODELS: List[Model] = [
+
+MODELS: List[BaseModel] = [
     TwitchChannel,
     TwitchStream,
     TwitchChannelUpdate,
@@ -278,3 +402,8 @@ MODELS: List[Model] = [
     TwitchClient,
     TwitchAuth
 ]
+
+
+async def initialize_models():
+    for model in MODELS:
+        await model.initialize()

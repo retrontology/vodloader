@@ -3,7 +3,6 @@ import os
 import logging, logging.handlers
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
-from .database import *
 from .oauth import DBUserAuthenticationStorageHelper
 from .models import *
 from .util import get_download_dir
@@ -60,8 +59,7 @@ async def main():
         download_dir.mkdir()
     
     #Initialize database
-    database = await get_db()
-    await database.initialize()
+    await initialize_models()
 
     # Log into Twitch
     logger.info(f'Logging into Twitch')
@@ -74,7 +72,6 @@ async def main():
     auth = DBUserAuthenticationStorageHelper(
         twitch=twitch,
         scopes=TARGET_SCOPE,
-        database=database,
     )
     await auth.bind()
 
