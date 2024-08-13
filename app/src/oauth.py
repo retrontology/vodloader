@@ -17,7 +17,6 @@ class DBUserAuthenticationStorageHelper(UserAuthenticationStorageHelper):
                  auth_base_url: str = TWITCH_AUTH_BASE_URL):
         self.twitch = twitch
         self.logger = logging.getLogger('vodloader.oauth.db_storage_helper')
-        """The logger used for OAuth Storage Helper related log messages"""
         self._target_scopes = scopes
         self.auth_generator = self._default_auth_gen
         self.auth_base_url: str = auth_base_url

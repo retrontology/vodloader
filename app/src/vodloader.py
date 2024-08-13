@@ -1,4 +1,3 @@
-from .database import get_db
 from .channel import Channel
 from .models import *
 from twitchAPI.twitch import Twitch
@@ -28,8 +27,7 @@ class VODLoader():
 
 
     async def start(self):
-        database = await get_db()
-        db_channels = await database.get_twitch_channels()
+        db_channels = await TwitchChannel.get_many(active=True)
         self.channels = {}
         for channel in db_channels:
             channel = await Channel.from_channel(
@@ -57,7 +55,6 @@ class VODLoader():
         self.channels[channel.login] = channel
 
     async def remove_channel(self, name: str):
-        database = await get_db()
         name = name.lower()
         channel = self.channels.pop(name)
         await channel.unsubscribe()
@@ -68,4 +65,4 @@ class VODLoader():
             active=True,
             quality=channel.quality
         )
-        await database.deactivate_twitch_channel(channel)
+        await channel.deactivate()

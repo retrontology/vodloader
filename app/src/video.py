@@ -18,6 +18,7 @@ MAX_LENGTH=60*(60*12-15)
 class Video():
 
     def __init__(self, id, url, channel, channel_id, path, quality='best'):
+        
         self.logger = logging.getLogger(f'vodloader.{channel}.{type(self).__name__}')
         self.stream_id = id
         self.url = url

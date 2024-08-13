@@ -54,7 +54,7 @@ class BaseModel():
         if closer: await closer
 
     @classmethod
-    async def find(cls, **kwargs):
+    async def get(cls, **kwargs):
 
         if not kwargs:
             raise RuntimeError('At least one key must be specified to find a model')
@@ -85,7 +85,57 @@ class BaseModel():
             return cls(*args)
         else:
             return None
+    
+    @classmethod
+    async def get_many(cls, **kwargs):
+        db = await get_db()
 
+        if not kwargs:
+            raise RuntimeError('At least one key must be specified to find models')
+
+        where_clause = 'WHERE'
+        values = []
+        for key in kwargs:
+            where_clause += f' {key}={db.char}'
+            values.append(kwargs[key])
+
+        connection = await db.connect()
+        cursor = await connection.cursor()
+        await cursor.execute(
+            f"""
+            SELECT * FROM {cls.table_name}
+            {where_clause};
+            """
+        )
+        args_list = await cursor.fetchall()
+        await cursor.close()
+        closer = connection.close()
+        if closer: await closer
+
+        if args_list:
+            return (cls(*args) for args in args_list)
+        else:
+            return None
+
+    @classmethod
+    async def all(cls):
+        db = await get_db()
+        connection = await db.connect()
+        cursor = await connection.cursor()
+        await cursor.execute(
+            f"""
+            SELECT * FROM {cls.table_name};
+            """
+        )
+        args_list = await cursor.fetchall()
+        await cursor.close()
+        closer = connection.close()
+        if closer: await closer
+
+        if args_list:
+            return (cls(*args) for args in args_list)
+        else:
+            return None
 
 class EndableModel(BaseModel):
 
@@ -345,7 +395,7 @@ class TwitchClient(BaseModel):
     
     @classmethod
     async def get_client(self) -> tuple[str, str]|None:
-        client = await self.find(id=0)
+        client = await self.get(id=0)
         if client:
             return (client.client_id, client.client_secret)
         else:
@@ -386,7 +436,7 @@ class TwitchAuth(BaseModel):
     
     @classmethod
     async def get_auth(self) -> tuple[str, str]|None:
-        client = await self.find(id=0)
+        client = await self.get(id=0)
         if client:
             return (client.auth_token, client.refresh_token)
         else:
