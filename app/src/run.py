@@ -7,9 +7,9 @@ from .oauth import DBUserAuthenticationStorageHelper
 from .models import *
 from .util import get_download_dir
 import asyncio
-from pathlib import Path
 from .vodloader import VODLoader
 from dotenv import load_dotenv
+
 
 TARGET_SCOPE = []
 
@@ -91,7 +91,10 @@ async def main():
 
     # Main loop & cleanup
     try:
-        input('press Enter to shut down...')
+        while True:
+            input('press Ctrl+C to shut down...')
+    except Exception as e:
+        logger.error(e)
     finally:
         await eventsub.unsubscribe_all()
         await eventsub.stop()

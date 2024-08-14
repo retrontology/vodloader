@@ -78,8 +78,7 @@ class Channel():
             active=True,
             quality=quality
         )
-        database = await get_db()
-        await database.add_twitch_channel(channel)
+        await channel.save()
         self = await cls.from_channel(
             channel=channel,
             download_dir=download_dir,
@@ -119,13 +118,11 @@ class Channel():
                 category_name=stream.game_name,
                 started_at=event.event.started_at
             )
-            database = await get_db()
-            await database.add_twitch_stream(twitch_stream)
+            await twitch_stream.save()
             await self.livestream.download_stream()
-            ended_at = datetime.now(timezone.utc)
             self.live = False
             self.livestream = None
-            await database.end_twitch_stream(twitch_stream, ended_at)
+            await twitch_stream.end()
 
     async def on_offline(self, event: StreamOfflineEvent):
         self.live = False
@@ -141,8 +138,7 @@ class Channel():
             category_name=event.event.category_name,
             category_id=event.event.category_id
         )
-        database = await get_db()
-        await database.add_twitch_update(update)
+        await update.save()
 
     async def get_live(self):
         self.live = get_live(self.twitch, f'{self.id}')

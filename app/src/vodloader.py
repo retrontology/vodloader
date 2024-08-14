@@ -27,22 +27,23 @@ class VODLoader():
 
 
     async def start(self):
-        db_channels = await TwitchChannel.get_many(active=True)
         self.channels = {}
-        for channel in db_channels:
-            channel = await Channel.from_channel(
-                channel=channel,
-                download_dir=self.download_dir,
-                twitch=self.twitch,
-                eventsub=self.eventsub
-            )
-            self.channels[channel.login] = channel
+        db_channels = await TwitchChannel.get_many(active=True)
+        if db_channels:
+            for channel in db_channels:
+                channel = await Channel.from_channel(
+                    channel=channel,
+                    download_dir=self.download_dir,
+                    twitch=self.twitch,
+                    eventsub=self.eventsub
+                )
+                self.channels[channel.login] = channel
 
-    async def add_channel(self, name: str, quality: str):
+    async def add_channel(self, name: str, quality: str = 'best'):
 
         name = name.lower()
 
-        if channel in self.channels:
+        if name in self.channels:
             raise RuntimeError('Channel already exists in VODLoader')
 
         channel = await Channel.create(

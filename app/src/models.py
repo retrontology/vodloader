@@ -105,7 +105,8 @@ class BaseModel():
             f"""
             SELECT * FROM {cls.table_name}
             {where_clause};
-            """
+            """,
+            values
         )
         args_list = await cursor.fetchall()
         await cursor.close()
@@ -142,7 +143,7 @@ class EndableModel(BaseModel):
     async def end(self, end: datetime = None):
 
         if end == None:
-            end = datetime.now()
+            end = datetime.now(timezone.utc)
         
         self.ended_at = end
         await self.save()
