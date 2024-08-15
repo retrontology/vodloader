@@ -7,6 +7,8 @@ from pathlib import Path
 from datetime import datetime, timezone
 from .models import *
 from uuid import uuid4
+from threading import Thread
+import asyncio
 
 CHUNK_SIZE = 8192
 MAX_VIDEO_LENGTH = 60*(60*12-15)
@@ -26,19 +28,19 @@ class Video():
         self.path = Path(path)
         self.quality = quality
         self.video_id = None
+        self.download_thread = None
         self.stream = self.get_stream()
         
     def get_stream(self, token=None) -> TwitchHLSStream:
         session = streamlink.Streamlink()
-        #if token:
-        #    session.set_option('http-headers', {'Authorization': f'OAuth {token}'})
-        #    session.set_option('webbrowser-headless', False)
         return session.streams(self.url)[self.quality]
 
-    async def download_stream(
-            self,
-            chunk_size=CHUNK_SIZE,
-        ):
+    def download_stream(self):
+        self.download_thread = Thread(target=self._download_func)
+        self.download_thread.run()
+    
+    def _download_func(self):
+        loop = asyncio.get_event_loop()
         self.logger.info(f'Downloading stream from {self.url} to {self.path}')
         video_file = VideoFile(
             id=uuid4().__str__(),
@@ -48,16 +50,16 @@ class Video():
             path=self.path,
             started_at=datetime.now(timezone.utc),
         )
-        await video_file.save()
+        loop.run_until_complete(video_file.save())
         stream = self.get_stream()
         buffer = stream.open()
         with open(self.path, 'wb') as f:
-            data = buffer.read(chunk_size)
+            data = buffer.read(CHUNK_SIZE)
             while data:
                 f.write(data)
-                data = buffer.read(chunk_size)
+                data = buffer.read(CHUNK_SIZE)
         buffer.close()
-        await video_file.end()
+        loop.run_until_complete(video_file.end())
         self.logger.info(f'Finished downloading stream from {self.url} to {self.path}')
 
 class LiveStream(Video):
