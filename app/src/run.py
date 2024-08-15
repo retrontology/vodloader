@@ -6,6 +6,7 @@ from twitchAPI.eventsub.webhook import EventSubWebhook
 from .models import *
 from .util import get_download_dir
 import asyncio
+import concurrent.futures
 from .vodloader import VODLoader
 from dotenv import load_dotenv
 from hypercorn.config import Config
@@ -88,7 +89,8 @@ async def main():
     config.bind = ["0.0.0.0:8001"]
     config.__setattr__('vodloader', vodloader)
     api = create_api(vodloader)
-    await loop.create_task(serve(api, config))
+    api_task = loop.create_task(serve(api, config))
+    await api_task
 
     # Cleanup
     await vodloader.stop()

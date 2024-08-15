@@ -50,7 +50,7 @@ class Video():
             path=self.path,
             started_at=datetime.now(timezone.utc),
         )
-        loop.run_until_complete(video_file.save())
+        save_task = loop.create_task(video_file.save())
         stream = self.get_stream()
         buffer = stream.open()
         with open(self.path, 'wb') as f:
@@ -59,7 +59,7 @@ class Video():
                 f.write(data)
                 data = buffer.read(CHUNK_SIZE)
         buffer.close()
-        loop.run_until_complete(video_file.end())
+        end_task = loop.create_task(video_file.end())
         self.logger.info(f'Finished downloading stream from {self.url} to {self.path}')
 
 class LiveStream(Video):
