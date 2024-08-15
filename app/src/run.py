@@ -14,8 +14,6 @@ from hypercorn.asyncio import serve
 from .api import create_api
 
 
-TARGET_SCOPE = []
-
 def parse_args():
     parser = argparse.ArgumentParser(
         prog='vodloader',
@@ -70,13 +68,6 @@ async def main():
         os.environ['TWITCH_CLIENT_ID'],
         os.environ['TWITCH_CLIENT_SECRET'],
     )
-
-    # Authenticate Twitch User
-    auth = DBUserAuthenticationStorageHelper(
-        twitch=twitch,
-        scopes=TARGET_SCOPE,
-    )
-    await auth.bind()
 
     # Initialize Webhook
     logger.info(f'Initializing EventSub Webhook')

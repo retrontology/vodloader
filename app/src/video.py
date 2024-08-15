@@ -49,8 +49,7 @@ class Video():
             started_at=datetime.now(timezone.utc),
         )
         await video_file.save()
-        tokens = await TwitchAuth.get_auth()
-        stream = self.get_stream(tokens[0] if tokens else None)
+        stream = self.get_stream()
         buffer = stream.open()
         with open(self.path, 'wb') as f:
             data = buffer.read(chunk_size)
