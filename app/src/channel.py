@@ -71,6 +71,10 @@ class Channel():
         quality: str = 'best',
     ):
         user = await first(twitch.get_users(logins=[name]))
+
+        if not user:
+            raise ChannelDoesNotExist
+        
         channel = TwitchChannel(
             id=user.id,
             login=user.login,
@@ -79,13 +83,13 @@ class Channel():
             quality=quality
         )
         await channel.save()
+        
         self = await cls.from_channel(
             channel=channel,
             download_dir=download_dir,
             twitch=twitch,
             eventsub=eventsub
         )
-        await self.subscribe()
         return self
 
     async def on_online(self, event: StreamOnlineEvent):
@@ -192,3 +196,4 @@ class Channel():
         return self.name
 
 class StreamUnretrievable(Exception): pass
+class ChannelDoesNotExist(Exception): pass

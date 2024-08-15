@@ -9,6 +9,9 @@ from .util import get_download_dir
 import asyncio
 from .vodloader import VODLoader
 from dotenv import load_dotenv
+from hypercorn.config import Config
+from hypercorn.asyncio import serve
+from .api import create_api
 
 
 TARGET_SCOPE = []
@@ -89,16 +92,19 @@ async def main():
     )
     await vodloader.start()
 
-    # Main loop & cleanup
-    try:
-        while True:
-            input('press Ctrl+C to shut down...')
-    except Exception as e:
-        logger.error(e)
-    finally:
-        await eventsub.unsubscribe_all()
-        await eventsub.stop()
-        await twitch.close()
+    # Run API
+    loop = asyncio.get_event_loop()
+    config = Config()
+    config.bind = ["0.0.0.0:8001"]
+    config.__setattr__('vodloader', vodloader)
+    api = create_api(vodloader)
+    await loop.create_task(serve(api, config))
+
+    # Cleanup
+    await vodloader.stop()
+    await eventsub.unsubscribe_all()
+    await eventsub.stop()
+    await twitch.close()
 
 
 if __name__ == '__main__':

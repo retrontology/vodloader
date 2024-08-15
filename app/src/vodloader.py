@@ -38,6 +38,9 @@ class VODLoader():
                     eventsub=self.eventsub
                 )
                 self.channels[channel.login] = channel
+    
+    async def stop(self):
+        pass
 
     async def add_channel(self, name: str, quality: str = 'best'):
 
@@ -57,6 +60,8 @@ class VODLoader():
 
     async def remove_channel(self, name: str):
         name = name.lower()
+        if name not in self.channels:
+            raise ChannelNotAdded
         channel = self.channels.pop(name)
         await channel.unsubscribe()
         channel = TwitchChannel(
@@ -67,3 +72,6 @@ class VODLoader():
             quality=channel.quality
         )
         await channel.deactivate()
+
+class ChannelAlreadyAdded(Exception): pass
+class ChannelNotAdded(Exception): pass
