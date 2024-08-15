@@ -4,7 +4,6 @@ from streamlink.plugins.twitch import TwitchHLSStream
 from twitchAPI.object.api import Stream
 import logging
 from pathlib import Path
-from .database import get_db
 from datetime import datetime, timezone
 from .models import *
 from uuid import uuid4
@@ -49,9 +48,8 @@ class Video():
             path=self.path,
             started_at=datetime.now(timezone.utc),
         )
-        database = await get_db()
-        await database.add_video_file(video_file)
-        tokens = await database.get_twitch_auth()
+        await video_file.save()
+        tokens = await TwitchAuth.get_auth()
         stream = self.get_stream(tokens[0] if tokens else None)
         buffer = stream.open()
         with open(self.path, 'wb') as f:
@@ -60,10 +58,7 @@ class Video():
                 f.write(data)
                 data = buffer.read(chunk_size)
         buffer.close()
-        await database.end_video_file(
-            video=video_file,
-            ended_at=datetime.now(timezone.utc)
-        )
+        await video_file.end()
         self.logger.info(f'Finished downloading stream from {self.url} to {self.path}')
 
 class LiveStream(Video):
