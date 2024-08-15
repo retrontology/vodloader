@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List
 from .database import *
@@ -30,8 +30,16 @@ class BaseModel():
 
     async def save(self):
 
+        values = []
         attributes = self._get_extra_attributes()
-        values = [self.__getattribute__(x) for x in attributes]
+        for attribute in attributes:
+            value = self.__getattribute__(attribute)
+            match value:
+                case Path():
+                    value = value.__str__()
+                case _:
+                     pass
+            values.append(value)
         values.extend(values)
 
         db = await get_db()

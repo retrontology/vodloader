@@ -3,7 +3,6 @@ import os
 import logging, logging.handlers
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
-from .oauth import DBUserAuthenticationStorageHelper
 from .models import *
 from .util import get_download_dir
 import asyncio
