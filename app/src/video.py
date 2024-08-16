@@ -35,12 +35,11 @@ class Video():
         session = streamlink.Streamlink()
         return session.streams(self.url)[self.quality]
 
-    def download_stream(self):
-        self.download_thread = Thread(target=self._download_func)
-        self.download_thread.run()
+    async def download_stream(self):
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._download_func)
     
     def _download_func(self):
-        loop = asyncio.get_event_loop()
         self.logger.info(f'Downloading stream from {self.url} to {self.path}')
         video_file = VideoFile(
             id=uuid4().__str__(),
@@ -50,6 +49,7 @@ class Video():
             path=self.path,
             started_at=datetime.now(timezone.utc),
         )
+        loop = asyncio.new_event_loop()
         save_task = loop.create_task(video_file.save())
         stream = self.get_stream()
         buffer = stream.open()
