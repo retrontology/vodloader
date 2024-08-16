@@ -5,7 +5,6 @@ from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, Cha
 from twitchAPI.helper import first
 from .util import get_live
 from .video import LiveStream
-from .database import get_db
 from pathlib import Path
 import asyncio
 from datetime import datetime, timezone
