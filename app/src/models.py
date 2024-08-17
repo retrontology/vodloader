@@ -299,7 +299,6 @@ class VideoFile(EndableModel):
             path VARCHAR(4096),
             started_at DATETIME NOT NULL,
             ended_at DATETIME,
-            part SMALLINT UNSIGNED NOT NULL DEFAULT 1,
             PRIMARY KEY (id),
             FOREIGN KEY (stream) REFERENCES {TwitchStream.table_name}(id),
             FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id)
@@ -313,7 +312,6 @@ class VideoFile(EndableModel):
     path: Path
     started_at: datetime
     ended_at: datetime
-    part: int
 
     def __init__(
             self,
@@ -324,7 +322,6 @@ class VideoFile(EndableModel):
             path: str|Path,
             started_at: datetime,
             ended_at: datetime = None,
-            part: str|int = 1
     ) -> None:
         
         self.id = id
@@ -334,7 +331,6 @@ class VideoFile(EndableModel):
         self.path = Path(path)
         self.started_at = started_at
         self.ended_at = ended_at
-        self.part = int(part)
 
 
 class YoutubeVideo(BaseModel):
