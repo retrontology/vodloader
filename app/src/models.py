@@ -4,7 +4,7 @@ from typing import List, Self
 from .database import *
 from enum import Enum
 import ffmpeg
-import subprocess
+import concurrent.futures
 import logging
 
 NOT_NULL = 'NOT NULL'
@@ -22,15 +22,16 @@ class BaseModel():
     
     table_name:str = None
     table_command:str = None
+    logger: logging.Logger = None
     
     def __init__(self):
         self.logger = logging.getLogger(f'vodloader.models.{type(self).__name__}')
 
     def _get_extra_attributes(self):
-        default_attributes = super().__dict__
+        default_attributes = BaseModel.__dict__
         extra_attributes = []
         for attribute in list(self.__dict__):
-            if  attribute not in default_attributes:
+            if attribute not in default_attributes:
                 extra_attributes.append(attribute)
         return extra_attributes
     
@@ -401,10 +402,10 @@ class VideoFile(EndableModel):
         self.stream = int(stream)
         self.channel = int(channel)
         self.quality = quality
-        self.path = Path(path)
+        self.path = Path(path).resolve()
         self.started_at = started_at
         self.ended_at = ended_at
-        self.transcode_path = Path(transcode_path) if transcode_path else None
+        self.transcode_path = Path(transcode_path).resolve() if transcode_path else None
 
     @classmethod
     async def get_nontranscoded(cls) -> List[Self]:
@@ -433,16 +434,18 @@ class VideoFile(EndableModel):
         if self.transcode_path:
             raise VideoAlreadyTranscoded
         
-        self.logger.info('Transcoding')
         loop = asyncio.get_event_loop()
         self.transcode_path = await loop.run_in_executor(None, self._transcode)
         await self.save()
         self.logger.info('Finished transcoding')
+        
 
     def _transcode(self) -> Path:
+        self.logger.info('Transcoding')
         transcode_path = self.path.parent.joinpath(f'{self.path.stem}.mp4')
         stream = ffmpeg.input(self.path.__str__())
-        stream = ffmpeg.output(stream, transcode_path.__str__(), vcodec='copy')
+        stream = ffmpeg.output(stream, transcode_path.__str__(), vcodec='copy', )
+        stream = ffmpeg.overwrite_output(stream)
         ffmpeg.run(stream)
         return transcode_path
 
