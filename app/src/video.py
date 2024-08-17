@@ -36,10 +36,6 @@ class Video():
         return session.streams(self.url)[self.quality]
 
     async def download_stream(self):
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, self._download_func)
-    
-    def _download_func(self):
         self.logger.info(f'Downloading stream from {self.url} to {self.path}')
         video_file = VideoFile(
             id=uuid4().__str__(),
@@ -49,8 +45,13 @@ class Video():
             path=self.path,
             started_at=datetime.now(timezone.utc),
         )
-        loop = asyncio.new_event_loop()
-        loop.run_until_complete(video_file.save())
+        await video_file.save()
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._download)
+        await video_file.end()
+        self.logger.info(f'Finished downloading stream from {self.url} to {self.path}')
+    
+    def _download(self):
         stream = self.get_stream()
         buffer = stream.open()
         with open(self.path, 'wb') as f:
@@ -59,8 +60,6 @@ class Video():
                 f.write(data)
                 data = buffer.read(CHUNK_SIZE)
         buffer.close()
-        loop.run_until_complete(video_file.end())
-        self.logger.info(f'Finished downloading stream from {self.url} to {self.path}')
 
 class LiveStream(Video):
     

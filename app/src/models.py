@@ -1,16 +1,33 @@
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List
+from typing import List, Self
 from .database import *
+from enum import Enum
+import ffmpeg
+import subprocess
+import logging
+
+NOT_NULL = 'NOT NULL'
+
+class OrderDirection(Enum):
+
+    ASC = 'ASC'
+    DESC = 'DESC'
+
+    def __str__(self) -> str:
+        return self.value
 
 
 class BaseModel(): 
     
     table_name:str = None
     table_command:str = None
+    
+    def __init__(self):
+        self.logger = logging.getLogger(f'vodloader.models.{type(self).__name__}')
 
     def _get_extra_attributes(self):
-        default_attributes = BaseModel.__dict__
+        default_attributes = super().__dict__
         extra_attributes = []
         for attribute in list(self.__dict__):
             if  attribute not in default_attributes:
@@ -62,25 +79,47 @@ class BaseModel():
         if closer: await closer
 
     @classmethod
-    async def get(cls, **kwargs):
+    async def get(
+        cls,
+        order_by: str = None,
+        order: OrderDirection = OrderDirection.ASC,
+        **kwargs):
 
         if not kwargs:
             raise RuntimeError('At least one key must be specified to find a model')
 
         db = await get_db()
 
+        if order_by:
+            order_clause = f'ORDER BY {order_by} {order}'
+        else:
+            order_clause = ''
+
         where_clause = 'WHERE'
         values = []
+        first_iteration = True
         for key in kwargs:
-            where_clause += f' {key}={db.char}'
-            values.append(kwargs[key])
+
+            if not first_iteration:
+                where_clause += ' AND'
+
+            if kwargs[key] == None:
+                where_clause += f' {key} IS NULL'
+            elif kwargs[key] == NOT_NULL:
+                where_clause += f' {key} IS NOT NULL'
+            else:
+                where_clause += f' {key}={db.char}'
+                values.append(kwargs[key])
+
+            first_iteration = False
 
         connection = await db.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
             SELECT * FROM {cls.table_name}
-            {where_clause};
+            {where_clause}
+            {order_clause};
             """,
             values
         )
@@ -95,7 +134,12 @@ class BaseModel():
             return None
     
     @classmethod
-    async def get_many(cls, **kwargs):
+    async def get_many(
+        cls,
+        order_by: str = None,
+        order: OrderDirection = OrderDirection.ASC,
+        **kwargs
+    ) -> List[Self]:
         db = await get_db()
 
         if not kwargs:
@@ -104,15 +148,26 @@ class BaseModel():
         where_clause = 'WHERE'
         values = []
         for key in kwargs:
-            where_clause += f' {key}={db.char}'
-            values.append(kwargs[key])
+            if kwargs[key] == None:
+                where_clause += f' {key} IS NULL'
+            if kwargs[key] == NOT_NULL:
+                where_clause += f' {key} IS NOT NULL'
+            else:
+                where_clause += f' {key}={db.char}'
+                values.append(kwargs[key])
+        
+        if order_by:
+            order_clause = f'ORDER BY {order_by} {order}'
+        else:
+            order_clause = ''
 
         connection = await db.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
             SELECT * FROM {cls.table_name}
-            {where_clause};
+            {where_clause}
+            {order_clause};
             """,
             values
         )
@@ -127,13 +182,23 @@ class BaseModel():
             return None
 
     @classmethod
-    async def all(cls):
+    async def all(
+        cls,
+        order_by: str = None,
+        order: OrderDirection = OrderDirection.ASC,
+    ):
+        if order_by:
+            order_clause = f'ORDER BY {order_by} {order}'
+        else:
+            order_clause = ''
+
         db = await get_db()
         connection = await db.connect()
         cursor = await connection.cursor()
         await cursor.execute(
             f"""
-            SELECT * FROM {cls.table_name};
+            SELECT * FROM {cls.table_name}
+            {order_clause};
             """
         )
         args_list = await cursor.fetchall()
@@ -186,6 +251,7 @@ class TwitchChannel(BaseModel):
             quality: str = 'best',
         ) -> None:
 
+        super().__init__()
         self.id = int(id)
         self.login = login
         self.name = name
@@ -237,6 +303,7 @@ class TwitchStream(EndableModel):
             ended_at: datetime = None,
     ) -> None:
         
+        super().__init__()
         self.id = int(id)
         self.channel = int(channel)
         self.title = title
@@ -279,6 +346,7 @@ class TwitchChannelUpdate(BaseModel):
             category_id: str|int
     ) -> None:
         
+        super().__init__()
         self.id = id
         self.channel = int(channel)
         self.timestamp = timestamp
@@ -298,7 +366,8 @@ class VideoFile(EndableModel):
             quality VARCHAR(8),
             path VARCHAR(4096),
             started_at DATETIME NOT NULL,
-            ended_at DATETIME,
+            ended_at DATETIME DEFAULT NULL,
+            transcode_path VARCHAR(4096) DEFAULT NULL,
             PRIMARY KEY (id),
             FOREIGN KEY (stream) REFERENCES {TwitchStream.table_name}(id),
             FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id)
@@ -312,6 +381,8 @@ class VideoFile(EndableModel):
     path: Path
     started_at: datetime
     ended_at: datetime
+    transcode_path: Path
+    
 
     def __init__(
             self,
@@ -322,8 +393,10 @@ class VideoFile(EndableModel):
             path: str|Path,
             started_at: datetime,
             ended_at: datetime = None,
+            transcode_path: str|Path = None,
     ) -> None:
         
+        super().__init__()
         self.id = id
         self.stream = int(stream)
         self.channel = int(channel)
@@ -331,6 +404,47 @@ class VideoFile(EndableModel):
         self.path = Path(path)
         self.started_at = started_at
         self.ended_at = ended_at
+        self.transcode_path = Path(transcode_path) if transcode_path else None
+
+    @classmethod
+    async def get_nontranscoded(cls) -> List[Self]:
+        results = await cls.get_many(
+            transcode_path=None,
+            order_by='started_at',
+            order=OrderDirection.ASC
+        )
+        return results
+
+    @classmethod
+    async def get_next_transcode(cls) -> Self:
+        next = await cls.get(
+            transcode_path=None,
+            ended_at=NOT_NULL,
+            order_by='started_at',
+            order=OrderDirection.ASC
+        )
+        return next
+    
+    async def transcode(self):
+
+        if not self.ended_at:
+            raise VideoFileNotEnded
+        
+        if self.transcode_path:
+            raise VideoAlreadyTranscoded
+        
+        self.logger.info('Transcoding')
+        loop = asyncio.get_event_loop()
+        self.transcode_path = await loop.run_in_executor(None, self._transcode)
+        await self.save()
+        self.logger.info('Finished transcoding')
+
+    def _transcode(self) -> Path:
+        transcode_path = self.path.parent.joinpath(f'{self.path.stem}.mp4')
+        stream = ffmpeg.input(self.path.__str__())
+        stream = ffmpeg.output(stream, transcode_path.__str__(), vcodec='copy')
+        ffmpeg.run(stream)
+        return transcode_path
 
 
 class YoutubeVideo(BaseModel):
@@ -357,6 +471,7 @@ class YoutubeVideo(BaseModel):
             uploaded: bool = False,
     ) -> None:
         
+        super().__init__()
         self.id = id
         self.video = video
         self.uploaded = uploaded
@@ -389,6 +504,7 @@ class TwitchClient(BaseModel):
             client_secret: str
     ) -> None:
         
+        super().__init__()
         self.id = int(id)
         self.client_id = client_id
         self.client_secret = client_secret
@@ -430,6 +546,7 @@ class TwitchAuth(BaseModel):
             refresh_token: str
     ) -> None:
         
+        super().__init__()
         self.id = int(id)
         self.auth_token = auth_token
         self.refresh_token = refresh_token
@@ -446,6 +563,11 @@ class TwitchAuth(BaseModel):
             return (client.auth_token, client.refresh_token)
         else:
             return None
+
+
+class VideoFileNotEnded(Exception): pass
+
+class VideoAlreadyTranscoded(Exception): pass
 
 
 MODELS: List[BaseModel] = [

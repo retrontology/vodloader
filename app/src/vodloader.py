@@ -27,6 +27,7 @@ class VODLoader():
 
 
     async def start(self):
+        loop = asyncio.get_event_loop()
         self.channels = {}
         db_channels = await TwitchChannel.get_many(active=True)
         if db_channels:
@@ -38,6 +39,7 @@ class VODLoader():
                     eventsub=self.eventsub
                 )
                 self.channels[channel.login] = channel
+        self.transcode_task = loop.create_task(self.transcode_loop())
     
     async def stop(self):
         pass
@@ -72,6 +74,14 @@ class VODLoader():
             quality=channel.quality
         )
         await channel.deactivate()
+
+    async def transcode_loop(self):
+        while True:
+            video = await VideoFile.get_next_transcode()
+            if video:
+                await video.transcode()
+            else:
+                await asyncio.sleep(60)
 
 class ChannelAlreadyAdded(Exception): pass
 class ChannelNotAdded(Exception): pass
