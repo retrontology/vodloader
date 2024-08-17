@@ -434,14 +434,14 @@ class VideoFile(EndableModel):
         if self.transcode_path:
             raise VideoAlreadyTranscoded
         
+        self.logger.info(f'Transcoding {self.path}')
         loop = asyncio.get_event_loop()
         self.transcode_path = await loop.run_in_executor(None, self._transcode)
         await self.save()
-        self.logger.info('Finished transcoding')
+        self.logger.info(f'Finished transcoding {self.path} to {self.transcode_path}')
         
 
     def _transcode(self) -> Path:
-        self.logger.info('Transcoding')
         transcode_path = self.path.parent.joinpath(f'{self.path.stem}.mp4')
         stream = ffmpeg.input(self.path.__str__())
         stream = ffmpeg.output(stream, transcode_path.__str__(), vcodec='copy', )
