@@ -431,10 +431,11 @@ class VideoFile(EndableModel):
         if not self.path:
             raise VideoAlreadyRemoved
         
+        path = self.path
         self.path.unlink()
         self.path = None
         await self.save()
-        self.logger.info(f'The original stream file at {self.path.__str__()} has been deleted')
+        self.logger.info(f'The original stream file at {path.__str__()} has been deleted')
     
     async def transcode(self):
 
