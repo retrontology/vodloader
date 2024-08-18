@@ -26,7 +26,7 @@ class Channel():
         eventsub: EventSubWebhook,
         quality: str='best',
     ):
-        self.logger = logging.getLogger(f'vodloader.{name}')
+        self.logger = logging.getLogger(f'vodloader.{login}')
         self.name = name
         self.login = login
         self.id = id
