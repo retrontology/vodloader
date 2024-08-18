@@ -449,7 +449,7 @@ class VideoFile(EndableModel):
         self.transcode_path = await loop.run_in_executor(None, self._transcode)
         await self.save()
         self.logger.info(f'Finished transcoding {self.path} to {self.transcode_path}')
-        self.remove_original()
+        await self.remove_original()
         
 
     def _transcode(self) -> Path:
