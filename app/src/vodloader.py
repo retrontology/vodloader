@@ -50,10 +50,13 @@ class VODLoader():
 
         if name in self.channels:
             raise RuntimeError('Channel already exists in VODLoader')
+        
+        download_dir = self.download_dir.joinpath(name)
+        download_dir.mkdir(exist_ok = True)
 
         channel = await Channel.create(
             name=name,
-            download_dir=self.download_dir,
+            download_dir=download_dir,
             twitch=self.twitch,
             eventsub=self.eventsub,
             quality=quality,
