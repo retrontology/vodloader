@@ -426,6 +426,16 @@ class VideoFile(EndableModel):
         )
         return next
     
+    async def remove_original(self):
+        
+        if not self.path:
+            raise VideoAlreadyRemoved
+        
+        self.path.unlink()
+        self.path = None
+        await self.save()
+        self.logger.info(f'The original stream file at {self.path.__str__()} has been deleted')
+    
     async def transcode(self):
 
         if not self.ended_at:
@@ -439,6 +449,7 @@ class VideoFile(EndableModel):
         self.transcode_path = await loop.run_in_executor(None, self._transcode)
         await self.save()
         self.logger.info(f'Finished transcoding {self.path} to {self.transcode_path}')
+        self.remove_original()
         
 
     def _transcode(self) -> Path:
@@ -569,8 +580,8 @@ class TwitchAuth(BaseModel):
 
 
 class VideoFileNotEnded(Exception): pass
-
 class VideoAlreadyTranscoded(Exception): pass
+class VideoAlreadyRemoved(Exception): pass
 
 
 MODELS: List[BaseModel] = [
