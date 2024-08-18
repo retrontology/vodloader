@@ -40,6 +40,7 @@ class VODLoader():
                 )
                 self.channels[channel.login] = channel
         self.transcode_task = loop.create_task(self.transcode_loop())
+        await self.transcode_task
     
     async def stop(self):
         pass
@@ -50,13 +51,10 @@ class VODLoader():
 
         if name in self.channels:
             raise RuntimeError('Channel already exists in VODLoader')
-        
-        download_dir = self.download_dir.joinpath(name)
-        download_dir.mkdir(exist_ok = True)
 
         channel = await Channel.create(
             name=name,
-            download_dir=download_dir,
+            download_dir=self.download_dir,
             twitch=self.twitch,
             eventsub=self.eventsub,
             quality=quality,

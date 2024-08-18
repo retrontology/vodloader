@@ -30,12 +30,12 @@ class Channel():
         self.name = name
         self.login = login
         self.id = id
-        self.url = 'https://www.twitch.tv/' + self.name
         self.live = live
         self.twitch = twitch
         self.eventsub = eventsub
         self.quality = quality
-        self.download_dir = download_dir
+        self.download_dir = download_dir.joinpath(self.name)
+        self.download_dir.mkdir(exist_ok=True)
         self.subscriptions = []
 
     @classmethod

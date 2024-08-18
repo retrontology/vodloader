@@ -74,6 +74,7 @@ async def main():
     eventsub = EventSubWebhook(f"https://{os.environ['WEBHOOK_HOST']}", 8000, twitch)
     await eventsub.unsubscribe_all()
     eventsub.start()
+    loop = asyncio.get_event_loop()
 
     # Initialize VODLoader
     vodloader = VODLoader(
@@ -81,16 +82,18 @@ async def main():
         eventsub=eventsub,
         download_dir=download_dir
     )
-    await vodloader.start()
+    vodloader_task = loop.create_task(vodloader.start())
 
     # Run API
-    loop = asyncio.get_event_loop()
     config = Config()
     config.bind = ["0.0.0.0:8001"]
     config.__setattr__('vodloader', vodloader)
     api = create_api(vodloader)
     api_task = loop.create_task(serve(api, config))
+    
+    # Await everything
     await api_task
+    await vodloader_task
 
     # Cleanup
     await vodloader.stop()
