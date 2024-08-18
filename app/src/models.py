@@ -444,9 +444,9 @@ class VideoFile(EndableModel):
     def _transcode(self) -> Path:
         transcode_path = self.path.parent.joinpath(f'{self.path.stem}.mp4')
         stream = ffmpeg.input(self.path.__str__())
-        stream = ffmpeg.output(stream, transcode_path.__str__(), vcodec='copy', )
+        stream = ffmpeg.output(stream, transcode_path.__str__(), vcodec='copy')
         stream = ffmpeg.overwrite_output(stream)
-        ffmpeg.run(stream)
+        ffmpeg.run(stream, quiet=True)
         return transcode_path
 
 
