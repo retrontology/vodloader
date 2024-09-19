@@ -1,5 +1,5 @@
 import irc.bot, irc.client
-from typing import Self, Any, List
+from typing import Self, List, Dict, Tuple
 import string
 import random
 import logging
@@ -79,6 +79,36 @@ class Message():
             user_id = int(tags['user-id']),
             user_type = tags['user-type'],
         )
+    
+    def parse_badges(self) -> List[str] | None:
+        if self.badges == None:
+            return None
+        return self.badges.split(',')
+
+    def parse_badge_info(self) -> Dict[str, str]:
+        if self.badge_info == None:
+            return None
+        
+        badge_info = {}
+        for info in value.split(','):
+            key, value = info.split('/', 1)
+            badge_info[key] = value
+        return badge_info
+    
+    def parse_emotes(self) -> Dict[int, List[Tuple[int, int]]]:
+        if self.emotes == None:
+            return None
+        
+        emotes = {}
+        for emote in self.emotes.split('/'):
+            number, places= emote.split(':', 1)
+            index = []
+            for place in places.split(','):
+                start, end = place.split('-', 1)
+                index.append((int(start), int(end)))
+            emotes[int(number)] = index.copy()
+        return emotes
+
 
 class Bot(irc.bot.SingleServerIRCBot):
 
