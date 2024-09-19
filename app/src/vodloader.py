@@ -1,6 +1,6 @@
 from .channel import Channel
 from .models import *
-from .chat import bot
+from .chat import Bot
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from pathlib import Path
@@ -27,7 +27,7 @@ class VODLoader():
         self.channels = {}
         self.chat = None
 
-    def on_welcome(self, c, e):
+    def on_welcome(self, conn, event):
         for channel in self.channels:
             self.chat.join_channel(channel)
 
@@ -48,7 +48,7 @@ class VODLoader():
                 self.channels[channel.login] = channel
 
         # Start chat bot
-        self.chat = bot()
+        self.chat = Bot()
         self.chat.welcome_callback = self.on_welcome
         self.chat_thread = Thread(target=self.chat.start)
         self.chat_thread.start()
