@@ -112,7 +112,7 @@ class Bot(irc.bot.SingleServerIRCBot):
         pass
 
     def on_welcome(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
-        self.logger.info('Joined Twitch IRC server!')
+        self.logger.info('Connected to Twitch IRC server')
         conn.cap('REQ', ':twitch.tv/membership')
         conn.cap('REQ', ':twitch.tv/tags')
         conn.cap('REQ', ':twitch.tv/commands')
@@ -124,7 +124,7 @@ class Bot(irc.bot.SingleServerIRCBot):
             self.connection.join(channel)
 
     def on_join(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
-        self.logger.info(f'Joined {event.target}!')
+        self.logger.info(f'Joined {event.target}')
 
     def on_pubmsg(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
         message = Message.from_event(event)
