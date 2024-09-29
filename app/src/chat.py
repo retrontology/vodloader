@@ -3,7 +3,6 @@ from .models import Message
 import string
 import random
 import logging
-import datetime
 
 PASSWORD_LENGTH = 16
 TWITCH_IRC_SERVER = 'irc.chat.twitch.tv'

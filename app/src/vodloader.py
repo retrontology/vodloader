@@ -1,6 +1,6 @@
 from .channel import Channel
 from .models import *
-from .chat import Bot, Message
+from .chat import Bot
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from pathlib import Path
@@ -32,8 +32,9 @@ class VODLoader():
             self.chat.join_channel(channel)
 
     def on_message(self, message: Message):
+        loop = asyncio.get_event_loop()
         if message.channel in self.channels:
-            self.channels[message.channel].on_message(message)
+            loop.run_until_complete(self.channels[message.channel].on_message(message))
 
     async def start(self):
         loop = asyncio.get_event_loop()
@@ -54,6 +55,7 @@ class VODLoader():
         # Start chat bot
         self.chat = Bot()
         self.chat.welcome_callback = self.on_welcome
+        self.chat.message_callback = self.on_message
         self.chat_thread = Thread(target=self.chat.start)
         self.chat_thread.start()
 

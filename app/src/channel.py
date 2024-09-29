@@ -132,8 +132,9 @@ class Channel():
         self.live = False
         self.logger.info(f'{self.name} has gone offline')
     
-    def on_message(self, message: Message):
-        pass
+    async def on_message(self, message: Message):
+        if self.live:
+            await message.save()
     
     async def on_update(self, event: ChannelUpdateEvent):
         self.logger.info(f'{self.name} has updated its information')
