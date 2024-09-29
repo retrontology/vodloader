@@ -594,7 +594,7 @@ class Message(BaseModel):
             emotes VARCHAR(64) DEFAULT NULL,
             first_message BOOL NOT NULL DEFAULT 0,
             flags VARCHAR(32) DEFAULT NULL,
-            mod BOOL NOT NULL DEFAULT 0,
+            moderator BOOL NOT NULL DEFAULT 0,
             returning_chatter BOOL NOT NULL DEFAULT 0,
             subscriber BOOL NOT NULL DEFAULT 0,
             timestamp DATETIME NOT NULL,
@@ -616,7 +616,7 @@ class Message(BaseModel):
     emotes: str
     first_message: bool
     flags: str
-    mod: bool
+    moderator: bool
     returning_chatter: bool
     subscriber: bool
     timestamp: datetime
@@ -636,7 +636,7 @@ class Message(BaseModel):
             emotes: str,
             first_message: bool,
             flags: str,
-            mod: bool,
+            moderator: bool,
             returning_chatter: bool,
             subscriber: bool,
             timestamp: datetime,
@@ -654,7 +654,7 @@ class Message(BaseModel):
         self.emotes = emotes
         self.first_message = first_message
         self.flags = flags
-        self.mod = mod
+        self.moderator = moderator
         self.returning_chatter = returning_chatter
         self.subscriber = subscriber
         self.timestamp = timestamp
@@ -681,7 +681,7 @@ class Message(BaseModel):
             emotes = tags['emotes'],
             first_message = tags['first-msg'] == '1',
             flags = tags['flags'],
-            mod = tags['mod'] == '1',
+            moderator = tags['mod'] == '1',
             returning_chatter = tags['returning-chatter'] == '1',
             #room_id = int(tags['room-id']),
             subscriber = tags['subscriber'] == '1',
