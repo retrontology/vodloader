@@ -6,6 +6,7 @@ from twitchAPI.eventsub.webhook import EventSubWebhook
 from pathlib import Path
 from typing import Dict
 from threading import Thread
+from irc.client import Event
 
 
 class VODLoader():
@@ -31,10 +32,10 @@ class VODLoader():
         for channel in self.channels:
             self.chat.join_channel(channel)
 
-    def on_message(self, message: Message):
-        loop = self.chat.loop
-        if message.channel in self.channels:
-            loop.run_until_complete(self.channels[message.channel].on_message(message))
+    def on_message(self, event: Event):
+        channel = event.target[1:]
+        if channel in self.channels:
+            self.chat.loop.run_until_complete(self.channels[channel].on_message(event))
 
     async def start(self):
         loop = asyncio.get_event_loop()

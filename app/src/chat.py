@@ -1,5 +1,4 @@
 import irc.bot, irc.client
-from .models import Message
 import string
 import random
 import logging
@@ -39,7 +38,7 @@ class Bot(irc.bot.SingleServerIRCBot):
         pass
 
     # meant to be overwritten
-    def message_callback(self, message: Message) -> None:
+    def message_callback(self, event: irc.client.Event) -> None:
         pass
 
     def on_welcome(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
@@ -58,8 +57,7 @@ class Bot(irc.bot.SingleServerIRCBot):
         self.logger.info(f'Joined {event.target}')
 
     def on_pubmsg(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
-        message = Message.from_event(event)
-        self.message_callback(message)
+        self.message_callback(event)
     
     def start(self):
         self.loop = asyncio.new_event_loop()

@@ -628,7 +628,7 @@ class Message(BaseModel):
             self,
             id: str,
             content: str,
-            channel: str,
+            channel: int,
             display_name: str,
             badge_info: str,
             badges: str,
@@ -664,7 +664,7 @@ class Message(BaseModel):
 
 
     @classmethod
-    def from_event(cls, event: Event) -> Self:
+    def from_event(cls, event: Event, channel_id: int) -> Self:
         
         tags = {}
         for tag in event.tags:
@@ -673,7 +673,7 @@ class Message(BaseModel):
         return cls(
             id = tags['id'],
             content = event.arguments[0],
-            channel = event.target[1:],
+            channel = channel_id,
             display_name = tags['display-name'],
             badge_info = tags['badge-info'],
             badges = tags['badges'],

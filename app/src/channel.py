@@ -5,12 +5,13 @@ from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, Cha
 from twitchAPI.helper import first
 from .util import get_live
 from .video import LiveStream
-from .chat import Message
+from .models import Message
 from pathlib import Path
 import asyncio
 from datetime import datetime, timezone
 from .models import *
 from uuid import uuid4
+from irc.client import Event
 
 RETRY_COUNT = 5
 
@@ -132,8 +133,9 @@ class Channel():
         self.live = False
         self.logger.info(f'{self.name} has gone offline')
     
-    async def on_message(self, message: Message):
+    async def on_message(self, event: Event):
         if self.live:
+            message = Message.from_event(event, self.id)
             await message.save()
     
     async def on_update(self, event: ChannelUpdateEvent):
