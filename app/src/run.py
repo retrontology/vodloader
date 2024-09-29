@@ -6,7 +6,6 @@ from twitchAPI.eventsub.webhook import EventSubWebhook
 from .models import *
 from .util import get_download_dir
 import asyncio
-import concurrent.futures
 from .vodloader import VODLoader
 from dotenv import load_dotenv
 from hypercorn.config import Config

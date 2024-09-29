@@ -13,6 +13,26 @@
             "python": "${workspaceFolder}/app/bin/python",
             "console": "integratedTerminal",
             "args": []
-        }
+        },
+        {
+            "name": "Vodloader Debug",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/app",
+            "module": "src.run",
+            "python": "${workspaceFolder}/app/bin/python",
+            "console": "integratedTerminal",
+            "args": ["-d"]
+        },
+        {
+            "name": "Vodloader Windows",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/app",
+            "module": "src.run",
+            "python": "${workspaceFolder}/app/Scripts/python",
+            "console": "integratedTerminal",
+            "args": []
+        },
     ]
 }

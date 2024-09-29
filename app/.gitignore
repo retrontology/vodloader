@@ -152,3 +152,7 @@ config.yml
 config.yaml
 Scripts/
 test.sql
+
+Lib
+Scripts
+Include

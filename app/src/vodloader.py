@@ -1,9 +1,12 @@
 from .channel import Channel
 from .models import *
+from .chat import Bot
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from pathlib import Path
 from typing import Dict
+from threading import Thread
+from irc.client import Event
 
 
 class VODLoader():
@@ -19,15 +22,25 @@ class VODLoader():
             eventsub:EventSubWebhook,
             download_dir:Path
     ):
-
         self.twitch = twitch
         self.eventsub = eventsub
         self.download_dir = Path(download_dir)
         self.channels = {}
+        self.chat = None
 
+    def on_welcome(self, conn, event):
+        for channel in self.channels:
+            self.chat.join_channel(channel)
+
+    def on_message(self, event: Event):
+        channel = event.target[1:]
+        if channel in self.channels:
+            self.chat.loop.run_until_complete(self.channels[channel].on_message(event))
 
     async def start(self):
         loop = asyncio.get_event_loop()
+
+        # Load channels
         self.channels = {}
         db_channels = await TwitchChannel.get_many(active=True)
         if db_channels:
@@ -39,6 +52,15 @@ class VODLoader():
                     eventsub=self.eventsub
                 )
                 self.channels[channel.login] = channel
+
+        # Start chat bot
+        self.chat = Bot()
+        self.chat.welcome_callback = self.on_welcome
+        self.chat.message_callback = self.on_message
+        self.chat_thread = Thread(target=self.chat.start)
+        self.chat_thread.start()
+
+        # Run transcode loop
         self.transcode_task = loop.create_task(self.transcode_loop())
         await self.transcode_task
     
