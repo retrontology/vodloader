@@ -3,6 +3,7 @@ from .models import Message
 import string
 import random
 import logging
+import asyncio
 
 PASSWORD_LENGTH = 16
 TWITCH_IRC_SERVER = 'irc.chat.twitch.tv'
@@ -15,6 +16,7 @@ class Bot(irc.bot.SingleServerIRCBot):
         self.logger = logging.getLogger('vodloader.chatbot')
         self.username = self.gen_username()
         self.password = self.gen_password()
+        self.loop = None
         spec = irc.bot.ServerSpec(TWITCH_IRC_SERVER, TWITCH_IRC_PORT, self.password)
         super().__init__([spec], self.username, self.username)
     
@@ -58,3 +60,7 @@ class Bot(irc.bot.SingleServerIRCBot):
     def on_pubmsg(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
         message = Message.from_event(event)
         self.message_callback(message)
+    
+    def start(self):
+        self.loop = asyncio.new_event_loop()
+        super().start()

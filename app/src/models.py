@@ -733,7 +733,8 @@ MODELS: List[BaseModel] = [
     VideoFile,
     YoutubeVideo,
     TwitchClient,
-    TwitchAuth
+    TwitchAuth,
+    Message
 ]
 
 

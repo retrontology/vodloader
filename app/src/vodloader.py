@@ -32,7 +32,7 @@ class VODLoader():
             self.chat.join_channel(channel)
 
     def on_message(self, message: Message):
-        loop = asyncio.get_event_loop()
+        loop = self.chat.loop
         if message.channel in self.channels:
             loop.run_until_complete(self.channels[message.channel].on_message(message))
 
