@@ -5,6 +5,7 @@ from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, Cha
 from twitchAPI.helper import first
 from .util import get_live
 from .video import LiveStream
+from .chat import Message
 from pathlib import Path
 import asyncio
 from datetime import datetime, timezone
@@ -130,6 +131,9 @@ class Channel():
     async def on_offline(self, event: StreamOfflineEvent):
         self.live = False
         self.logger.info(f'{self.name} has gone offline')
+    
+    def on_message(self, message: Message):
+        pass
     
     async def on_update(self, event: ChannelUpdateEvent):
         self.logger.info(f'{self.name} has updated its information')

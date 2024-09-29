@@ -1,6 +1,6 @@
 from .channel import Channel
 from .models import *
-from .chat import Bot
+from .chat import Bot, Message
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from pathlib import Path
@@ -30,6 +30,10 @@ class VODLoader():
     def on_welcome(self, conn, event):
         for channel in self.channels:
             self.chat.join_channel(channel)
+
+    def on_message(self, message: Message):
+        if message.channel in self.channels:
+            self.channels[message.channel].on_message(message)
 
     async def start(self):
         loop = asyncio.get_event_loop()
