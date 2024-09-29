@@ -579,7 +579,7 @@ class TwitchAuth(BaseModel):
         else:
             return None
 
-class Message():
+class Message(BaseModel):
 
     table_name = 'twitch_message'
     table_command = f"""
