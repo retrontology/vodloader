@@ -597,7 +597,7 @@ class Message(BaseModel):
             mod BOOL NOT NULL DEFAULT 0,
             returning_chatter BOOL NOT NULL DEFAULT 0,
             subscriber BOOL NOT NULL DEFAULT 0,
-            timestamp DATETIME DEFAULT NULL,
+            timestamp DATETIME NOT NULL,
             turbo BOOL NOT NULL DEFAULT 0,
             user_id INT UNSIGNED NOT NULL,
             user_type VARCHAR(32) DEFAULT NULL,
