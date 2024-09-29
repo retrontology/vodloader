@@ -1,11 +1,11 @@
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Self
+from typing import Self, List, Dict, Tuple
 from .database import *
 from enum import Enum
 import ffmpeg
-import concurrent.futures
 import logging
+from irc.client import Event
 
 NOT_NULL = 'NOT NULL'
 
@@ -578,6 +578,147 @@ class TwitchAuth(BaseModel):
             return (client.auth_token, client.refresh_token)
         else:
             return None
+
+class Message():
+
+    table_name = 'twitch_message'
+    table_command = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id VARCHAR(36) NOT NULL UNIQUE,
+            content VARCHAR(500) DEFAULT NULL,
+            channel INT UNSIGNED NOT NULL,
+            display_name VARCHAR(25) NOT NULL,
+            badge_info VARCHAR(64) DEFAULT NULL,
+            badges VARCHAR(64) DEFAULT NULL,
+            color VARCHAR(7) DEFAULT NULL,
+            emotes VARCHAR(64) DEFAULT NULL,
+            first_message BOOL NOT NULL DEFAULT 0,
+            flags VARCHAR(32) DEFAULT NULL,
+            mod BOOL NOT NULL DEFAULT 0,
+            returning_chatter BOOL NOT NULL DEFAULT 0,
+            subscriber BOOL NOT NULL DEFAULT 0,
+            timestamp DATETIME DEFAULT NULL,
+            turbo BOOL NOT NULL DEFAULT 0,
+            user_id INT UNSIGNED NOT NULL,
+            user_type VARCHAR(32) DEFAULT NULL,
+            PRIMARY KEY (id),
+            FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id)
+        );
+        """
+
+    id: str
+    content: str
+    channel: int
+    display_name: str
+    badge_info: str
+    badges: str
+    color: str
+    emotes: str
+    first_message: bool
+    flags: str
+    mod: bool
+    returning_chatter: bool
+    subscriber: bool
+    timestamp: datetime
+    turbo: bool
+    user_id: int
+    user_type: str
+    
+    def __init__(
+            self,
+            id: str,
+            content: str,
+            channel: str,
+            display_name: str,
+            badge_info: str,
+            badges: str,
+            color: str,
+            emotes: str,
+            first_message: bool,
+            flags: str,
+            mod: bool,
+            returning_chatter: bool,
+            subscriber: bool,
+            timestamp: datetime,
+            turbo: bool,
+            user_id: int,
+            user_type: str,
+        ) -> None:
+        self.id = id
+        self.content = content
+        self.channel = channel
+        self.display_name = display_name
+        self.badge_info = badge_info
+        self.badges = badges
+        self.color = color
+        self.emotes = emotes
+        self.first_message = first_message
+        self.flags = flags
+        self.mod = mod
+        self.returning_chatter = returning_chatter
+        self.subscriber = subscriber
+        self.timestamp = timestamp
+        self.turbo = turbo
+        self.user_id = user_id
+        self.user_type = user_type
+
+
+    @classmethod
+    def from_event(cls, event: Event) -> Self:
+        
+        tags = {}
+        for tag in event.tags:
+            tags[tag['key']] = tag['value']
+
+        return cls(
+            id = tags['id'],
+            content = event.arguments[0],
+            channel = event.target[1:],
+            display_name = tags['display-name'],
+            badge_info = tags['badge-info'],
+            badges = tags['badges'],
+            color = tags['color'],
+            emotes = tags['emotes'],
+            first_message = tags['first-msg'] == '1',
+            flags = tags['flags'],
+            mod = tags['mod'] == '1',
+            returning_chatter = tags['returning-chatter'] == '1',
+            #room_id = int(tags['room-id']),
+            subscriber = tags['subscriber'] == '1',
+            timestamp = datetime.fromtimestamp(float(tags['tmi-sent-ts'])/1000),
+            turbo = tags['turbo'] == '1',
+            user_id = int(tags['user-id']),
+            user_type = tags['user-type'],
+        )
+    
+    def parse_badges(self) -> List[str] | None:
+        if self.badges == None:
+            return None
+        return self.badges.split(',')
+
+    def parse_badge_info(self) -> Dict[str, str]:
+        if self.badge_info == None:
+            return None
+        
+        badge_info = {}
+        for info in value.split(','):
+            key, value = info.split('/', 1)
+            badge_info[key] = value
+        return badge_info
+    
+    def parse_emotes(self) -> Dict[int, List[Tuple[int, int]]]:
+        if self.emotes == None:
+            return None
+        
+        emotes = {}
+        for emote in self.emotes.split('/'):
+            number, places= emote.split(':', 1)
+            index = []
+            for place in places.split(','):
+                start, end = place.split('-', 1)
+                index.append((int(start), int(end)))
+            emotes[int(number)] = index.copy()
+        return emotes
 
 
 class VideoFileNotEnded(Exception): pass

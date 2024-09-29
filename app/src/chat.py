@@ -1,5 +1,5 @@
 import irc.bot, irc.client
-from typing import Self, List, Dict, Tuple
+from .models import Message
 import string
 import random
 import logging
@@ -8,106 +8,6 @@ import datetime
 PASSWORD_LENGTH = 16
 TWITCH_IRC_SERVER = 'irc.chat.twitch.tv'
 TWITCH_IRC_PORT = 6667
-
-class Message():
-    
-    def __init__(
-            self,
-            id: str,
-            content: str,
-            channel: str,
-            display_name: str,
-            badge_info: str,
-            badges: str,
-            color: str,
-            emotes: str,
-            first_message: bool,
-            flags: str,
-            mod: bool,
-            returning_chatter: bool,
-            room_id: int,
-            subscriber: bool,
-            timestamp: datetime.datetime,
-            turbo: bool,
-            user_id: int,
-            user_type: str,
-        ) -> None:
-        self.id = id
-        self.content = content
-        self.channel = channel
-        self.display_name = display_name
-        self.badge_info = badge_info
-        self.badges = badges
-        self.color = color
-        self.emotes = emotes
-        self.first_message = first_message
-        self.flags = flags
-        self.mod = mod
-        self.returning_chatter = returning_chatter
-        self.room_id = room_id
-        self.subscriber = subscriber
-        self.timestamp = timestamp
-        self.turbo = turbo
-        self.user_id = user_id
-        self.user_type = user_type
-
-
-    @classmethod
-    def from_event(cls, event: irc.client.Event) -> Self:
-        
-        tags = {}
-        for tag in event.tags:
-            tags[tag['key']] = tag['value']
-
-        return cls(
-            id = tags['id'],
-            content = event.arguments[0],
-            channel = event.target[1:],
-            display_name = tags['display-name'],
-            badge_info = tags['badge-info'],
-            badges = tags['badges'],
-            color = tags['color'],
-            emotes = tags['emotes'],
-            first_message = tags['first-msg'] == '1',
-            flags = tags['flags'],
-            mod = tags['mod'] == '1',
-            returning_chatter = tags['returning-chatter'] == '1',
-            room_id = int(tags['room-id']),
-            subscriber = tags['subscriber'] == '1',
-            timestamp = datetime.datetime.fromtimestamp(float(tags['tmi-sent-ts'])/1000),
-            turbo = tags['turbo'] == '1',
-            user_id = int(tags['user-id']),
-            user_type = tags['user-type'],
-        )
-    
-    def parse_badges(self) -> List[str] | None:
-        if self.badges == None:
-            return None
-        return self.badges.split(',')
-
-    def parse_badge_info(self) -> Dict[str, str]:
-        if self.badge_info == None:
-            return None
-        
-        badge_info = {}
-        for info in value.split(','):
-            key, value = info.split('/', 1)
-            badge_info[key] = value
-        return badge_info
-    
-    def parse_emotes(self) -> Dict[int, List[Tuple[int, int]]]:
-        if self.emotes == None:
-            return None
-        
-        emotes = {}
-        for emote in self.emotes.split('/'):
-            number, places= emote.split(':', 1)
-            index = []
-            for place in places.split(','):
-                start, end = place.split('-', 1)
-                index.append((int(start), int(end)))
-            emotes[int(number)] = index.copy()
-        return emotes
 
 
 class Bot(irc.bot.SingleServerIRCBot):
