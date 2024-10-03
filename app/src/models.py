@@ -8,6 +8,7 @@ import ffmpeg
 import logging
 from irc.client import Event
 from uuid import uuid4
+import time
 
 NOT_NULL = 'NOT NULL'
 
@@ -671,6 +672,8 @@ class Message(BaseModel):
         
         tags = parse_tags(event)
 
+        timestamp = parse_irc_ts(tags['tmi-sent-ts'])
+
         return cls(
             id = tags['id'],
             content = event.arguments[0],
@@ -685,7 +688,7 @@ class Message(BaseModel):
             moderator = tags['mod'] == '1',
             returning_chatter = tags['returning-chatter'] == '1',
             subscriber = tags['subscriber'] == '1',
-            timestamp = datetime.fromtimestamp(float(tags['tmi-sent-ts'])/1000),
+            timestamp = timestamp,
             turbo = tags['turbo'] == '1',
             user_id = int(tags['user-id']),
             user_type = tags['user-type'],
@@ -794,8 +797,7 @@ class ClearChatEvent(BaseModel):
         else:
             duration = int(tags['ban-duration'])
 
-        timestamp = float(tags['tmi-sent-ts'])/1000
-        timestamp = datetime.fromtimestamp(timestamp)
+        timestamp = parse_irc_ts(tags['tmi-sent-ts'])
 
         return cls(
             id = uuid4().__str__(),
@@ -843,8 +845,7 @@ class ClearMsgEvent(BaseModel):
 
         tags = parse_tags(event)     
 
-        timestamp = float(tags['tmi-sent-ts'])/1000
-        timestamp = datetime.fromtimestamp(timestamp)
+        timestamp = parse_irc_ts(tags['tmi-sent-ts'])
 
         return cls(
             id = uuid4().__str__(),
