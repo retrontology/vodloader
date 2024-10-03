@@ -821,7 +821,7 @@ class ClearMsgEvent(BaseModel):
         return cls(
             id = uuid4().__str__(),
             channel = int(tags['room-id']),
-            message_id = int(tags['target-msg-id']),
+            message_id = tags['target-msg-id'],
             timestamp = timestamp,
         )
 
