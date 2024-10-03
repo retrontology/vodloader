@@ -10,6 +10,7 @@ from pathlib import Path
 import asyncio
 from datetime import datetime, timezone
 from .models import *
+from .chat import Bot
 from uuid import uuid4
 from irc.client import Event
 
@@ -26,6 +27,7 @@ class Channel():
         download_dir: Path,
         twitch: Twitch,
         eventsub: EventSubWebhook,
+        chat: Bot,
         quality: str='best',
     ):
         self.logger = logging.getLogger(f'vodloader.{login}')
@@ -35,6 +37,7 @@ class Channel():
         self.live = live
         self.twitch = twitch
         self.eventsub = eventsub
+        self.chat = chat
         self.quality = quality
         self.download_dir = download_dir.joinpath(self.name)
         self.download_dir.mkdir(exist_ok=True)
@@ -46,7 +49,8 @@ class Channel():
         channel: TwitchChannel,
         download_dir: Path,
         twitch: Twitch,
-        eventsub: EventSubWebhook
+        eventsub: EventSubWebhook,
+        chat: Bot
     ):
         live = await get_live(twitch, channel.id)
         self = Channel(
@@ -57,6 +61,7 @@ class Channel():
             download_dir=download_dir,
             twitch=twitch,
             eventsub=eventsub,
+            chat=chat,
             quality=channel.quality
         )
         await self.subscribe()
@@ -98,6 +103,7 @@ class Channel():
 
             self.live = True
             self.logger.info(f'{self.name} has gone live!')
+            self.chat.join_channel(self.login)
             stream = None
             retry = 0
             while stream == None:
@@ -128,15 +134,12 @@ class Channel():
             self.live = False
             self.livestream = None
             await twitch_stream.end()
+            self.chat.leave_channel(self.login)
 
     async def on_offline(self, event: StreamOfflineEvent):
         self.live = False
         self.logger.info(f'{self.name} has gone offline')
-    
-    async def on_message(self, event: Event):
-        if self.live:
-            message = Message.from_event(event, self.id)
-            await message.save()
+        
     
     async def on_update(self, event: ChannelUpdateEvent):
         self.logger.info(f'{self.name} has updated its information')

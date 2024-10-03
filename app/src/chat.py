@@ -3,6 +3,7 @@ import string
 import random
 import logging
 import asyncio
+from .models import Message, ClearChatEvent, ClearMsgEvent
 
 PASSWORD_LENGTH = 16
 TWITCH_IRC_SERVER = 'irc.chat.twitch.tv'
@@ -33,31 +34,38 @@ class Bot(irc.bot.SingleServerIRCBot):
     def gen_username() -> str:
         return 'justinfan' + str(random.randint(100,9999))
     
-    # meant to be overwritten
-    def welcome_callback(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
-        pass
-
-    # meant to be overwritten
-    def message_callback(self, event: irc.client.Event) -> None:
-        pass
-
-    def on_welcome(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
-        self.logger.info('Connected to Twitch IRC server')
-        conn.cap('REQ', ':twitch.tv/membership')
-        conn.cap('REQ', ':twitch.tv/tags')
-        conn.cap('REQ', ':twitch.tv/commands')
-        self.welcome_callback(conn, event)
-    
     def join_channel(self, channel: str) -> None:
         channel = f'#{channel.lower()}'
         if not channel in self.channels:
             self.connection.join(channel)
 
+    def leave_channel(self, channel: str) -> None:
+        channel = f'#{channel.lower()}'
+        if channel in self.channels:
+            self.connection.quit(channel)
+
     def on_join(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
-        self.logger.info(f'Joined {event.target}')
+        username = event.source.split('!', 1)[0]
+        if username == self.username:
+            self.logger.info(f'Joined {event.target}')
+    
+    def on_welcome(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
+        self.logger.info('Connected to Twitch IRC server')
+        conn.cap('REQ', ':twitch.tv/membership')
+        conn.cap('REQ', ':twitch.tv/tags')
+        conn.cap('REQ', ':twitch.tv/commands')
 
     def on_pubmsg(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
-        self.message_callback(event)
+        message = Message.from_event(event)
+        self.loop.run_until_complete(func=message.save)
+
+    def on_clearchat(self, conn: irc.client.ServerConnection = None, event: irc.client.Event = None) -> None:
+        clearchat_event = ClearChatEvent.from_event(event)
+        self.loop.run_until_complete(func=clearchat_event.save)
+
+    def on_clearmsg(self, conn: irc.client.ServerConnection = None, event: irc.client.Event = None) -> None:
+        clearmsg_event = ClearMsgEvent.from_event(event)
+        self.loop.run_until_complete(func=clearmsg_event.save)
     
     def start(self):
         self.loop = asyncio.new_event_loop()

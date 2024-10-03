@@ -2,10 +2,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Self, List, Dict, Tuple
 from .database import *
+from .util import *
 from enum import Enum
 import ffmpeg
 import logging
 from irc.client import Event
+from uuid import uuid4
 
 NOT_NULL = 'NOT NULL'
 
@@ -579,6 +581,64 @@ class TwitchAuth(BaseModel):
         else:
             return None
 
+class ClearMsgEvent(BaseModel):
+
+    table_name = 'twitch_clearmsg'
+    table_command = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id VARCHAR(36) NOT NULL UNIQUE,
+            channel INT UNSIGNED NOT NULL,
+            user_id INT UNSIGNED NOT NULL,
+            timestamp DATETIME NOT NULL,
+            duration INT UNSIGNED DEFAULT NULL,
+            PRIMARY KEY (id),
+            FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id)
+        );
+        """
+    
+    id: str
+    channel: int
+    user_id: int
+    timestamp: datetime
+    duration: int
+
+    def __init__(
+            self,
+            id: str,
+            channel: int,
+            user_id: int,
+            timestamp: datetime,
+            duration: int = None,
+        ):
+        self.id = id
+        self.channel = channel
+        self.user_id = user_id
+        self.timestamp = timestamp
+        self.duration = duration
+    
+    @classmethod
+    def from_event(cls, event: Event):
+
+        tags = parse_tags(event)     
+
+        if 'ban-duration' in tags:
+            duration = None
+        else:
+            duration = int(tags['ban-duration'])
+
+        timestamp = float(tags['tmi-sent-ts'])/1000
+        timestamp = datetime.fromtimestamp(timestamp)
+
+        return cls(
+            id = uuid4().__str__(),
+            channel = int(tags['room-id']),
+            user_id = int(tags['target-user-id']),
+            timestamp = timestamp,
+            duration = duration
+        )
+
+
+
 class Message(BaseModel):
 
     table_name = 'twitch_message'
@@ -664,16 +724,14 @@ class Message(BaseModel):
 
 
     @classmethod
-    def from_event(cls, event: Event, channel_id: int) -> Self:
+    def from_event(cls, event: Event) -> Self:
         
-        tags = {}
-        for tag in event.tags:
-            tags[tag['key']] = tag['value']
+        tags = parse_tags(event)
 
         return cls(
             id = tags['id'],
             content = event.arguments[0],
-            channel = channel_id,
+            channel = int(tags['room-id']),
             display_name = tags['display-name'],
             badge_info = tags['badge-info'],
             badges = tags['badges'],
@@ -683,7 +741,6 @@ class Message(BaseModel):
             flags = tags['flags'],
             moderator = tags['mod'] == '1',
             returning_chatter = tags['returning-chatter'] == '1',
-            #room_id = int(tags['room-id']),
             subscriber = tags['subscriber'] == '1',
             timestamp = datetime.fromtimestamp(float(tags['tmi-sent-ts'])/1000),
             turbo = tags['turbo'] == '1',
@@ -721,6 +778,111 @@ class Message(BaseModel):
         return emotes
 
 
+class ClearChatEvent(BaseModel):
+
+    table_name = 'twitch_clearchat'
+    table_command = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id VARCHAR(36) NOT NULL UNIQUE,
+            channel INT UNSIGNED NOT NULL,
+            user_id INT UNSIGNED NOT NULL,
+            timestamp DATETIME NOT NULL,
+            duration INT UNSIGNED DEFAULT NULL,
+            PRIMARY KEY (id),
+            FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id)
+        );
+        """
+    
+    id: str
+    channel: int
+    user_id: int
+    timestamp: datetime
+    duration: int
+
+    def __init__(
+            self,
+            id: str,
+            channel: int,
+            user_id: int,
+            timestamp: datetime,
+            duration: int = None,
+        ):
+        self.id = id
+        self.channel = channel
+        self.user_id = user_id
+        self.timestamp = timestamp
+        self.duration = duration
+    
+    @classmethod
+    def from_event(cls, event: Event):
+
+        tags = parse_tags(event)     
+
+        if 'ban-duration' in tags:
+            duration = None
+        else:
+            duration = int(tags['ban-duration'])
+
+        timestamp = float(tags['tmi-sent-ts'])/1000
+        timestamp = datetime.fromtimestamp(timestamp)
+
+        return cls(
+            id = uuid4().__str__(),
+            channel = int(tags['room-id']),
+            user_id = int(tags['target-user-id']),
+            timestamp = timestamp,
+            duration = duration
+        )
+
+
+class ClearMsgEvent(BaseModel):
+
+    table_name = 'twitch_clearmsg'
+    table_command = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            id VARCHAR(36) NOT NULL UNIQUE,
+            channel INT UNSIGNED NOT NULL,
+            message_id VARCHAR(36) NOT NULL,
+            timestamp DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id),
+            FOREIGN KEY (message_id) REFERENCES {Message.table_name}(id)
+        );
+        """
+    
+    id: str
+    channel: int
+    message_id: str
+    timestamp: datetime
+
+    def __init__(
+            self,
+            id: str,
+            channel: int,
+            message_id: int,
+            timestamp: datetime,
+        ):
+        self.id = id
+        self.channel = channel
+        self.message_id = message_id
+        self.timestamp = timestamp
+    
+    @classmethod
+    def from_event(cls, event: Event):
+
+        tags = parse_tags(event)     
+
+        timestamp = float(tags['tmi-sent-ts'])/1000
+        timestamp = datetime.fromtimestamp(timestamp)
+
+        return cls(
+            id = uuid4().__str__(),
+            channel = int(tags['room-id']),
+            message_id = int(tags['target-msg-id']),
+            timestamp = timestamp,
+        )
+
+
 class VideoFileNotEnded(Exception): pass
 class VideoAlreadyTranscoded(Exception): pass
 class VideoAlreadyRemoved(Exception): pass
@@ -734,7 +896,9 @@ MODELS: List[BaseModel] = [
     YoutubeVideo,
     TwitchClient,
     TwitchAuth,
-    Message
+    Message,
+    ClearChatEvent,
+    ClearMsgEvent,
 ]
 
 
