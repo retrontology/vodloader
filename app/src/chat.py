@@ -57,15 +57,15 @@ class Bot(irc.bot.SingleServerIRCBot):
 
     def on_pubmsg(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
         message = Message.from_event(event)
-        self.loop.run_until_complete(func=message.save)
+        self.loop.run_until_complete(message.save)
 
     def on_clearchat(self, conn: irc.client.ServerConnection = None, event: irc.client.Event = None) -> None:
         clearchat_event = ClearChatEvent.from_event(event)
-        self.loop.run_until_complete(func=clearchat_event.save)
+        self.loop.run_until_complete(clearchat_event.save)
 
     def on_clearmsg(self, conn: irc.client.ServerConnection = None, event: irc.client.Event = None) -> None:
         clearmsg_event = ClearMsgEvent.from_event(event)
-        self.loop.run_until_complete(func=clearmsg_event.save)
+        self.loop.run_until_complete(clearmsg_event.save)
     
     def start(self):
         self.loop = asyncio.new_event_loop()
