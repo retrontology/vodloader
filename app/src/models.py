@@ -691,6 +691,34 @@ class Message(BaseModel):
             user_type = tags['user-type'],
         )
     
+    @classmethod
+    async def from_stream(cls, stream_id: int) -> List[Self]:
+
+        db = await get_db()
+        connection = await db.connect()
+        cursor = await connection.cursor()
+        await cursor.execute(
+            f"""
+            SELECT {cls.table_name}.*
+            FROM {cls.table_name},
+             (SELECT started_at, ended_at
+             FROM {TwitchStream.table_name}
+             WHERE id = {db.char}) AS stream
+            WHERE timestamp BETWEEN stream.started_at and stream.ended_at
+            ORDER BY timestamp ASC;
+            """,
+            (stream_id, )
+        )
+        args_list = await cursor.fetchall()
+        await cursor.close()
+        closer = connection.close()
+        if closer: await closer
+
+        if args_list:
+            return list(cls(*args) for args in args_list)
+        else:
+            return None
+    
     def parse_badges(self) -> List[str] | None:
         if self.badges == None:
             return None
