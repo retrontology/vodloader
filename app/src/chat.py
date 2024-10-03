@@ -67,6 +67,11 @@ class Bot(irc.bot.SingleServerIRCBot):
         clearmsg_event = ClearMsgEvent.from_event(event)
         self.loop.run_until_complete(clearmsg_event.save())
     
+    def on_quit(self, conn: irc.client.ServerConnection = None, event: irc.client.Event = None) -> None:
+        username = event.source.split('!', 1)[0]
+        if username == self.username:
+            self.logger.info(f'Quit {event.target}')
+    
     def start(self):
         self.loop = asyncio.new_event_loop()
         super().start()
