@@ -34,5 +34,16 @@
             "console": "integratedTerminal",
             "args": []
         },
+        {
+            "name": "Chatbot Test",
+            "type": "debugpy",
+            "request": "launch",
+            "cwd": "${workspaceFolder}/app",
+            "module": "src.testchat",
+            "python": "${workspaceFolder}/app/bin/python",
+            "console": "integratedTerminal",
+            "args": [],
+            "justMyCode": false,
+        },
     ]
 }

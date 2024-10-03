@@ -6,7 +6,6 @@ from twitchAPI.eventsub.webhook import EventSubWebhook
 from pathlib import Path
 from typing import Dict
 from threading import Thread
-from irc.client import Event
 
 
 class VODLoader():
@@ -28,17 +27,13 @@ class VODLoader():
         self.channels = {}
         self.chat = None
 
-    def on_welcome(self, conn, event):
-        for channel in self.channels:
-            self.chat.join_channel(channel)
-
-    def on_message(self, event: Event):
-        channel = event.target[1:]
-        if channel in self.channels:
-            self.chat.loop.run_until_complete(self.channels[channel].on_message(event))
-
     async def start(self):
         loop = asyncio.get_event_loop()
+
+        # Start chat bot
+        self.chat = Bot()
+        self.chat_thread = Thread(target=self.chat.start)
+        self.chat_thread.start()
 
         # Load channels
         self.channels = {}
@@ -49,16 +44,10 @@ class VODLoader():
                     channel=channel,
                     download_dir=self.download_dir,
                     twitch=self.twitch,
-                    eventsub=self.eventsub
+                    eventsub=self.eventsub,
+                    chat=self.chat
                 )
                 self.channels[channel.login] = channel
-
-        # Start chat bot
-        self.chat = Bot()
-        self.chat.welcome_callback = self.on_welcome
-        self.chat.message_callback = self.on_message
-        self.chat_thread = Thread(target=self.chat.start)
-        self.chat_thread.start()
 
         # Run transcode loop
         self.transcode_task = loop.create_task(self.transcode_loop())

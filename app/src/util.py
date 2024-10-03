@@ -2,6 +2,8 @@ from twitchAPI.twitch import Twitch
 from twitchAPI.helper import first
 import os
 from pathlib import Path
+from typing import Dict, List
+from irc.client import Event
 
 DEFAULT_DOWNLOAD_DIR = 'videos'
 
@@ -21,3 +23,9 @@ def get_download_dir() -> Path:
         os.environ['DOWNLOAD_DIR'] = DEFAULT_DOWNLOAD_DIR
     download_dir = Path(os.environ['DOWNLOAD_DIR'])
     return download_dir
+
+def parse_tags(event: Event) -> Dict[str, str]:
+    tags = {}
+    for tag in event.tags:
+        tags[tag['key']] = tag['value']
+    return tags
