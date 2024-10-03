@@ -622,9 +622,9 @@ class ClearMsgEvent(BaseModel):
         tags = parse_tags(event)     
 
         if 'ban-duration' in tags:
-            duration = None
-        else:
             duration = int(tags['ban-duration'])
+        else:
+            duration = None
 
         timestamp = float(tags['tmi-sent-ts'])/1000
         timestamp = datetime.fromtimestamp(timestamp)
