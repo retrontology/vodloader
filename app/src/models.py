@@ -704,10 +704,11 @@ class Message(BaseModel):
             f"""
             SELECT {cls.table_name}.*
             FROM {cls.table_name},
-             (SELECT started_at, ended_at
+             (SELECT started_at, ended_at, channel
              FROM {TwitchStream.table_name}
              WHERE id = {db.char}) AS stream
-            WHERE timestamp BETWEEN stream.started_at and stream.ended_at
+            WHERE {cls.table_name}.timestamp BETWEEN stream.started_at and stream.ended_at
+            AND {cls.table_name}.channel = stream.channel
             ORDER BY timestamp ASC;
             """,
             (stream_id, )
