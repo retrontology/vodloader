@@ -42,7 +42,7 @@ class Bot(irc.bot.SingleServerIRCBot):
     def leave_channel(self, channel: str) -> None:
         channel = f'#{channel.lower()}'
         if channel in self.channels:
-            self.connection.quit(channel)
+            self.connection.part(channel)
 
     def on_join(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
         username = event.source.split('!', 1)[0]
@@ -67,10 +67,10 @@ class Bot(irc.bot.SingleServerIRCBot):
         clearmsg_event = ClearMsgEvent.from_event(event)
         self.loop.run_until_complete(clearmsg_event.save())
     
-    def on_quit(self, conn: irc.client.ServerConnection = None, event: irc.client.Event = None) -> None:
+    def on_part(self, conn: irc.client.ServerConnection = None, event: irc.client.Event = None) -> None:
         username = event.source.split('!', 1)[0]
         if username == self.username:
-            self.logger.info(f'Quit {event.target}')
+            self.logger.info(f'Left {event.target}')
     
     def start(self):
         self.loop = asyncio.new_event_loop()
