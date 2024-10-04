@@ -32,10 +32,8 @@ def parse_tags(event: Event) -> Dict[str, str]:
     return tags
 
 def parse_irc_ts(timestamp: int | str) -> datetime:
-    
     local = datetime.now(timezone.utc).astimezone().tzinfo
     timestamp = float(timestamp)/1000
     datetime_ts = datetime.fromtimestamp(timestamp, local)
-    datetime_ts.astimezone(timezone.utc)
-    
+    datetime_ts = datetime_ts.astimezone(timezone.utc)
     return datetime_ts
