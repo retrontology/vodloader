@@ -32,7 +32,7 @@ class VODLoader():
 
         # Start chat bot
         self.chat = Bot()
-        self.chat_thread = Thread(target=self.chat.start)
+        self.chat_thread = Thread(target=self.chat.start, daemon=True)
         self.chat_thread.start()
 
         # Load channels
@@ -50,8 +50,8 @@ class VODLoader():
                 self.channels[channel.login] = channel
 
         # Run transcode loop
-        self.transcode_task = loop.create_task(self.transcode_loop())
-        await self.transcode_task
+        self.transcode_task = Thread(target=self.transcode_loop, daemon=True)
+        self.transcode_task.start()
     
     async def stop(self):
         pass
@@ -87,13 +87,14 @@ class VODLoader():
         )
         await channel.deactivate()
 
-    async def transcode_loop(self):
+    def transcode_loop(self):
+        loop = asyncio.new_event_loop()
         while True:
-            video = await VideoFile.get_next_transcode()
+            video = loop.run_until_complete(VideoFile.get_next_transcode())
             if video:
-                await video.transcode()
+                loop.run_until_complete(video.transcode())
             else:
-                await asyncio.sleep(60)
+                loop.run_until_complete(asyncio.sleep(60))
 
 class ChannelAlreadyAdded(Exception): pass
 class ChannelNotAdded(Exception): pass
