@@ -820,7 +820,7 @@ class ClearMsgEvent(BaseModel):
             timestamp DATETIME NOT NULL,
             PRIMARY KEY (id),
             FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id),
-            FOREIGN KEY (message_id) REFERENCES {Message.table_name}(id)
+            FOREIGN KEY (message_id) REFERENCES {Message.table_name}(id) ON DELETE CASCADE
         );
         """
     
