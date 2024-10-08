@@ -69,6 +69,7 @@ class VODLoader():
             twitch=self.twitch,
             eventsub=self.eventsub,
             quality=quality,
+            chat=self.chat
         )
         self.channels[channel.login] = channel
 
