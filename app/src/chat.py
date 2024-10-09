@@ -56,16 +56,25 @@ class Bot(irc.bot.SingleServerIRCBot):
         conn.cap('REQ', ':twitch.tv/commands')
 
     def on_pubmsg(self, conn: irc.client.ServerConnection, event: irc.client.Event) -> None:
-        message = Message.from_event(event)
-        self.loop.run_until_complete(message.save())
+        try:
+            message = Message.from_event(event)
+            self.loop.run_until_complete(message.save())
+        except Exception as e:
+            self.logger.error(e)
 
     def on_clearchat(self, conn: irc.client.ServerConnection = None, event: irc.client.Event = None) -> None:
-        clearchat_event = ClearChatEvent.from_event(event)
-        self.loop.run_until_complete(clearchat_event.save())
+        try:
+            clearchat_event = ClearChatEvent.from_event(event)
+            self.loop.run_until_complete(clearchat_event.save())
+        except Exception as e:
+            self.logger.error(e)
 
     def on_clearmsg(self, conn: irc.client.ServerConnection = None, event: irc.client.Event = None) -> None:
-        clearmsg_event = ClearMsgEvent.from_event(event)
-        self.loop.run_until_complete(clearmsg_event.save())
+        try:
+            clearmsg_event = ClearMsgEvent.from_event(event)
+            self.loop.run_until_complete(clearmsg_event.save())
+        except Exception as e:
+            self.logger.error(e)
     
     def on_part(self, conn: irc.client.ServerConnection = None, event: irc.client.Event = None) -> None:
         username = event.source.split('!', 1)[0]
