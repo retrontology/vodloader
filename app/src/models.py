@@ -315,6 +315,11 @@ class TwitchStream(EndableModel):
         self.category_id = int(category_id)
         self.started_at = started_at
         self.ended_at = ended_at
+    
+
+    async def get_messages(self) -> List[Self]:
+        messages = await Message.from_stream(self.id)
+        return messages
 
 
 class TwitchChannelUpdate(BaseModel):
