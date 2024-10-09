@@ -794,9 +794,9 @@ class ClearChatEvent(BaseModel):
         tags = parse_tags(event)     
 
         if 'ban-duration' in tags:
-            duration = None
-        else:
             duration = int(tags['ban-duration'])
+        else:
+            duration = None
 
         timestamp = parse_irc_ts(tags['tmi-sent-ts'])
 
