@@ -32,7 +32,11 @@ class Video():
         self.stream = self.get_stream()
         
     def get_stream(self, token=None) -> TwitchHLSStream:
-        session = streamlink.Streamlink()
+        session = streamlink.Streamlink(options={
+            'stream-segment-timeout': 30.0,
+            'stream-timeout': 60.0,
+
+        })
         return session.streams(self.url)[self.quality]
 
     async def download_stream(self):
