@@ -140,6 +140,7 @@ class Channel():
 
     async def on_offline(self, event: StreamOfflineEvent):
         self.live = False
+        self.livestream.ended = True
         self.logger.info(f'{self.name} has gone offline')
         
     
