@@ -688,7 +688,7 @@ class Message(BaseModel):
             badges = tags['badges'],
             color = tags['color'],
             emotes = tags['emotes'],
-            first_message = tags['first-msg'] == '1',
+            first_message = 'first-msg' in tags and tags['first-msg'] == '1',
             flags = tags['flags'],
             moderator = tags['mod'] == '1',
             returning_chatter = tags['returning-chatter'] == '1',
