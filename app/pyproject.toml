@@ -1,0 +1,31 @@
+[project]
+name = "vodloader"
+description = "Capture Twitch streams and upload them to YouTube"
+readme = "README.md"
+requires-python = ">= 3.8"
+dependencies = [
+    "streamlink==6.8.3",
+    "twitchAPI==4.2.1",
+    "pyyaml==6.0.1",
+    "aiosqlite==0.20.0",
+    "aiomysql==0.2.0",
+    "python-dotenv==1.0.1",
+    "ffmpeg-python==0.2.0",
+    "hypercorn==0.17.3",
+    "quart==0.19.6",
+    "irc==20.5.0",
+    "google-api-python-client==2.141.0",
+    "Flask[async]==3.0.3",
+]
+dynamic = [
+ "version",
+]
+
+[build-system]
+requires = [
+ "hatchling>=1.4.1",
+]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "__about__.py"
