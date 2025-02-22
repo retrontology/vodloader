@@ -74,6 +74,7 @@ class Channel():
         download_dir: Path,
         twitch: Twitch,
         eventsub: EventSubWebhook,
+        chat: Bot,
         quality: str = 'best',
     ):
         user = await first(twitch.get_users(logins=[name]))
@@ -94,7 +95,8 @@ class Channel():
             channel=channel,
             download_dir=download_dir,
             twitch=twitch,
-            eventsub=eventsub
+            eventsub=eventsub,
+            chat=chat
         )
         return self
 
@@ -138,6 +140,7 @@ class Channel():
 
     async def on_offline(self, event: StreamOfflineEvent):
         self.live = False
+        self.livestream.ended = True
         self.logger.info(f'{self.name} has gone offline')
         
     

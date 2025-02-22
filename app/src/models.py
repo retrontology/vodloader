@@ -8,6 +8,7 @@ import ffmpeg
 import logging
 from irc.client import Event
 from uuid import uuid4
+import time
 
 NOT_NULL = 'NOT NULL'
 
@@ -314,6 +315,11 @@ class TwitchStream(EndableModel):
         self.category_id = int(category_id)
         self.started_at = started_at
         self.ended_at = ended_at
+    
+
+    async def get_messages(self) -> List[Self]:
+        messages = await Message.from_stream(self.id)
+        return messages
 
 
 class TwitchChannelUpdate(BaseModel):
@@ -591,19 +597,19 @@ class Message(BaseModel):
             content VARCHAR(500) DEFAULT NULL,
             channel INT UNSIGNED NOT NULL,
             display_name VARCHAR(25) NOT NULL,
-            badge_info VARCHAR(64) DEFAULT NULL,
-            badges VARCHAR(64) DEFAULT NULL,
+            badge_info VARCHAR(256) DEFAULT NULL,
+            badges VARCHAR(256) DEFAULT NULL,
             color VARCHAR(7) DEFAULT NULL,
-            emotes VARCHAR(64) DEFAULT NULL,
+            emotes VARCHAR(256) DEFAULT NULL,
             first_message BOOL NOT NULL DEFAULT 0,
-            flags VARCHAR(32) DEFAULT NULL,
+            flags VARCHAR(256) DEFAULT NULL,
             moderator BOOL NOT NULL DEFAULT 0,
             returning_chatter BOOL NOT NULL DEFAULT 0,
             subscriber BOOL NOT NULL DEFAULT 0,
             timestamp DATETIME NOT NULL,
             turbo BOOL NOT NULL DEFAULT 0,
             user_id INT UNSIGNED NOT NULL,
-            user_type VARCHAR(32) DEFAULT NULL,
+            user_type VARCHAR(256) DEFAULT NULL,
             PRIMARY KEY (id),
             FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id)
         );
@@ -671,6 +677,8 @@ class Message(BaseModel):
         
         tags = parse_tags(event)
 
+        timestamp = parse_irc_ts(tags['tmi-sent-ts'])
+
         return cls(
             id = tags['id'],
             content = event.arguments[0],
@@ -680,16 +688,45 @@ class Message(BaseModel):
             badges = tags['badges'],
             color = tags['color'],
             emotes = tags['emotes'],
-            first_message = tags['first-msg'] == '1',
+            first_message = 'first-msg' in tags and tags['first-msg'] == '1',
             flags = tags['flags'],
             moderator = tags['mod'] == '1',
             returning_chatter = tags['returning-chatter'] == '1',
             subscriber = tags['subscriber'] == '1',
-            timestamp = datetime.fromtimestamp(float(tags['tmi-sent-ts'])/1000),
+            timestamp = timestamp,
             turbo = tags['turbo'] == '1',
             user_id = int(tags['user-id']),
             user_type = tags['user-type'],
         )
+    
+    @classmethod
+    async def from_stream(cls, stream_id: int) -> List[Self]:
+
+        db = await get_db()
+        connection = await db.connect()
+        cursor = await connection.cursor()
+        await cursor.execute(
+            f"""
+            SELECT {cls.table_name}.*
+            FROM {cls.table_name},
+             (SELECT started_at, ended_at, channel
+             FROM {TwitchStream.table_name}
+             WHERE id = {db.char}) AS stream
+            WHERE {cls.table_name}.timestamp BETWEEN stream.started_at and stream.ended_at
+            AND {cls.table_name}.channel = stream.channel
+            ORDER BY timestamp ASC;
+            """,
+            (stream_id, )
+        )
+        args_list = await cursor.fetchall()
+        await cursor.close()
+        closer = connection.close()
+        if closer: await closer
+
+        if args_list:
+            return list(cls(*args) for args in args_list)
+        else:
+            return None
     
     def parse_badges(self) -> List[str] | None:
         if self.badges == None:
@@ -762,12 +799,11 @@ class ClearChatEvent(BaseModel):
         tags = parse_tags(event)     
 
         if 'ban-duration' in tags:
-            duration = None
-        else:
             duration = int(tags['ban-duration'])
+        else:
+            duration = None
 
-        timestamp = float(tags['tmi-sent-ts'])/1000
-        timestamp = datetime.fromtimestamp(timestamp)
+        timestamp = parse_irc_ts(tags['tmi-sent-ts'])
 
         return cls(
             id = uuid4().__str__(),
@@ -789,7 +825,7 @@ class ClearMsgEvent(BaseModel):
             timestamp DATETIME NOT NULL,
             PRIMARY KEY (id),
             FOREIGN KEY (channel) REFERENCES {TwitchChannel.table_name}(id),
-            FOREIGN KEY (message_id) REFERENCES {Message.table_name}(id)
+            FOREIGN KEY (message_id) REFERENCES {Message.table_name}(id) ON DELETE CASCADE
         );
         """
     
@@ -815,8 +851,7 @@ class ClearMsgEvent(BaseModel):
 
         tags = parse_tags(event)     
 
-        timestamp = float(tags['tmi-sent-ts'])/1000
-        timestamp = datetime.fromtimestamp(timestamp)
+        timestamp = parse_irc_ts(tags['tmi-sent-ts'])
 
         return cls(
             id = uuid4().__str__(),

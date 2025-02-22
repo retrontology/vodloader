@@ -30,9 +30,13 @@ class Video():
         self.video_id = None
         self.download_thread = None
         self.stream = self.get_stream()
+        self.ended = False
         
     def get_stream(self, token=None) -> TwitchHLSStream:
-        session = streamlink.Streamlink()
+        session = streamlink.Streamlink(options={
+            'retry-max': 0,
+            'retry-open': 5,
+        })
         return session.streams(self.url)[self.quality]
 
     async def download_stream(self):
@@ -55,10 +59,14 @@ class Video():
         stream = self.get_stream()
         buffer = stream.open()
         with open(self.path, 'wb') as f:
-            data = buffer.read(CHUNK_SIZE)
-            while data:
-                f.write(data)
-                data = buffer.read(CHUNK_SIZE)
+            while not self.ended:
+                try:
+                    data = buffer.read(CHUNK_SIZE)
+                    while data:
+                        f.write(data)
+                        data = buffer.read(CHUNK_SIZE)
+                except Exception as e:
+                    self.logger.error(e)
         buffer.close()
 
 class LiveStream(Video):
