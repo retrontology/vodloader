@@ -24,7 +24,7 @@ class BaseModel():
     table_command:str = None
     logger: logging.Logger = None
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger(f'vodloader.models.{type(self).__name__}')
 
     def _get_extra_attributes(self):
