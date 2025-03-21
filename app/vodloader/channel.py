@@ -1,7 +1,7 @@
 import logging
 from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
-from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, ChannelUpdateEvent
+
 from twitchAPI.helper import first
 from .util import get_live
 from .video import LiveStream
@@ -132,6 +132,7 @@ class Channel():
                 started_at=event.event.started_at
             )
             await twitch_stream.save()
+            
             await self.livestream.download_stream()
             self.live = False
             self.livestream = None
@@ -155,24 +156,6 @@ class Channel():
             category_id=event.event.category_id
         )
         await update.save()
-
-    async def get_live(self):
-        self.live = get_live(self.twitch, f'{self.id}')
-        return self.live
-    
-    async def subscribe(self):
-        self.logger.info('Subscribing to webhooks')
-        self.subscriptions = []
-        
-        self.subscriptions.append(
-            await self.eventsub.listen_stream_online(f'{self.id}', self.on_online)
-        )
-        self.subscriptions.append(
-            await self.eventsub.listen_stream_offline(f'{self.id}', self.on_offline)
-        )
-        self.subscriptions.append(
-            await self.eventsub.listen_channel_update_v2(f'{self.id}', self.on_update)
-        )
         
     
     async def subscribe_async(self):
@@ -207,5 +190,4 @@ class Channel():
     def __str__(self):
         return self.name
 
-class StreamUnretrievable(Exception): pass
 class ChannelDoesNotExist(Exception): pass

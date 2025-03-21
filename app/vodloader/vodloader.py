@@ -2,7 +2,6 @@ from .channel import Channel
 from .models import *
 from .chat import Bot
 from twitchAPI.twitch import Twitch
-from twitchAPI.eventsub.webhook import EventSubWebhook
 from pathlib import Path
 from typing import Dict
 from threading import Thread
@@ -53,8 +52,7 @@ class VODLoader():
         self.transcode_task = Thread(target=self.transcode_loop, daemon=True)
         self.transcode_task.start()
     
-    async def stop(self):
-        pass
+    
 
     async def add_channel(self, name: str, quality: str = 'best'):
 
@@ -96,6 +94,39 @@ class VODLoader():
                 loop.run_until_complete(video.transcode())
             else:
                 loop.run_until_complete(asyncio.sleep(60))
+    
+    async def download_stream(self):
+        self.logger.info(f'Downloading stream from {self.url} to {self.path}')
+        video_file = VideoFile(
+            id=uuid4().__str__(),
+            stream=self.stream_id,
+            channel=self.channel_id,
+            quality=self.quality,
+            path=self.path,
+            started_at=datetime.now(timezone.utc),
+        )
+        await video_file.save()
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._download)
+        await video_file.end()
+        self.logger.info(f'Finished downloading stream from {self.url} to {self.path}')
+    
+    def _download(self):
+        stream = self.get_stream()
+        buffer = stream.open()
+        with open(self.path, 'wb') as f:
+            while not self.ended:
+                try:
+                    data = buffer.read(CHUNK_SIZE)
+                    while data:
+                        f.write(data)
+                        data = buffer.read(CHUNK_SIZE)
+                except Exception as e:
+                    self.logger.error(e)
+        buffer.close()
+
+    
+
 
 class ChannelAlreadyAdded(Exception): pass
 class ChannelNotAdded(Exception): pass

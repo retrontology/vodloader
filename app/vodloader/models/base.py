@@ -221,3 +221,9 @@ class EndableModel(BaseModel):
         
         self.ended_at = end
         await self.save()
+
+class SingleModel(BaseModel):
+
+    @classmethod
+    async def get(cls):
+        return cls.all()[0]

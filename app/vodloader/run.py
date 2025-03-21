@@ -1,10 +1,9 @@
 import argparse
 import os
 import logging, logging.handlers
-from twitchAPI.twitch import Twitch
 from twitchAPI.eventsub.webhook import EventSubWebhook
 from .models import *
-from .util import get_download_dir
+from .util import *
 import asyncio
 from .vodloader import VODLoader
 from dotenv import load_dotenv
@@ -63,17 +62,9 @@ async def main():
 
     # Log into Twitch
     logger.info(f'Logging into Twitch')
-    twitch = await Twitch(
-        os.environ['TWITCH_CLIENT_ID'],
-        os.environ['TWITCH_CLIENT_SECRET'],
-    )
+    twitch = get_twitch()
 
-    # Initialize Webhook
-    logger.info(f'Initializing EventSub Webhook')
-    eventsub = EventSubWebhook(f"https://{os.environ['WEBHOOK_HOST']}", 8000, twitch)
-    await eventsub.unsubscribe_all()
-    eventsub.start()
-    loop = asyncio.get_event_loop()
+    
 
     # Initialize VODLoader
     vodloader = VODLoader(
