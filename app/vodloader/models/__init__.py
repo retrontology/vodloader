@@ -1,13 +1,13 @@
-from base import *
-from TwitchChannel import *
-from TwitchChannelUpdate import *
-from TwitchStream import *
-from VideoFile import *
-from YouTubeVideo import *
-from TwitchClient import *
-from TwitchAuth import *
-from ClearChatEvent import *
-from ClearMsgEvent import *
+from .base import *
+from .TwitchChannel import *
+from .TwitchChannelUpdate import *
+from .TwitchStream import *
+from .VideoFile import *
+from .YouTubeVideo import *
+from .TwitchClient import *
+from .TwitchAuth import *
+from .ClearChatEvent import *
+from .ClearMsgEvent import *
 
 
 MODELS: List[BaseModel] = [

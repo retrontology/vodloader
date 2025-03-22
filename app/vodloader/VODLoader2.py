@@ -78,7 +78,7 @@ class VODLoader():
         
         self.logger.info(f'{channel.name} has gone live!')
 
-        await download_stream()
+        await self.download_stream(channel, )
 
 
     # Callback for when the webhook receives an offline event
@@ -116,13 +116,13 @@ class VODLoader():
 
 
     # Function to download stream from a Twitch Channel
-    async def download_stream(self, channel: TwitchChannel, path:Path, quality:str='best'):
-        self.logger.info(f'Downloading stream from {channel.name} to {path}')
+    async def download_stream(self, channel: TwitchChannel):
+        self.logger.info(f'Downloading stream from {channel.name} to {self.download_dir}')
 
         stream = None
         retry = 0
         while stream == None:
-            stream = await first(twitch.get_streams(user_id=f'{self.id}'))
+            stream = await first(self.twitch.get_streams(user_id=f'{self.id}'))
             if stream == None:
                 retry += 1
                 if retry >= RETRY_COUNT:
@@ -130,6 +130,8 @@ class VODLoader():
                 else:
                     self.logger.warning(f'Could not retrieve current livestream from Twitch. Retrying #{retry}/{RETRY_COUNT}')
                     await asyncio.sleep(5)
+
+        name = f'{stream.user_login}-{stream.title}-{stream.id}.{VIDEO_EXTENSION}'
 
         twitch_stream = TwitchStream(
             id=event.event.id,
