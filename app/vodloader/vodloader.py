@@ -24,14 +24,35 @@ async def subscribe(channel: TwitchChannel):
     logger.info(f'Subscribing to webhooks for {channel.name}')
 
     online_id = await webhook.listen_stream_online(f'{channel.id}', _on_online)
-    offline_id = await webhook.listen_stream_offline(f'{channel.id}', _on_offline)
-    update_id = await webhook.listen_channel_update_v2(f'{channel.id}', _on_update)
-
     channel.webhook_online = online_id
-    channel.webhook_offline = offline_id
-    channel.webhook_update = update_id
 
-    channel.save()
+    offline_id = await webhook.listen_stream_offline(f'{channel.id}', _on_offline)
+    channel.webhook_offline = offline_id
+
+    update_id = await webhook.listen_channel_update_v2(f'{channel.id}', _on_update)
+    channel.webhook_update = update_id
+    
+    await channel.save()
+
+
+# Subscribe to a Twitch Channel's Webhooks
+async def unsubscribe(channel: TwitchChannel):
+
+    logger.info(f'Unsubscribing to webhooks for {channel.name}')
+
+    if channel.webhook_online != None:
+        await webhook.unsubscribe_topic(channel.webhook_online)
+        channel.webhook_online = None
+    
+    if channel.webhook_offline != None:
+        await webhook.unsubscribe_topic(channel.webhook_offline)
+        channel.webhook_offline = None
+
+    if channel.webhook_update != None:
+        await webhook.unsubscribe_topic(channel.webhook_update)
+        channel.webhook_update = None
+
+    await channel.save()
 
 
 # Callback for when the webhook receives an online event
@@ -40,7 +61,7 @@ async def _on_online(event: StreamOnlineEvent):
     channel = await TwitchChannel.get(id=event.event.broadcaster_user_id)
 
     if not channel:
-        logger.error(f"A Channel Online Event was received for {event.event.broadcaster_user_name}, but it does not exist within the database. Discarding...")
+        logger.error(f"A Stream Online Event was received for {event.event.broadcaster_user_name}, but it does not exist within the database. Discarding...")
         return
     
     logger.info(f'{channel.name} has gone live!')
@@ -54,7 +75,7 @@ async def _on_offline(event: StreamOfflineEvent):
     channel = await TwitchChannel.get(id=event.event.broadcaster_user_id)
 
     if not channel:
-        logger.error(f"A Channel Offline Event was received for {event.event.broadcaster_user_name}, but it does not exist within the database. Discarding...")
+        logger.error(f"A Stream Offline Event was received for {event.event.broadcaster_user_name}, but it does not exist within the database. Discarding...")
         return
 
     logger.info(f'{channel.name} has gone offline')
