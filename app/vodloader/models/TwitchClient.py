@@ -46,3 +46,4 @@ class TwitchClient(SingleModel):
         client = await cls.get_client()
         twitch = await Twitch(*client)
         return twitch
+

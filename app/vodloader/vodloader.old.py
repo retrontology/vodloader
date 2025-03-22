@@ -53,37 +53,7 @@ class VODLoader():
     
     
 
-    async def add_channel(self, name: str, quality: str = 'best'):
-
-        name = name.lower()
-
-        if name in self.channels:
-            raise RuntimeError('Channel already exists in VODLoader')
-
-        channel = await Channel.create(
-            name=name,
-            download_dir=self.download_dir,
-            twitch=self.twitch,
-            eventsub=self.eventsub,
-            quality=quality,
-            chat=self.chat
-        )
-        self.channels[channel.login] = channel
-
-    async def remove_channel(self, name: str):
-        name = name.lower()
-        if name not in self.channels:
-            raise ChannelNotAdded
-        channel = self.channels.pop(name)
-        await channel.unsubscribe()
-        channel = TwitchChannel(
-            id=channel.id,
-            login=channel.login,
-            name=channel.name,
-            active=True,
-            quality=channel.quality
-        )
-        await channel.deactivate()
+    
 
     def transcode_loop(self):
         loop = asyncio.new_event_loop()

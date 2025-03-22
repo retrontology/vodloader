@@ -1,7 +1,6 @@
 import argparse
 import os
 import logging, logging.handlers
-from twitchAPI.eventsub.webhook import EventSubWebhook
 from .models import *
 from .util import *
 import asyncio

@@ -6,13 +6,11 @@ import asyncio
 from functools import partial
 from vodloader.models import *
 from twitchAPI.eventsub.webhook import EventSubWebhook
-from twitchAPI.helper import first
 from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, ChannelUpdateEvent
 
 
 CHUNK_SIZE = 8192
 MAX_VIDEO_LENGTH = 60*(60*12-15)
-RETRY_LIMIT = 10
 VIDEO_EXTENSION = 'ts'
 MAX_LENGTH=60*(60*12-15)
 
@@ -103,7 +101,7 @@ class VODLoader():
     # Callback for when the webhook receives an update event
     async def on_update(self, event: ChannelUpdateEvent):
 
-        channel = TwitchChannel.get(id=event.event.broadcaster_user_id)
+        channel = await TwitchChannel.get(id=event.event.broadcaster_user_id)
 
         if not channel:
             self.logger.error(f"A Channel Update Event was received for {event.event.broadcaster_user_name}, but it does not exist within the database. Discarding...")
@@ -127,17 +125,7 @@ class VODLoader():
 
         self.logger.info(f'Grabbing stream info from {channel.name}')
 
-        stream_info = None
-        count = 0
-        while stream_info == None:
-            stream_info = await first(self.twitch.get_streams(user_id=f'{channel.id}'))
-            if stream_info == None:
-                count += 1
-                if count >= RETRY_LIMIT:
-                    raise StreamUnretrievable()
-                else:
-                    self.logger.warning(f'Could not retrieve current livestream from Twitch. Retrying #{count}/{RETRY_LIMIT}')
-                    await asyncio.sleep(5)
+        stream_info = await channel.get_stream_info()
 
         twitch_stream = TwitchStream(
             id=stream_info.id,
@@ -202,5 +190,3 @@ class VODLoader():
     async def stop(self):
         pass
 
-
-class StreamUnretrievable(Exception): pass

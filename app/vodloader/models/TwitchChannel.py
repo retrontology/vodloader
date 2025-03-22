@@ -3,8 +3,13 @@ from vodloader.util import *
 from vodloader.models import BaseModel, TwitchClient
 import streamlink
 from streamlink.plugins.twitch import TwitchHLSStream
+from twitchAPI.helper import first
+from twitchAPI.twitch import Stream
+
+RETRY_LIMIT = 10
 
 class TwitchChannel(BaseModel):
+
 
     table_name = 'twitch_channel'
     table_command = f"""
@@ -17,6 +22,7 @@ class TwitchChannel(BaseModel):
             PRIMARY KEY (id)
         );
         """
+
 
     id: int
     login: str
@@ -40,15 +46,18 @@ class TwitchChannel(BaseModel):
         self.active = active
         self.quality = quality
 
+
     async def activate(self):
         self.active = True
         await self.save()
-    
+
+
     async def deactivate(self):
         self.active = False
         await self.save()
-    
-    def get_stream(self, quality=None, token=None) -> TwitchHLSStream:
+
+
+    def get_video_stream(self, quality=None, token=None) -> TwitchHLSStream:
         if quality == None:
             quality = self.quality
         session = streamlink.Streamlink(options={
@@ -56,9 +65,28 @@ class TwitchChannel(BaseModel):
             'retry-open': 5,
         })
         return session.streams(self.get_url())[quality]
-    
+
+
+    async def get_stream_info(self) -> Stream:
+        twitch = await TwitchClient.get_twitch()
+        stream_info = None
+        count = 0
+        while stream_info == None:
+            stream_info = await first(twitch.get_streams(user_id=f'{self.id}'))
+            if stream_info == None:
+                count += 1
+                if count >= RETRY_LIMIT:
+                    raise StreamUnretrievable()
+                else:
+                    self.logger.warning(f'Could not retrieve current livestream from Twitch. Retrying #{count}/{RETRY_LIMIT}')
+                    await asyncio.sleep(5)
+            else:
+                return stream_info
+
+
     def get_url(self):
         return f'https://twitch.tv/{self.login}'
+
 
     async def is_live(self):
         live = False
@@ -75,3 +103,6 @@ class TwitchChannel(BaseModel):
 
     def __str__(self):
         return self.id
+
+
+class StreamUnretrievable(Exception): pass
