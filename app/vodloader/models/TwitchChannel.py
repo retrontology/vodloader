@@ -1,12 +1,16 @@
 from vodloader.database import *
 from vodloader.util import *
 from vodloader.models import BaseModel, TwitchClient
+from vodloader.twitch import twitch
 import streamlink
 from streamlink.plugins.twitch import TwitchHLSStream
 from twitchAPI.helper import first
 from twitchAPI.twitch import Stream
+from typing import Self
+
 
 RETRY_LIMIT = 10
+
 
 class TwitchChannel(BaseModel):
 
@@ -19,6 +23,9 @@ class TwitchChannel(BaseModel):
             name VARCHAR(25) NOT NULL UNIQUE,
             active BOOL NOT NULL DEFAULT 0,
             quality VARCHAR(8),
+            webhook_online VARCHAR(64),
+            webhook_offline VARCHAR(64),
+            webhook_update VARCHAR(64),
             PRIMARY KEY (id)
         );
         """
@@ -29,6 +36,10 @@ class TwitchChannel(BaseModel):
     name: str
     active: bool
     quality: str
+    webhook_online: str
+    webhook_offline: str
+    webhook_update: str
+
 
     def __init__(
             self,
@@ -37,6 +48,9 @@ class TwitchChannel(BaseModel):
             name: str,
             active: bool = True,
             quality: str = 'best',
+            webhook_online: str = None,
+            webhook_offline: str = None,
+            webhook_update: str = None,
         ) -> None:
 
         super().__init__()
@@ -45,6 +59,26 @@ class TwitchChannel(BaseModel):
         self.name = name
         self.active = active
         self.quality = quality
+        self.webhook_online = webhook_online
+        self.webhook_offline = webhook_offline
+        self.webhook_update = webhook_update
+
+    
+    # Factory for making a TwitchChannel just from a Channel name
+    @classmethod
+    async def from_name(cls, name, quality="best") -> Self|None:
+
+        channel = await first(twitch.get_users(logins=[name]))
+
+        if not channel:
+            return None
+
+        return cls(
+            id = channel.id,
+            login = channel.login,
+            name = channel.display_name,
+            quality = quality,
+        )
 
 
     async def activate(self):
@@ -68,7 +102,6 @@ class TwitchChannel(BaseModel):
 
 
     async def get_stream_info(self) -> Stream:
-        twitch = await TwitchClient.get_twitch()
         stream_info = None
         count = 0
         while stream_info == None:
@@ -90,7 +123,6 @@ class TwitchChannel(BaseModel):
 
     async def is_live(self):
         live = False
-        twitch = await TwitchClient.get_twitch()
         if type(user_id) is int:
             user_id = f'{user_id}'
         data = await first(twitch.get_streams(user_id=user_id))

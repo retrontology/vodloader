@@ -5,10 +5,11 @@ import asyncio
 from aiosqlite import Connection as SQLiteConnection
 from aiomysql import Connection as MySQLConnection
 import os
+from vodloader import config
 
-CLIENT_NUM = 0
-DEFAULT_TYPE = 'sqlite'
-DEFAULT_PATH = 'db.sqlite'
+
+_database = None
+
 
 class BaseDatabase():
 
@@ -38,6 +39,7 @@ class SQLLiteDatabase(BaseDatabase):
     
     def duplicate(self, column:str):
         return f'ON CONFLICT({column}) DO UPDATE SET'
+
 
 class MySQLDatabase(BaseDatabase):
 
@@ -69,26 +71,26 @@ class MySQLDatabase(BaseDatabase):
         )
         return connection
 
+
 async def get_db() -> BaseDatabase:
-
-    if 'DB_TYPE' not in os.environ:
-        os.environ['DB_TYPE'] = DEFAULT_TYPE
-
-    if os.environ['DB_TYPE'].lower() == 'sqlite':
-        if 'DB_PATH' not in os.environ:
-            os.environ['DB_PATH'] = DEFAULT_PATH
-        database = SQLLiteDatabase('test.sql')
-
-    elif os.environ['DB_TYPE'].lower() == 'mysql':
-        database = MySQLDatabase(
-            host=os.environ['DB_HOST'],
-            port=os.environ['DB_PORT'],
-            user=os.environ['DB_USER'],
-            password=os.environ['DB_PASS'],
-            schema=os.environ['DB_SCHEMA'],
-        )
-
-    else:
-        raise RuntimeError('"DB_TYPE" must be either "sqlite" or "mysql"')
     
-    return database
+    if _database == None:
+
+        match config.DB_TYPE.lower():
+
+            case 'sqlite':
+                _database = SQLLiteDatabase(config.DB_PATH)
+
+            case 'mysql':
+                _database = MySQLDatabase(
+                    host=os.environ['DB_HOST'],
+                    port=os.environ['DB_PORT'],
+                    user=os.environ['DB_USER'],
+                    password=os.environ['DB_PASS'],
+                    schema=os.environ['DB_SCHEMA'],
+                )
+
+            case _:
+                raise RuntimeError('"DB_TYPE" must be either "sqlite" or "mysql"')
+    
+    return _database

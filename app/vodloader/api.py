@@ -1,47 +1,49 @@
 from quart import Blueprint, Quart, request, current_app
 from os import environ
-from vodloader.models import TwitchClient
 from twitchAPI.helper import first
+from vodloader.vodloader import subscribe, get_twitch
+from vodloader.models import TwitchChannel
+import logging
 
 
 api = Blueprint('api', __name__)
+logger = logging.getLogger('vodloader.api')
 
 
-@api.route("/channel", methods=['POST'])
-async def add_channel():
+@api.route("/channel/<name>", methods=['POST'])
+async def add_channel(name: str):
 
     try:
-        data = await request.get_json()
 
         if 'secret' not in request.headers or request.headers['secret'] != current_app.secret_key:
             return 403
 
-        if 'channel' not in data :
-            return 'The "channel" field is required', 400
-        else:
-            channel_name = data['channel']
-
-        if 'quality' in data:
-            quality = data['quality']
+        if 'quality' in request.args:
+            quality = request.args['quality']
         else:
             quality = 'best'
 
-        twitch = await TwitchClient.get_twitch()
-        channel = await first(twitch.get_users(logins=[channel_name]))
+        channel = await TwitchChannel.from_name(name)
+
+        if not channel:
+            return "channel does not exist", 403
+        
+        await channel.save()
+        
+        return 200
 
     except Exception as e:
+        
         return 500
-    
-    return 200
 
 
-@api.route("/channel/<channel>", methods=['DELETE'])
-async def delete_channel(channel: str):
+@api.route("/channel/<name>", methods=['DELETE'])
+async def delete_channel(name: str):
 
     if 'secret' not in request.headers or request.headers['secret'] != current_app.secret_key:
         return 'Get outta here ya bum', 403
     
-    channel = channel.lower()
+    channel_name = channel.lower()
     vodloader: VODLoader = current_app.config['vodloader']
     try:
         await vodloader.remove_channel(channel)
