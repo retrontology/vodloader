@@ -1,6 +1,7 @@
 from vodloader.database import *
 from vodloader.util import *
 from vodloader.models import SingleModel
+from twitchAPI.twitch import Twitch
 
 
 class TwitchClient(SingleModel):
