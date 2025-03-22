@@ -193,8 +193,8 @@ class VODLoader():
     # Start the service 
     async def start(self):
         await self.init_webhook()
-        db_channels = await TwitchChannel.get_many(active=True)
-        for channel in db_channels:
+        channels = await TwitchChannel.get_many(active=True)
+        for channel in channels:
             await self.subscribe(channel)
 
 
