@@ -122,29 +122,32 @@ async def _download_stream(channel: TwitchChannel):
     await twitch_stream.save()
 
     name = f'{stream_info.user_login}-{stream_info.title}-{stream_info.id}.{VIDEO_EXTENSION}'
-    path = config.DOWNLOAD_DIR.joinpath(name)
+    channel_path = config.DOWNLOAD_DIR.joinpath(channel.login)
+    if not channel_path.exists():
+        channel_path.mkdir()
+    video_path = channel_path.joinpath(name)
 
-    logger.info(f'Downloading stream from {channel.name} to {path}')
+    logger.info(f'Downloading stream from {channel.name} to {video_path}')
 
     video_file = VideoFile(
         id=uuid4().__str__(),
         stream=stream_info.id,
         channel=channel.id,
         quality=channel.quality,
-        path=path,
+        path=video_path,
         started_at=datetime.now(timezone.utc),
     )
     await video_file.save()
 
     loop = asyncio.get_event_loop()
-    download_function = partial(_download, channel=channel, path=path)
+    download_function = partial(_download, channel=channel, path=video_path)
     await loop.run_in_executor(None, download_function)
 
     end_time = datetime.now(timezone.utc)
     await twitch_stream.end(end_time)
     await video_file.end(end_time)
 
-    logger.info(f'Finished downloading stream from {channel.name} to {path}')
+    logger.info(f'Finished downloading stream from {channel.name} to {video_path}')
 
 
 # Internal function for downloading stream in executor
