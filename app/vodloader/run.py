@@ -2,12 +2,13 @@ import argparse
 import os
 import logging, logging.handlers
 import asyncio
-from hypercorn.config import Config
+from hypercorn.config import Config as HypercornConfig
 from hypercorn.asyncio import serve
 from vodloader.models import TwitchChannel, initialize_models
 from vodloader.api import create_api
 from vodloader.twitch import twitch, webhook
 from vodloader.vodloader import subscribe
+from vodloader import config
 
 
 def parse_args():
@@ -61,10 +62,10 @@ async def main():
         await subscribe(channel)
 
     # Run API
-    config = Config()
-    config.bind = ["0.0.0.0:8001"]
+    hypercorn_config = HypercornConfig()
+    hypercorn_config.bind = [f"{config.API_HOST}:{config.API_PORT}"]
     api = create_api()
-    api_task = loop.create_task(serve(api, config))
+    api_task = loop.create_task(serve(api, hypercorn_config))
     
     # Await everything
     await api_task
