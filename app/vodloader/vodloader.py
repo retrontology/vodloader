@@ -5,7 +5,8 @@ from pathlib import Path
 import asyncio
 from functools import partial
 from vodloader.models import *
-from vodloader.twitch import twitch, webhook
+from vodloader import config
+from vodloader.twitch import webhook
 from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, ChannelUpdateEvent
 
 
@@ -121,7 +122,7 @@ async def _download_stream(channel: TwitchChannel):
     await twitch_stream.save()
 
     name = f'{stream_info.user_login}-{stream_info.title}-{stream_info.id}.{VIDEO_EXTENSION}'
-    path = Path(config.DOWNLOAD_DIR).joinpath(name)
+    path = config.DOWNLOAD_DIR.joinpath(name)
 
     logger.info(f'Downloading stream from {channel.name} to {path}')
 

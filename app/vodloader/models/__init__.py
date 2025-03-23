@@ -4,7 +4,6 @@ from .TwitchChannelUpdate import *
 from .TwitchStream import *
 from .VideoFile import *
 from .YouTubeVideo import *
-from .TwitchClient import *
 from .TwitchAuth import *
 from .ClearChatEvent import *
 from .ClearMsgEvent import *
@@ -16,13 +15,16 @@ MODELS: List[BaseModel] = [
     TwitchChannelUpdate,
     VideoFile,
     YoutubeVideo,
-    TwitchClient,
     TwitchAuth,
     Message,
     ClearChatEvent,
     ClearMsgEvent,
 ]
 
+
 async def initialize_models():
     for model in MODELS:
         await model.initialize()
+
+
+await initialize_models()

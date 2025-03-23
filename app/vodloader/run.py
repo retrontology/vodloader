@@ -1,17 +1,18 @@
 import argparse
 import os
 import logging, logging.handlers
-from .models import *
-from .util import *
 import asyncio
-from .vodloader import VODLoader
 from dotenv import load_dotenv
 from hypercorn.config import Config
 from hypercorn.asyncio import serve
-from .api import create_api
+from vodloader.models import TwitchChannel
+from vodloader.api import create_api
+from vodloader.twitch import twitch, webhook
+from vodloader.vodloader import subscribe
 
 
 def parse_args():
+
     parser = argparse.ArgumentParser(
         prog='vodloader',
         description='Automate uploading Twitch streams to YouTube'
@@ -24,7 +25,9 @@ def parse_args():
     )
     return parser.parse_args()
 
+
 def setup_logger(level=logging.INFO, path='logs'):
+
     path = os.path.abspath(path)
     if not os.path.exists(path):
         os.mkdir(path)
@@ -44,50 +47,32 @@ def setup_logger(level=logging.INFO, path='logs'):
     logger.handlers.append(stream_handler)
     return logging.getLogger('vodloader')
 
+
 async def main():
 
-    # Initialize env, args, and logger
+    # Initialize
     load_dotenv()
     args = parse_args()
     logger = setup_logger(args.debug)
+    loop = asyncio.get_event_loop()
 
-    # Initialize download dir
-    download_dir = get_download_dir()
-    if not download_dir.exists():
-        download_dir.mkdir()
-    
-    #Initialize database
-    await initialize_models()
-
-    # Log into Twitch
-    logger.info(f'Logging into Twitch')
-    twitch = get_twitch()
-
-    
-
-    # Initialize VODLoader
-    vodloader = VODLoader(
-        twitch=twitch,
-        eventsub=eventsub,
-        download_dir=download_dir
-    )
-    vodloader_task = loop.create_task(vodloader.start())
+    # Subscribe to all active channel webhooks
+    channels = TwitchChannel.get_many(active=True)
+    for channel in channels:
+        await subscribe(channel)
 
     # Run API
     config = Config()
     config.bind = ["0.0.0.0:8001"]
-    config.__setattr__('vodloader', vodloader)
-    api = create_api(vodloader)
+    api = create_api()
     api_task = loop.create_task(serve(api, config))
     
     # Await everything
     await api_task
-    await vodloader_task
 
     # Cleanup
-    await vodloader.stop()
-    await eventsub.unsubscribe_all()
-    await eventsub.stop()
+    await webhook.unsubscribe_all()
+    await webhook.stop()
     await twitch.close()
 
 
