@@ -8,6 +8,7 @@ from vodloader.models import TwitchChannel, VideoFile, initialize_models
 from vodloader.api import create_api
 from vodloader.twitch import twitch, webhook
 from vodloader.vodloader import subscribe
+from vodloader.chat import bot
 from vodloader import config
 from threading import Thread
 
@@ -51,18 +52,24 @@ def setup_logger(level=logging.INFO, path='logs'):
 
 async def main():
 
-    # Initialize
+    # Initialize args
     args = parse_args()
     logger = setup_logger(args.debug)
     loop = asyncio.get_event_loop()
+
+    # Initialize DB
+    await initialize_models()
+
+    # Intialize Twitch Connections
     await twitch.authenticate_app([])
     webhook.start()
     await webhook.unsubscribe_all()
-    await initialize_models()
+    bot.start()
 
     # Subscribe to all active channel webhooks
     channels = await TwitchChannel.get_many(active=True)
     for channel in channels:
+        bot.join_channel(channel)
         await subscribe(channel)
 
     # Run API

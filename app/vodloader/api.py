@@ -2,6 +2,7 @@ from quart import Blueprint, Quart, request, current_app
 from os import environ
 from vodloader.vodloader import subscribe, unsubscribe
 from vodloader.models import TwitchChannel
+from vodloader.chat import bot
 from vodloader import config
 import logging
 
@@ -29,6 +30,7 @@ async def add_channel(name: str):
 
         if not channel.active:
             await channel.activate()
+            bot.join_channel(channel)
             await subscribe(channel)
 
     else:
@@ -39,6 +41,7 @@ async def add_channel(name: str):
             return "Channel does not exist on Twitch", 400
 
         await channel.save()
+        bot.join_channel(channel)
         await subscribe(channel)
 
     return"success",  200
@@ -59,6 +62,7 @@ async def delete_channel(name: str):
     
     if channel.active:
         await channel.deactivate()
+        bot.leave_channel(channel)
         await unsubscribe(channel)
 
     return "success", 200
