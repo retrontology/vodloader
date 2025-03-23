@@ -4,7 +4,7 @@ from .TwitchChannelUpdate import *
 from .TwitchStream import *
 from .VideoFile import *
 from .YouTubeVideo import *
-from .TwitchAuth import *
+from .Message import *
 from .ClearChatEvent import *
 from .ClearMsgEvent import *
 
@@ -15,7 +15,6 @@ MODELS: List[BaseModel] = [
     TwitchChannelUpdate,
     VideoFile,
     YoutubeVideo,
-    TwitchAuth,
     Message,
     ClearChatEvent,
     ClearMsgEvent,
