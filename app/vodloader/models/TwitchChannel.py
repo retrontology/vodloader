@@ -1,6 +1,6 @@
 from vodloader.database import *
 from vodloader.util import *
-from vodloader.models import BaseModel, TwitchClient
+from vodloader.models import BaseModel
 from vodloader.twitch import twitch
 import streamlink
 from streamlink.plugins.twitch import TwitchHLSStream
