@@ -14,6 +14,7 @@ DB_PORT = os.environ.get("DB_PORT")
 DB_USER = os.environ.get("DB_USER")
 DB_PASS = os.environ.get("DB_PASS")
 DB_SCHEMA = os.environ.get("DB_SCHEMA", "vodloader")
+API_KEY = os.environ.get("API_KEY")
 
 
 if not DOWNLOAD_DIR.exists():

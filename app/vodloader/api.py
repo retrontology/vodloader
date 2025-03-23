@@ -2,6 +2,7 @@ from quart import Blueprint, Quart, request, current_app
 from os import environ
 from vodloader.vodloader import subscribe, unsubscribe
 from vodloader.models import TwitchChannel
+from vodloader import config
 import logging
 
 
@@ -64,6 +65,7 @@ async def delete_channel(name: str):
         
         if channel.active:
             await channel.deactivate()
+            await unsubscribe(channel)
        
     except Exception as e:
         return 500
@@ -96,8 +98,8 @@ async def get_channels():
 
 def create_api() -> Quart:
     app = Quart(__name__)
-    if 'API_SECRET_KEY' not in environ or not environ['API_SECRET_KEY']:
-        raise RuntimeError('API_SECRET_KEY must be specified either as an environment variable or in the .env file')
-    app.secret_key = environ['API_SECRET_KEY']
+    if not config.API_KEY:
+        raise RuntimeError('API_KEY must be specified either as an environment variable or in the .env file')
+    app.secret_key = config.API_KEY
     app.register_blueprint(api)
     return app
