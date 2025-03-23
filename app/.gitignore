@@ -156,3 +156,6 @@ test.sql
 Lib
 Scripts
 Include
+
+# VODLoader
+test.sqlite

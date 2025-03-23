@@ -3,7 +3,7 @@ from vodloader.util import *
 from vodloader.models import BaseModel, VideoFile
 
 
-class YoutubeVideo(BaseModel):
+class YouTubeVideo(BaseModel):
 
     table_name = 'youtube_video'
     table_command = f"""

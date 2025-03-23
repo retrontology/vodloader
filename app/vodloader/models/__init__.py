@@ -1,12 +1,12 @@
 from .base import *
-from .TwitchChannel import *
-from .TwitchChannelUpdate import *
-from .TwitchStream import *
-from .VideoFile import *
-from .YouTubeVideo import *
-from .Message import *
-from .ClearChatEvent import *
-from .ClearMsgEvent import *
+from .TwitchChannel import TwitchChannel
+from .TwitchChannelUpdate import TwitchChannelUpdate
+from .TwitchStream import TwitchStream
+from .VideoFile import VideoFile
+from .YouTubeVideo import YouTubeVideo
+from .Message import Message
+from .ClearChatEvent import ClearChatEvent
+from .ClearMsgEvent import ClearMsgEvent
 
 
 MODELS: List[BaseModel] = [
@@ -14,7 +14,7 @@ MODELS: List[BaseModel] = [
     TwitchStream,
     TwitchChannelUpdate,
     VideoFile,
-    YoutubeVideo,
+    YouTubeVideo,
     Message,
     ClearChatEvent,
     ClearMsgEvent,
