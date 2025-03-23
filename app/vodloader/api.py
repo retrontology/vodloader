@@ -77,7 +77,7 @@ async def delete_channel(name: str):
 @api.route("/channels", methods=['GET'])
 async def get_channels():
 
-    output = None
+    output = []
     
     try:
 
