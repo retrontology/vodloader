@@ -58,7 +58,7 @@ async def main():
     await initialize_models()
 
     # Subscribe to all active channel webhooks
-    channels = TwitchChannel.get_many(active=True)
+    channels = await TwitchChannel.get_many(active=True)
     for channel in channels:
         await subscribe(channel)
 
