@@ -56,6 +56,7 @@ async def main():
     loop = asyncio.get_event_loop()
     await twitch.authenticate_app([])
     webhook.start()
+    await webhook.unsubscribe_all()
     await initialize_models()
 
     # Subscribe to all active channel webhooks
@@ -73,7 +74,7 @@ async def main():
     await api_task
 
     # Cleanup
-    #await webhook.unsubscribe_all()
+    await webhook.unsubscribe_all()
     await webhook.stop()
     await twitch.close()
 
