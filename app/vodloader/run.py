@@ -54,6 +54,7 @@ async def main():
     args = parse_args()
     logger = setup_logger(args.debug)
     loop = asyncio.get_event_loop()
+    twitch.authenticate_app([])
     webhook.start()
     await initialize_models()
 
