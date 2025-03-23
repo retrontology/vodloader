@@ -68,6 +68,8 @@ async def main():
     # Start chat bot
     chatbot_task = Thread(target=bot.start, daemon=True)
     chatbot_task.start()
+    while not bot.connection.connected:
+        await asyncio.sleep(1)
 
     # Subscribe to all active channel webhooks
     channels = await TwitchChannel.get_many(active=True)
