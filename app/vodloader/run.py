@@ -84,8 +84,7 @@ async def main():
     api_task = loop.create_task(serve(api, hypercorn_config))
 
     # Run Transcode Task
-    transcode_task = Thread(target=transcode_loop, daemon=True)
-    transcode_task.start()
+    transcode_task = loop.create_task(transcode_loop())
     
     # Await everything
     await api_task
