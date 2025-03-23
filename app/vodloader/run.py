@@ -64,7 +64,10 @@ async def main():
     await twitch.authenticate_app([])
     webhook.start()
     await webhook.unsubscribe_all()
-    bot.start()
+
+    # Start chat bot
+    chatbot_task = Thread(target=bot.start, daemon=True)
+    chatbot_task.start()
 
     # Subscribe to all active channel webhooks
     channels = await TwitchChannel.get_many(active=True)
