@@ -91,6 +91,7 @@ async def main():
     await api_task
 
     # Cleanup
+    bot.die()
     await webhook.unsubscribe_all()
     await webhook.stop()
     await twitch.close()
