@@ -88,9 +88,11 @@ async def main():
     
     # Await everything
     await api_task
+    await transcode_task
 
     # Cleanup
     bot.die()
+    bot.disconnect()
     await webhook.unsubscribe_all()
     await webhook.stop()
     await twitch.close()
