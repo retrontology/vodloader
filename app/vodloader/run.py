@@ -84,7 +84,7 @@ async def main():
     await twitch.close()
 
 
-def transcode_loop(self):
+def transcode_loop():
     loop = asyncio.new_event_loop()
     while True:
         video = loop.run_until_complete(VideoFile.get_next_transcode())
