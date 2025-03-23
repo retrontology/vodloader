@@ -72,7 +72,7 @@ async def main():
     await api_task
 
     # Cleanup
-    await webhook.unsubscribe_all()
+    #await webhook.unsubscribe_all()
     await webhook.stop()
     await twitch.close()
 
