@@ -4,11 +4,12 @@ import logging, logging.handlers
 import asyncio
 from hypercorn.config import Config as HypercornConfig
 from hypercorn.asyncio import serve
-from vodloader.models import TwitchChannel, initialize_models
+from vodloader.models import TwitchChannel, VideoFile, initialize_models
 from vodloader.api import create_api
 from vodloader.twitch import twitch, webhook
 from vodloader.vodloader import subscribe
 from vodloader import config
+from threading import Thread
 
 
 def parse_args():
@@ -69,6 +70,10 @@ async def main():
     hypercorn_config.bind = [f"{config.API_HOST}:{config.API_PORT}"]
     api = create_api()
     api_task = loop.create_task(serve(api, hypercorn_config))
+
+    # Run Transcode Task
+    transcode_task = Thread(target=transcode_loop, daemon=True)
+    transcode_task.start()
     
     # Await everything
     await api_task
@@ -77,6 +82,16 @@ async def main():
     await webhook.unsubscribe_all()
     await webhook.stop()
     await twitch.close()
+
+
+def transcode_loop(self):
+    loop = asyncio.new_event_loop()
+    while True:
+        video = loop.run_until_complete(VideoFile.get_next_transcode())
+        if video:
+            loop.run_until_complete(video.transcode())
+        else:
+            loop.run_until_complete(asyncio.sleep(60))
 
 
 if __name__ == '__main__':
