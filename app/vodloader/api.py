@@ -16,7 +16,7 @@ async def add_channel(name: str):
     try:
 
         if 'secret' not in request.headers or request.headers['secret'] != current_app.secret_key:
-            return 403
+            return "Unauthorized", 403
 
         name = name.lower()
 
@@ -44,10 +44,10 @@ async def add_channel(name: str):
             await subscribe(channel)
 
     except Exception as e:
-        return 500
+        return "Internal error", 500
     
     finally:
-        return 200
+        return"success",  200
 
 
 @api.route("/channel/<name>", methods=['DELETE'])
@@ -56,7 +56,7 @@ async def delete_channel(name: str):
     try:
 
         if 'secret' not in request.headers or request.headers['secret'] != current_app.secret_key:
-            return 403
+            return "Unauthorized", 403
 
         channel = await TwitchChannel.get(login=name)
 
@@ -68,10 +68,10 @@ async def delete_channel(name: str):
             await unsubscribe(channel)
        
     except Exception as e:
-        return 500
+        return "Internal error", 500
     
     finally:
-        return 200
+        return "success", 200
 
 
 @api.route("/channels", methods=['GET'])
@@ -80,7 +80,7 @@ async def get_channels():
     try:
 
         if 'secret' not in request.headers or request.headers['secret'] != current_app.secret_key:
-            return 403
+            return "Unauthorized", 403
 
         channels = await TwitchChannel.all()
         output = {
@@ -90,7 +90,7 @@ async def get_channels():
         }
     
     except Exception as e:
-        return 500
+        return "Internal error", 500
 
     finally:
         return output, 200
@@ -98,7 +98,6 @@ async def get_channels():
 
 def create_api() -> Quart:
     app = Quart(__name__)
-    logger.info(f'API_KEY: {config.API_KEY}')
     if not config.API_KEY:
         raise RuntimeError('API_KEY must be specified')
     app.secret_key = config.API_KEY
