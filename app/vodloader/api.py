@@ -98,8 +98,9 @@ async def get_channels():
 
 def create_api() -> Quart:
     app = Quart(__name__)
+    logger.info(f'API_KEY: {config.API_KEY}')
     if not config.API_KEY:
-        raise RuntimeError('API_KEY must be specified either as an environment variable or in the .env file')
+        raise RuntimeError('API_KEY must be specified')
     app.secret_key = config.API_KEY
     app.register_blueprint(api)
     return app
