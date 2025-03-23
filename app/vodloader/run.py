@@ -97,7 +97,7 @@ async def main():
 
 
 def transcode_loop():
-    loop = asyncio.new_event_loop()
+    loop = asyncio.get_event_loop()
     while True:
         video = loop.run_until_complete(VideoFile.get_next_transcode())
         if video:
