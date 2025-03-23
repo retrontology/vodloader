@@ -25,6 +25,3 @@ MODELS: List[BaseModel] = [
 async def initialize_models():
     for model in MODELS:
         await model.initialize()
-
-
-await initialize_models()

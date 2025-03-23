@@ -5,7 +5,7 @@ import asyncio
 from dotenv import load_dotenv
 from hypercorn.config import Config
 from hypercorn.asyncio import serve
-from vodloader.models import TwitchChannel
+from vodloader.models import TwitchChannel, initialize_models
 from vodloader.api import create_api
 from vodloader.twitch import twitch, webhook
 from vodloader.vodloader import subscribe
@@ -55,6 +55,7 @@ async def main():
     args = parse_args()
     logger = setup_logger(args.debug)
     loop = asyncio.get_event_loop()
+    await initialize_models()
 
     # Subscribe to all active channel webhooks
     channels = TwitchChannel.get_many(active=True)
