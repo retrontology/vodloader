@@ -8,9 +8,6 @@ import os
 from vodloader import config
 
 
-_database = None
-
-
 class BaseDatabase():
 
     char = None
@@ -73,24 +70,20 @@ class MySQLDatabase(BaseDatabase):
 
 
 async def get_db() -> BaseDatabase:
-    
-    if _database == None:
 
-        match config.DB_TYPE.lower():
+    match config.DB_TYPE.lower():
 
-            case 'sqlite':
-                _database = SQLLiteDatabase(config.DB_PATH)
+        case 'sqlite':
+            return SQLLiteDatabase(config.DB_PATH)
 
-            case 'mysql':
-                _database = MySQLDatabase(
-                    host=os.environ['DB_HOST'],
-                    port=os.environ['DB_PORT'],
-                    user=os.environ['DB_USER'],
-                    password=os.environ['DB_PASS'],
-                    schema=os.environ['DB_SCHEMA'],
-                )
+        case 'mysql':
+            return MySQLDatabase(
+                host=os.environ['DB_HOST'],
+                port=os.environ['DB_PORT'],
+                user=os.environ['DB_USER'],
+                password=os.environ['DB_PASS'],
+                schema=os.environ['DB_SCHEMA'],
+            )
 
-            case _:
-                raise RuntimeError('"DB_TYPE" must be either "sqlite" or "mysql"')
-    
-    return _database
+        case _:
+            raise RuntimeError('"DB_TYPE" must be either "sqlite" or "mysql"')
