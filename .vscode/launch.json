@@ -9,7 +9,7 @@
             "type": "debugpy",
             "request": "launch",
             "cwd": "${workspaceFolder}/app",
-            "module": "src.run",
+            "module": "vodloader.run",
             "python": "${workspaceFolder}/app/bin/python",
             "console": "integratedTerminal",
             "args": []
