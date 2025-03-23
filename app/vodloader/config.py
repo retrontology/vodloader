@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
+load_dotenv()
 
 DOWNLOAD_DIR = Path(os.environ.get("DOWNLOAD_DIR", "videos"))
 TWITCH_CLIENT_ID = os.environ.get("TWITCH_CLIENT_ID")

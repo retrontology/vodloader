@@ -2,7 +2,6 @@ import argparse
 import os
 import logging, logging.handlers
 import asyncio
-from dotenv import load_dotenv
 from hypercorn.config import Config
 from hypercorn.asyncio import serve
 from vodloader.models import TwitchChannel, initialize_models
@@ -51,7 +50,6 @@ def setup_logger(level=logging.INFO, path='logs'):
 async def main():
 
     # Initialize
-    load_dotenv()
     args = parse_args()
     logger = setup_logger(args.debug)
     loop = asyncio.get_event_loop()
