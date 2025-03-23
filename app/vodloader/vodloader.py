@@ -11,9 +11,7 @@ from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, Cha
 
 
 CHUNK_SIZE = 8192
-MAX_VIDEO_LENGTH = 60*(60*12-15)
 VIDEO_EXTENSION = 'ts'
-MAX_LENGTH=60*(60*12-15)
 
 
 logger: logging.Logger = logging.getLogger('vodloader')

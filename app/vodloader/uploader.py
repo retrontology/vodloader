@@ -4,7 +4,7 @@ import subprocess
 from googleapiclient.http import MediaIoBaseUpload
 
 DEFAULT_CHUNK_SIZE=188
-
+MAX_LENGTH=60*(60*12-15)
 DEFAULT_LENGTH = 60*60*8
 
 class MediaSplitUpload(MediaIoBaseUpload):
