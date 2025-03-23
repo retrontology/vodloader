@@ -180,7 +180,7 @@ class BaseModel():
         if args_list:
             return (cls(*args) for args in args_list)
         else:
-            return None
+            return []
 
     @classmethod
     async def all(
