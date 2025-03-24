@@ -81,7 +81,7 @@ async def _on_offline(event: StreamOfflineEvent):
 
 
 # Callback for when the webhook receives an update event
-async def _on_update(self, event: ChannelUpdateEvent):
+async def _on_update(event: ChannelUpdateEvent):
 
     channel = await TwitchChannel.get(id=event.event.broadcaster_user_id)
 
