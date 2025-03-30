@@ -1,6 +1,6 @@
 import logging
 from uuid import uuid4
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import asyncio
 from functools import partial
@@ -12,6 +12,8 @@ from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, Cha
 
 CHUNK_SIZE = 8192
 VIDEO_EXTENSION = 'ts'
+NAMING_SCHEME = '{channel}-{title}-{stream}-part-{part}.{ext}'
+CUTOFF = timedelta(hours=8)
 
 
 logger: logging.Logger = logging.getLogger('vodloader')
@@ -118,46 +120,88 @@ async def _download_stream(channel: TwitchChannel):
         started_at=stream_info.started_at
     )
     await twitch_stream.save()
+    
+    path = channel.get_path()
+    if not path.exists():
+        path.mkdir()
 
-    name = f'{stream_info.user_login}-{stream_info.title}-{stream_info.id}.{VIDEO_EXTENSION}'
-    channel_path = config.DOWNLOAD_DIR.joinpath(channel.login)
-    if not channel_path.exists():
-        channel_path.mkdir()
-    video_path = channel_path.joinpath(name)
-
-    logger.info(f'Downloading stream from {channel.name} to {video_path}')
-
-    video_file = VideoFile(
-        id=uuid4().__str__(),
-        stream=stream_info.id,
-        channel=channel.id,
-        quality=channel.quality,
-        path=video_path,
-        started_at=datetime.now(timezone.utc),
-    )
-    await video_file.save()
+    logger.info(f'Downloading stream from {channel.name} to {path}')
 
     loop = asyncio.get_event_loop()
-    download_function = partial(_download, channel=channel, path=video_path)
-    await loop.run_in_executor(None, download_function)
+    download_function = partial(_download, channel=channel, twitch_stream=twitch_stream, path=path)
+    end_time = await loop.run_in_executor(None, download_function)
 
-    end_time = datetime.now(timezone.utc)
     await twitch_stream.end(end_time)
-    await video_file.end(end_time)
 
-    logger.info(f'Finished downloading stream from {channel.name} to {video_path}')
+    logger.info(f'Finished downloading stream from {channel.name} to {path}')
 
 
 # Internal function for downloading stream in executor
-def _download(channel: TwitchChannel, path:Path):
-    stream = channel.get_video_stream()
-    buffer = stream.open()
-    with open(path, 'wb') as f:
-        try:
-            data = buffer.read(CHUNK_SIZE)
-            while data:
-                f.write(data)
-                data = buffer.read(CHUNK_SIZE)
-        except Exception as e:
-            logger.error(e)
+def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
+
+    # Get the event loop for the executor
+    loop = asyncio.new_event_loop()
+
+    try:
+
+        # Intialize the first variables for the recording loops
+        part = 1
+        video_stream = channel.get_video_stream()
+        buffer = video_stream.open()
+        data = buffer.read(CHUNK_SIZE)
+        
+
+        # First loop for iterating through video files
+        while data:
+
+            # Create video file
+            start = buffer.worker.playlist_sequence_last
+            video_path = path.joinpath(
+                NAMING_SCHEME.format(
+                    channel=channel.login,
+                    title=twitch_stream.title,
+                    stream=twitch_stream.id,
+                    part=part,
+                    ext=VIDEO_EXTENSION
+                )
+            )
+            video_file = VideoFile(
+                id=uuid4().__str__(),
+                stream=twitch_stream.id,
+                channel=channel.id,
+                quality=channel.quality,
+                path=video_path,
+                started_at=datetime.now(timezone.utc),
+            )
+            loop.run_until_complete(video_file.save())
+
+            logger.info(f'Writing stream from {channel.name} to {video_path}')
+
+            with open(video_path, 'wb') as file:
+                
+                # Second loop for writing video stream data to file
+                while data:
+                    file.write(data)
+                    data = buffer.read(CHUNK_SIZE)
+                    
+                    # Check if the video has exceeded the cutoff and trigger next file if it does
+                    if buffer.worker.playlist_sequence_last - start > CUTOFF:
+                        logger.info(f'Video file {video_path} has reached the cutoff. Handing stream over to next file...')
+                        loop.run_until_complete(video_file.end())
+                        part = part + 1
+                        break
+
+            
+    except Exception as e:
+        logger.error(e)
+
+    # End the last video being written to
+    end_time = datetime.now(timezone.utc)
+    loop.run_until_complete(video_file.end(end_time))
+
+    # Cleanup the buffer and loop
     buffer.close()
+    loop.stop()
+    loop.close()
+
+    return end_time

@@ -19,6 +19,7 @@ class VideoFile(EndableModel):
             path VARCHAR(4096),
             started_at DATETIME NOT NULL,
             ended_at DATETIME DEFAULT NULL,
+            part TINYINT UNSIGNED DEFAULT 1,
             transcode_path VARCHAR(4096) DEFAULT NULL,
             PRIMARY KEY (id),
             FOREIGN KEY (stream) REFERENCES {TwitchStream.table_name}(id),
@@ -33,6 +34,7 @@ class VideoFile(EndableModel):
     path: Path
     started_at: datetime
     ended_at: datetime
+    part: int
     transcode_path: Path
     
 
@@ -45,6 +47,7 @@ class VideoFile(EndableModel):
             path: str|Path,
             started_at: datetime,
             ended_at: datetime = None,
+            part: int = 1,
             transcode_path: str|Path = None,
     ) -> None:
         
@@ -56,6 +59,7 @@ class VideoFile(EndableModel):
         self.path = Path(path).resolve()
         self.started_at = started_at
         self.ended_at = ended_at
+        self.part = part
         self.transcode_path = Path(transcode_path).resolve() if transcode_path else None
 
     @classmethod
