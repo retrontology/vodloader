@@ -33,6 +33,7 @@ class VideoFile(EndableModel):
     path: Path
     started_at: datetime
     ended_at: datetime
+    part: int
     transcode_path: Path
     
 
@@ -45,6 +46,7 @@ class VideoFile(EndableModel):
             path: str|Path,
             started_at: datetime,
             ended_at: datetime = None,
+            part: int = 1,
             transcode_path: str|Path = None,
     ) -> None:
         
@@ -56,6 +58,7 @@ class VideoFile(EndableModel):
         self.path = Path(path).resolve()
         self.started_at = started_at
         self.ended_at = ended_at
+        self.part = part
         self.transcode_path = Path(transcode_path).resolve() if transcode_path else None
 
     @classmethod

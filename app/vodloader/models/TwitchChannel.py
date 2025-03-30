@@ -1,5 +1,6 @@
 from vodloader.database import *
 from vodloader.util import *
+from vodloader import config
 from vodloader.models import BaseModel
 from vodloader.twitch import twitch
 import streamlink
@@ -132,6 +133,9 @@ class TwitchChannel(BaseModel):
             return True
         else:
             return False
+    
+    def get_path(self):
+        return config.DOWNLOAD_DIR.joinpath(self.login)
 
     def __str__(self):
         return self.id
