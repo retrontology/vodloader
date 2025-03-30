@@ -14,7 +14,8 @@ import datetime
 CHUNK_SIZE = 8192
 VIDEO_EXTENSION = 'ts'
 NAMING_SCHEME = '{channel}-{title}-{stream}-part-{part}.{ext}'
-CUTOFF = datetime.timedelta(hours=8)
+#CUTOFF = datetime.timedelta(hours=8)
+CUTOFF = datetime.timedelta(minutes=5)
 
 
 logger: logging.Logger = logging.getLogger('vodloader')
