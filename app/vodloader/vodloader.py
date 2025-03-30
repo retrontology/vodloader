@@ -196,11 +196,13 @@ def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
     except Exception as e:
         logger.error(e)
 
-    # Cleanup the buffer
-    buffer.close()
-
     # End the last video being written to
     end_time = datetime.now(timezone.utc)
     loop.run_until_complete(video_file.end(end_time))
+
+    # Cleanup the buffer and loop
+    buffer.close()
+    loop.stop()
+    loop.close()
 
     return end_time
