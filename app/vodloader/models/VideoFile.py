@@ -19,6 +19,7 @@ class VideoFile(EndableModel):
             path VARCHAR(4096),
             started_at DATETIME NOT NULL,
             ended_at DATETIME DEFAULT NULL,
+            part TINYINT UNSIGNED DEFAULT 1,
             transcode_path VARCHAR(4096) DEFAULT NULL,
             PRIMARY KEY (id),
             FOREIGN KEY (stream) REFERENCES {TwitchStream.table_name}(id),
