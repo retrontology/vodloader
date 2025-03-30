@@ -142,7 +142,7 @@ async def _download_stream(channel: TwitchChannel):
 def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
 
     # Get the event loop for the executor
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
 
     try:
 
