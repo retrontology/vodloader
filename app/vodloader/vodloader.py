@@ -13,8 +13,7 @@ from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, Cha
 CHUNK_SIZE = 8192
 VIDEO_EXTENSION = 'ts'
 NAMING_SCHEME = '{channel}-{title}-{stream}-part-{part}.{ext}'
-#CUTOFF = timedelta(hours=8)
-CUTOFF = timedelta(minutes=5)
+CUTOFF = timedelta(hours=8)
 
 
 logger: logging.Logger = logging.getLogger('vodloader')
