@@ -176,8 +176,10 @@ def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
             )
             loop.run_until_complete(video_file.save())
 
-            with open(video_path, 'wb') as file:
+            logger.info(f'Writing stream from {channel.name} to {video_path}')
 
+            with open(video_path, 'wb') as file:
+                
                 # Second loop for writing video stream data to file
                 while data:
                     file.write(data)
@@ -185,6 +187,8 @@ def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
                     
                     # Check if the video has exceeded the cutoff and trigger next file if it does
                     if buffer.worker.playlist_sequence_last - start > CUTOFF:
+                        logger.info(f'Video file {video_path} has reached the cutoff. Handing stream over to next file...')
+                        loop.run_until_complete(video_file.end())
                         part = part + 1
                         break
 
