@@ -1,6 +1,6 @@
 import logging
 from uuid import uuid4
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import asyncio
 from functools import partial
@@ -8,14 +8,13 @@ from vodloader.models import *
 from vodloader import config
 from vodloader.twitch import webhook
 from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, ChannelUpdateEvent
-import datetime
 
 
 CHUNK_SIZE = 8192
 VIDEO_EXTENSION = 'ts'
 NAMING_SCHEME = '{channel}-{title}-{stream}-part-{part}.{ext}'
-#CUTOFF = datetime.timedelta(hours=8)
-CUTOFF = datetime.timedelta(minutes=5)
+#CUTOFF = timedelta(hours=8)
+CUTOFF = timedelta(minutes=5)
 
 
 logger: logging.Logger = logging.getLogger('vodloader')
