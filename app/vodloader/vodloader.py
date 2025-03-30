@@ -8,11 +8,13 @@ from vodloader.models import *
 from vodloader import config
 from vodloader.twitch import webhook
 from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, ChannelUpdateEvent
+import datetime
 
 
 CHUNK_SIZE = 8192
 VIDEO_EXTENSION = 'ts'
 NAMING_SCHEME = '{channel}-{title}-{stream}-part-{part}.{ext}'
+CUTOFF = datetime.timedelta(hours=8)
 
 
 logger: logging.Logger = logging.getLogger('vodloader')
@@ -148,11 +150,13 @@ def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
         video_stream = channel.get_video_stream()
         buffer = video_stream.open()
         data = buffer.read(CHUNK_SIZE)
+        
 
         # First loop for iterating through video files
-        while True:
+        while data:
 
-            # Create video file path and DB entry
+            # Create video file
+            start = buffer.worker.playlist_sequence_last
             video_path = path.joinpath(
                 NAMING_SCHEME.format(
                     channel=channel.login,
@@ -172,16 +176,18 @@ def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
             )
             loop.run_until_complete(video_file.save())
 
-            # Second loop for writing video stream data to file
             with open(video_path, 'wb') as file:
-                while True:
+
+                # Second loop for writing video stream data to file
+                while data:
                     file.write(data)
                     data = buffer.read(CHUNK_SIZE)
-                    if not data:
+                    
+                    # Check if the video has exceeded the cutoff and trigger next file if it does
+                    if buffer.worker.playlist_sequence_last - start > CUTOFF:
+                        part = part + 1
                         break
-            
-            if not data:
-                break
+
             
     except Exception as e:
         logger.error(e)
