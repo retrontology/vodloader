@@ -1,4 +1,4 @@
-from vodloader.models import VideoFile
+from vodloader.models import VideoFile, Message
 import ffmpeg
 import cv2
 from PIL import Image, ImageDraw, ImageFont
@@ -9,10 +9,11 @@ from typing import List
 from pathlib import Path
 import asyncio
 import logging
+from datetime import timedelta, datetime
 
 
 DEFAULT_WIDTH = 320
-DEFAULT_FONT = "Arial"
+DEFAULT_FONT = "FreeSans"
 DEFAULT_FONT_SIZE = 12
 DEFAULT_FONT_COLOR = (0, 0, 0, 255)
 DEFAULT_BACKGROUND_COLOR = (255, 255, 255, 0)
@@ -59,17 +60,29 @@ def _transcode(video: VideoFile) -> Path:
     return transcode_path
 
 
-def generate_chat(
+async def generate_chat(
         video: VideoFile,
         width: int = DEFAULT_WIDTH,
         height: int = None,
-        font: str = DEFAULT_FONT,
+        font_name: str = DEFAULT_FONT,
         font_size: int = DEFAULT_FONT_SIZE,
         font_color: str = DEFAULT_FONT_COLOR,
         background_color: str = DEFAULT_BACKGROUND_COLOR,
     ) -> None:
 
     logger.info(f'Generating chat video for {video.path}')
+
+    font = None
+    for font_obj in get_fonts():
+        if font_obj.family_name == font_name:
+            font = font_obj
+            break
+    if not font:
+        raise ValueError(f'Font {font_name} not found')
+    font = ImageFont.truetype(font.fname, font_size)
+
+    messages = await Message.from_stream(video.stream)
+    logger.info(f'Found {len(messages)} messages')
 
     video_in = cv2.VideoCapture(
         filename=video.path,
@@ -100,6 +113,11 @@ def generate_chat(
             cv2.VIDEO_ACCELERATION_ANY
         }
     )
+
+    start_x = 20
+    start_y = 20
+    max_y = chat_height - (start_y * 2)
+    message_index = 0
     
     while True:
 
@@ -107,13 +125,32 @@ def generate_chat(
         if not ret:
             break
 
+        time_offset = timedelta(milliseconds=video_in.get(cv2.CAP_PROP_POS_MSEC))
+        current_time = video.started_at + time_offset
+
+        while messages[message_index].timestamp <= current_time and message_index < len(messages):
+            message_index += 1
+
+        y = start_y
+
+        visible_message_index = message_index
+        while visible_message_index > 0 and y < max_y:
+            message = messages[visible_message_index]
+            draw.text((start_x, y), message.content, font=font, fill=font_color)
+            y += line_height
+            visible_message_index -= 1
+
         base_image = Image.fromarray(in_frame, mode="RGB")
-        
+        draw = ImageDraw.Draw(base_image)
         out_frame = cv2.cvtColor(np.array(base_image), cv2.COLOR_RGB2BGR)
         video_out.write(np.array(out_frame))
+    
+    video_in.release()
+    video_out.release()
+    
 
 
-def _get_fonts() -> List[FT2Font]:
+def get_fonts() -> List[FT2Font]:
     systemt_fonts = font_manager.findSystemFonts(fontext='ttf')
     fonts = []
     for font in systemt_fonts:
