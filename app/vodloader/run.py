@@ -9,6 +9,7 @@ from vodloader.api import create_api
 from vodloader.twitch import twitch, webhook
 from vodloader.vodloader import subscribe
 from vodloader.chat import bot
+from vodloader.post import transcode_loop
 from vodloader import config
 from threading import Thread
 
@@ -96,15 +97,6 @@ async def main():
     await webhook.unsubscribe_all()
     await webhook.stop()
     await twitch.close()
-
-
-async def transcode_loop():
-    while True:
-        video = await VideoFile.get_next_transcode()
-        if video:
-            await video.transcode()
-        else:
-            await asyncio.sleep(60)
 
 
 if __name__ == '__main__':
