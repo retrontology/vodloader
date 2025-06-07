@@ -9,7 +9,7 @@ from typing import List
 from pathlib import Path
 import asyncio
 import logging
-from datetime import timedelta, datetime
+from datetime import timedelta
 
 
 DEFAULT_WIDTH = 320
@@ -17,7 +17,6 @@ DEFAULT_FONT = "FreeSans"
 DEFAULT_FONT_SIZE = 12
 DEFAULT_FONT_COLOR = (0, 0, 0, 255)
 DEFAULT_BACKGROUND_COLOR = (255, 255, 255, 0)
-
 
 
 logger = logging.getLogger('vodloader.post')
@@ -136,7 +135,7 @@ async def generate_chat(
         visible_message_index = message_index
         while visible_message_index > 0 and y < max_y:
             message = messages[visible_message_index]
-            draw.text((start_x, y), message.content, font=font, fill=font_color)
+            draw.text((start_x, y), f'{message.display_name}: {message.content}', font=font, fill=font_color)
             y += line_height
             visible_message_index -= 1
 
