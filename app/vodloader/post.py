@@ -14,9 +14,9 @@ from datetime import timedelta
 
 DEFAULT_WIDTH = 320
 DEFAULT_FONT = "FreeSans"
-DEFAULT_FONT_SIZE = 12
-DEFAULT_FONT_COLOR = (0, 0, 0, 255)
-DEFAULT_BACKGROUND_COLOR = (255, 255, 255, 0)
+DEFAULT_FONT_SIZE = 24
+DEFAULT_FONT_COLOR = (255, 255, 255, 255)
+DEFAULT_BACKGROUND_COLOR = (0, 0, 0, 0)
 
 
 logger = logging.getLogger('vodloader.post')
@@ -85,11 +85,7 @@ async def generate_chat(
 
     video_in = cv2.VideoCapture(
         filename=video.path,
-        apiPreference=cv2.CAP_FFMPEG,
-        params={
-            cv2.VIDEOWRITER_PROP_HW_ACCELERATION,
-            cv2.VIDEO_ACCELERATION_ANY
-        }
+        apiPreference=cv2.CAP_FFMPEG
     )
 
     video_width = video_in.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -103,14 +99,9 @@ async def generate_chat(
     transcode_path = video.path.parent.joinpath(f'{video.path.stem}.chat.mp4')
     video_out = cv2.VideoWriter(
         filename=transcode_path,
-        apiPreference=cv2.CAP_FFMPEG,
         fourcc=cv2.VideoWriter_fourcc(*'mp4v'),
         fps=fps,
-        frameSize=(video_width, video_height),
-        params={
-            cv2.VIDEOWRITER_PROP_HW_ACCELERATION,
-            cv2.VIDEO_ACCELERATION_ANY
-        }
+        frameSize=(int(video_width), int(video_height))
     )
 
     start_x = 20
@@ -123,11 +114,13 @@ async def generate_chat(
         ret, in_frame = video_in.read()
         if not ret:
             break
+        base_image = Image.fromarray(in_frame, mode="RGB")
+        draw = ImageDraw.Draw(base_image)
 
         time_offset = timedelta(milliseconds=video_in.get(cv2.CAP_PROP_POS_MSEC))
         current_time = video.started_at + time_offset
 
-        while messages[message_index].timestamp <= current_time and message_index < len(messages):
+        while message_index < len(messages) - 1 and messages[message_index].timestamp <= current_time:
             message_index += 1
 
         y = start_y
@@ -139,10 +132,8 @@ async def generate_chat(
             y += line_height
             visible_message_index -= 1
 
-        base_image = Image.fromarray(in_frame, mode="RGB")
-        draw = ImageDraw.Draw(base_image)
-        out_frame = cv2.cvtColor(np.array(base_image), cv2.COLOR_RGB2BGR)
-        video_out.write(np.array(out_frame))
+        #out_frame = cv2.cvtColor(np.array(base_image), cv2.COLOR_RGB2BGR)
+        video_out.write(np.array(base_image))
     
     video_in.release()
     video_out.release()
