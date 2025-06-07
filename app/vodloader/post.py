@@ -8,9 +8,18 @@ from matplotlib.ft2font import FT2Font
 from typing import List
 from pathlib import Path
 import asyncio
+import logging
 
 
 DEFAULT_WIDTH = 320
+DEFAULT_FONT = "Arial"
+DEFAULT_FONT_SIZE = 12
+DEFAULT_FONT_COLOR = (0, 0, 0, 255)
+DEFAULT_BACKGROUND_COLOR = (255, 255, 255, 0)
+
+
+
+logger = logging.getLogger('vodloader.post')
 
 
 async def remove_original(video: VideoFile):
@@ -22,7 +31,7 @@ async def remove_original(video: VideoFile):
     video.path.unlink()
     video.path = None
     await video.save()
-    video.logger.info(f'The original stream file at {path.__str__()} has been deleted')
+    logger.info(f'The original stream file at {path.__str__()} has been deleted')
 
 
 async def transcode(video: VideoFile) -> None:
@@ -33,11 +42,11 @@ async def transcode(video: VideoFile) -> None:
     if video.transcode_path:
         raise VideoAlreadyTranscoded
     
-    video.logger.info(f'Transcoding {video.path}')
+    logger.info(f'Transcoding {video.path}')
     loop = asyncio.get_event_loop()
     video.transcode_path = await loop.run_in_executor(None, _transcode, video)
     await video.save()
-    video.logger.info(f'Finished transcoding {video.path} to {video.transcode_path}')
+    logger.info(f'Finished transcoding {video.path} to {video.transcode_path}')
     await remove_original(video)
 
 
@@ -48,6 +57,60 @@ def _transcode(video: VideoFile) -> Path:
     stream = ffmpeg.overwrite_output(stream)
     ffmpeg.run(stream, quiet=True)
     return transcode_path
+
+
+def generate_chat(
+        video: VideoFile,
+        width: int = DEFAULT_WIDTH,
+        height: int = None,
+        font: str = DEFAULT_FONT,
+        font_size: int = DEFAULT_FONT_SIZE,
+        font_color: str = DEFAULT_FONT_COLOR,
+        background_color: str = DEFAULT_BACKGROUND_COLOR,
+    ) -> None:
+
+    logger.info(f'Generating chat video for {video.path}')
+
+    video_in = cv2.VideoCapture(
+        filename=video.path,
+        apiPreference=cv2.CAP_FFMPEG,
+        params={
+            cv2.VIDEOWRITER_PROP_HW_ACCELERATION,
+            cv2.VIDEO_ACCELERATION_ANY
+        }
+    )
+
+    video_width = video_in.get(cv2.CAP_PROP_FRAME_WIDTH)
+    video_height = video_in.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    fps = video_in.get(cv2.CAP_PROP_FPS)
+
+    chat_width = width
+    chat_height = height if height else video_height
+    line_height = font_size * 1.2
+
+    transcode_path = video.path.parent.joinpath(f'{video.path.stem}.mp4')
+    video_out = cv2.VideoWriter(
+        filename=transcode_path,
+        apiPreference=cv2.CAP_FFMPEG,
+        fourcc=cv2.VideoWriter_fourcc(*'mp4v'),
+        fps=fps,
+        frameSize=(video_width, video_height),
+        params={
+            cv2.VIDEOWRITER_PROP_HW_ACCELERATION,
+            cv2.VIDEO_ACCELERATION_ANY
+        }
+    )
+    
+    while True:
+
+        ret, in_frame = video_in.read()
+        if not ret:
+            break
+
+        base_image = Image.fromarray(in_frame, mode="RGB")
+        
+        out_frame = cv2.cvtColor(np.array(base_image), cv2.COLOR_RGB2BGR)
+        video_out.write(np.array(out_frame))
 
 
 def _get_fonts() -> List[FT2Font]:

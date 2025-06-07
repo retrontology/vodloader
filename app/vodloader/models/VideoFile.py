@@ -1,12 +1,14 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Self, List
+from typing import Self, List, Dict, Any
 from vodloader.database import *
 from vodloader.util import *
 from vodloader.models import EndableModel, TwitchStream, TwitchChannel, OrderDirection, NOT_NULL
+import ffmpeg
 
 
 class VideoFile(EndableModel):
+
 
     table_name = 'video_file'
     table_command = f"""
@@ -61,6 +63,7 @@ class VideoFile(EndableModel):
         self.part = part
         self.transcode_path = Path(transcode_path).resolve() if transcode_path else None
 
+
     @classmethod
     async def get_nontranscoded(cls) -> List[Self]:
         results = await cls.get_many(
@@ -69,6 +72,7 @@ class VideoFile(EndableModel):
             order=OrderDirection.ASC
         )
         return results
+
 
     @classmethod
     async def get_next_transcode(cls) -> Self:
@@ -79,3 +83,20 @@ class VideoFile(EndableModel):
             order=OrderDirection.ASC
         )
         return next
+
+
+    def probe(self) -> Dict[str, Any]:
+        path = self.transcode_path if self.transcode_path else self.path
+        info = ffmpeg.probe(path)
+        for stream in info['streams']:
+            if 'r_frame_rate' in stream:
+                stream['r_frame_rate'] = (int(x) for x in stream['r_frame_rate'].split('/'))
+            if 'avg_frame_rate' in stream:
+                stream['avg_frame_rate'] = (int(x) for x in stream['avg_frame_rate'].split('/'))
+            if 'duration' in stream:
+                stream['duration'] = float(stream['duration'])
+            if 'start_time' in stream:
+                stream['start_time'] = float(stream['start_time'])
+            if 'time_base' in stream:
+                stream['time_base'] = (int(x) for x in stream['time_base'].split('/'))
+        return 
