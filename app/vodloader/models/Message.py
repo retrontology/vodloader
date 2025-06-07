@@ -2,7 +2,8 @@ from datetime import datetime
 from typing import Self, List, Dict, Tuple
 from vodloader.database import *
 from vodloader.util import *
-from vodloader.models import BaseModel, TwitchStream, TwitchChannel
+from vodloader.models import BaseModel, TwitchChannel
+from vodloader.models.TwitchStream import TwitchStream
 from irc.client import Event
 
 
