@@ -101,7 +101,7 @@ async def generate_chat(
     chat_height = height if height else video_height
     line_height = font_size * 1.2
 
-    transcode_path = video.path.parent.joinpath(f'{video.path.stem}.mp4')
+    transcode_path = video.path.parent.joinpath(f'{video.path.stem}.chat.mp4')
     video_out = cv2.VideoWriter(
         filename=transcode_path,
         apiPreference=cv2.CAP_FFMPEG,
@@ -147,7 +147,7 @@ async def generate_chat(
     
     video_in.release()
     video_out.release()
-    
+
 
 
 def get_fonts() -> List[FT2Font]:
