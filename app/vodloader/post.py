@@ -17,6 +17,7 @@ DEFAULT_FONT = "FreeSans"
 DEFAULT_FONT_SIZE = 24
 DEFAULT_FONT_COLOR = (255, 255, 255, 255)
 DEFAULT_BACKGROUND_COLOR = (0, 0, 0, 0)
+DEFAULT_MESSAGE_DURATION = 10
 
 
 logger = logging.getLogger('vodloader.post')
@@ -67,9 +68,12 @@ async def generate_chat(
         font_size: int = DEFAULT_FONT_SIZE,
         font_color: str = DEFAULT_FONT_COLOR,
         background_color: str = DEFAULT_BACKGROUND_COLOR,
+        message_duration: int = DEFAULT_MESSAGE_DURATION
     ) -> None:
 
     logger.info(f'Generating chat video for {video.path}')
+
+    message_duration = timedelta(seconds=message_duration)
 
     font = None
     for font_obj in get_fonts():
@@ -80,7 +84,7 @@ async def generate_chat(
         raise ValueError(f'Font {font_name} not found')
     font = ImageFont.truetype(font.fname, font_size)
 
-    messages = await Message.from_stream(video.stream)
+    messages = await Message.for_video(video)
     logger.info(f'Found {len(messages)} messages')
 
     video_in = cv2.VideoCapture(
@@ -120,19 +124,21 @@ async def generate_chat(
         time_offset = timedelta(milliseconds=video_in.get(cv2.CAP_PROP_POS_MSEC))
         current_time = video.started_at + time_offset
 
-        while message_index < len(messages) - 1 and messages[message_index].timestamp <= current_time:
+        while message_index < len(messages) - 1 and messages[message_index].timestamp < current_time:
             message_index += 1
 
         y = start_y
 
         visible_message_index = message_index
-        while visible_message_index > 0 and y < max_y:
+        while visible_message_index >= 0 and y < max_y:
+
             message = messages[visible_message_index]
+            if (current_time - message.timestamp) > message_duration:
+                break
             draw.text((start_x, y), f'{message.display_name}: {message.content}', font=font, fill=font_color)
             y += line_height
             visible_message_index -= 1
 
-        #out_frame = cv2.cvtColor(np.array(base_image), cv2.COLOR_RGB2BGR)
         video_out.write(np.array(base_image))
     
     video_in.release()

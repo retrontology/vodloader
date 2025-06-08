@@ -2,8 +2,7 @@ from datetime import datetime
 from typing import Self, List, Dict, Tuple
 from vodloader.database import *
 from vodloader.util import *
-from vodloader.models import BaseModel, TwitchChannel
-from vodloader.models.TwitchStream import TwitchStream
+from vodloader.models import BaseModel, TwitchChannel, VideoFile
 from irc.client import Event
 
 
@@ -119,7 +118,7 @@ class Message(BaseModel):
         )
     
     @classmethod
-    async def from_stream(cls, stream_id: int) -> List[Self]:
+    async def for_video(cls, video: VideoFile) -> List[Self]:
 
         db = await get_db()
         connection = await db.connect()
@@ -129,13 +128,13 @@ class Message(BaseModel):
             SELECT {cls.table_name}.*
             FROM {cls.table_name},
              (SELECT started_at, ended_at, channel
-             FROM {TwitchStream.table_name}
+             FROM {video.table_name}
              WHERE id = {db.char}) AS stream
             WHERE {cls.table_name}.timestamp BETWEEN stream.started_at and stream.ended_at
             AND {cls.table_name}.channel = stream.channel
             ORDER BY timestamp ASC;
             """,
-            (stream_id, )
+            (video.id, )
         )
         args_list = await cursor.fetchall()
         await cursor.close()
