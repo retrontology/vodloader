@@ -144,9 +144,9 @@ async def generate_chat_video(
     max_y = chat_height - (start_y * 2)
 
     # Open the output file
-    transcode_path = video.path.parent.joinpath(f'{video.path.stem}.chat.mp4')
+    chat_video_path = video.path.parent.joinpath(f'{video.path.stem}.chat.mp4')
     video_out = cv2.VideoWriter(
-        filename=transcode_path,
+        filename=chat_video_path,
         fourcc=cv2.VideoWriter_fourcc(*'mp4v'),
         fps=fps,
         frameSize=(int(video_width), int(video_height))
@@ -227,6 +227,21 @@ async def generate_chat_video(
     video_in.release()
     video_out.release()
 
+    # Mux the audio and video streams while transcoding the audio
+    transcode_path = video.path.parent.joinpath(f'{video.path.stem}.mp4')
+    chat_stream = ffmpeg.input(chat_video_path.__str__())
+    original_stream = ffmpeg.input(video.path.__str__())
+    output_stream = ffmpeg.output(chat_stream['v:0'], original_stream['a:0'], transcode_path.__str__(), vcodec='copy', acodec='aac')
+    output_stream = ffmpeg.overwrite_output(output_stream)
+    ffmpeg.run(output_stream, quiet=True)
+
+    # Remove the chat and original video files
+    chat_video_path.unlink()
+    #remove_original(video)
+
+    # Return the path of the transcoded video file
+    return transcode_path
+
 
 def get_fonts() -> List[FT2Font]:
     """
@@ -280,7 +295,7 @@ async def transcode_loop():
     while True:
         video = await VideoFile.get_next_transcode()
         if video:
-            await transcode(video)
+            await generate_chat_video(video)
         else:
             await asyncio.sleep(60)
 
