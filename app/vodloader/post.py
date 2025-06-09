@@ -113,6 +113,7 @@ async def generate_chat(
     max_y = chat_height - (start_y * 2)
     message_index = 0
     
+    # Loop through each frame
     while True:
 
         ret, in_frame = video_in.read()
@@ -124,8 +125,14 @@ async def generate_chat(
         time_offset = timedelta(milliseconds=video_in.get(cv2.CAP_PROP_POS_MSEC))
         current_time = video.started_at + time_offset
 
-        while message_index < len(messages) - 1 and messages[message_index].timestamp < current_time:
+        # Point the index to the newest message for the current frame
+        while messages[message_index].timestamp <= current_time:
+            if message_index >= len(messages) - 1:
+                break
+            if messages[message_index+1].timestamp > current_time:
+                break
             message_index += 1
+
 
         y = start_y
 
