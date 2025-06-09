@@ -13,7 +13,8 @@ from datetime import timedelta
 
 
 DEFAULT_WIDTH = 320
-DEFAULT_FONT = "FreeSans"
+DEFAULT_FONT_FAMILY = "FreeSans"
+DEFAULT_FONT_STYLE = "Regular"
 DEFAULT_FONT_SIZE = 24
 DEFAULT_FONT_COLOR = (255, 255, 255, 255)
 DEFAULT_BACKGROUND_COLOR = (0, 0, 0, 0)
@@ -24,6 +25,9 @@ logger = logging.getLogger('vodloader.post')
 
 
 async def remove_original(video: VideoFile):
+    """
+    Removes the original stream file from the system
+    """
     
     if not video.path:
         raise VideoAlreadyRemoved
@@ -36,6 +40,12 @@ async def remove_original(video: VideoFile):
 
 
 async def transcode(video: VideoFile) -> None:
+    """
+    Transcodes the original stream file into an mp4
+
+    Args:
+        video (VideoFile): The video file to transcode
+    """
 
     if not video.ended_at:
         raise VideoFileNotEnded
@@ -52,6 +62,14 @@ async def transcode(video: VideoFile) -> None:
 
 
 def _transcode(video: VideoFile) -> Path:
+    """
+    Synchronous function to transcode a video file to mp4
+
+    Args:
+        video (VideoFile): The video file to transcode.
+    Returns:
+        Path: The path to the transcoded file.
+    """
     transcode_path = video.path.parent.joinpath(f'{video.path.stem}.mp4')
     stream = ffmpeg.input(video.path.__str__())
     stream = ffmpeg.output(stream, transcode_path.__str__(), vcodec='copy')
@@ -60,46 +78,72 @@ def _transcode(video: VideoFile) -> Path:
     return transcode_path
 
 
-async def generate_chat(
+async def generate_chat_video(
         video: VideoFile,
         width: int = DEFAULT_WIDTH,
         height: int = None,
-        font_name: str = DEFAULT_FONT,
+        font_family: str = DEFAULT_FONT_FAMILY,
+        font_style: str = DEFAULT_FONT_STYLE,
         font_size: int = DEFAULT_FONT_SIZE,
         font_color: str = DEFAULT_FONT_COLOR,
         background_color: str = DEFAULT_BACKGROUND_COLOR,
         message_duration: int = DEFAULT_MESSAGE_DURATION
-    ) -> None:
+    ) -> Path:
+    """
+    Transcodes a stream and overlays chat messages on it.
+
+    Args:
+        video (VideoFile): The video to transcode.
+        width (int): The width of the output video.
+        height (int): The height of the output video.
+        font_family (str): The font family to use.
+        font_style (str): The font style to use.
+        font_size (int): The font size to use.
+        font_color (str): The font color to use.
+        background_color (str): The background color to use.
+        message_duration (int): The duration of each message in seconds.
+    Returns:
+        Path: The path to the transcoded video.
+    Raises:
+        Exception: If an error occurs during transcoding.
+    """
 
     logger.info(f'Generating chat video for {video.path}')
 
+    # Convert the message duration for easier handling
     message_duration = timedelta(seconds=message_duration)
 
-    font = None
-    for font_obj in get_fonts():
-        if font_obj.family_name == font_name:
-            font = font_obj
-            break
-    if not font:
-        raise ValueError(f'Font {font_name} not found')
-    font = ImageFont.truetype(font.fname, font_size)
-
+    # Get the messages for this video
+    message_index = 0
     messages = await Message.for_video(video)
+    if len(messages) == 0:
+        logger.info('No messages found for this video')
+        return None
     logger.info(f'Found {len(messages)} messages')
 
+    # Load the font
+    font = get_font(font_family, font_style, font_size)
+
+    # Open the input video file
     video_in = cv2.VideoCapture(
         filename=video.path,
         apiPreference=cv2.CAP_FFMPEG
     )
 
+    # Read properties of the input video file
     video_width = video_in.get(cv2.CAP_PROP_FRAME_WIDTH)
     video_height = video_in.get(cv2.CAP_PROP_FRAME_HEIGHT)
     fps = video_in.get(cv2.CAP_PROP_FPS)
 
+    # Calculate chat dimensions
     chat_width = width
     chat_height = height if height else video_height
     line_height = font_size * 1.2
+    start_x = 20
+    start_y = 20
+    max_y = chat_height - (start_y * 2)
 
+    # Open the output file
     transcode_path = video.path.parent.joinpath(f'{video.path.stem}.chat.mp4')
     video_out = cv2.VideoWriter(
         filename=transcode_path,
@@ -107,21 +151,18 @@ async def generate_chat(
         fps=fps,
         frameSize=(int(video_width), int(video_height))
     )
-
-    start_x = 20
-    start_y = 20
-    max_y = chat_height - (start_y * 2)
-    message_index = 0
     
     # Loop through each frame
     while True:
 
+        # Read a new frame from the stream
         ret, in_frame = video_in.read()
         if not ret:
             break
         base_image = Image.fromarray(in_frame, mode="RGB")
         draw = ImageDraw.Draw(base_image)
 
+        # Calculate the current time in the stream
         time_offset = timedelta(milliseconds=video_in.get(cv2.CAP_PROP_POS_MSEC))
         current_time = video.started_at + time_offset
 
@@ -133,27 +174,68 @@ async def generate_chat(
                 break
             message_index += 1
 
-
-        y = start_y
-
+        # Iterate through visible messages
+        current_y = start_y
         visible_message_index = message_index
-        while visible_message_index >= 0 and y < max_y:
-
+        while True:
+            if current_y > max_y:
+                break
             message = messages[visible_message_index]
             if (current_time - message.timestamp) > message_duration:
                 break
-            draw.text((start_x, y), f'{message.display_name}: {message.content}', font=font, fill=font_color)
-            y += line_height
-            visible_message_index -= 1
 
+            prefix = f'{message.display_name}:'
+
+            # Break the message into lines and calculate their positions
+            words = message.content.split(' ')
+            lines = [[]]
+            temp_x = start_x + draw.textlength(prefix, font=font)
+            for word in words:
+                word_length = draw.textlength(f' {word}', font=font)
+                if temp_x + word_length > chat_width:
+                    lines.append([word])
+                    temp_x = start_x + draw.textlength(word, font=font)
+                else:
+                    lines[-1].append(word)
+                    temp_x += word_length
+
+            # If the message is too big to fit, exit before drawing it
+            if len(lines) * line_height + current_y > max_y:
+                break
+
+            # Draw the message
+            draw.text((start_x, current_y), prefix, font=font, fill=message.color)
+            current_x = start_x + draw.textlength(f'{prefix} ', font=font)
+            for line in lines:
+                if not line:
+                    continue
+                line = ' '.join(line)
+                draw.text((current_x, current_y), line, font=font, fill=font_color)
+                current_y += line_height
+                current_x = start_x
+
+            # Decrement the visible message index
+            if visible_message_index > 0:
+                visible_message_index -= 1
+            else:
+                break
+
+        # Write the frame to the output video
         video_out.write(np.array(base_image))
     
+    # Release both input and output video files
     video_in.release()
     video_out.release()
 
 
-
 def get_fonts() -> List[FT2Font]:
+    """
+    Returns a list of all available fonts on the system.
+
+    Returns:
+        List[FT2Font]:
+            A list of all available fonts on the
+    """
     systemt_fonts = font_manager.findSystemFonts(fontext='ttf')
     fonts = []
     for font in systemt_fonts:
@@ -164,7 +246,37 @@ def get_fonts() -> List[FT2Font]:
     return fonts
 
 
+def get_font(
+        font_family: str = DEFAULT_FONT_FAMILY,
+        font_style: str = DEFAULT_FONT_STYLE,
+        font_size: int = DEFAULT_FONT_SIZE,
+) -> ImageFont.FreeTypeFont:
+    """
+    Returns a font object for the specified font family, style, and size.
+
+    Args:
+        font_family (str, optional): The font family to use. Defaults to DEFAULT_FONT_FAMILY.
+        font_style (str, optional): The font style to use. Defaults to DEFAULT_FONT_STYLE.
+        font_size (int, optional): The font size to use. Defaults to DEFAULT_FONT_SIZE.
+    Returns:
+        ImageFont.FreeTypeFont: A font object for the specified font family, style, and size.
+    Raises:
+        ValueError: If the specified font is not found.
+    """
+    font = None
+    for font_obj in get_fonts():
+        if font_obj.family_name == font_family and font_obj.style_name == font_style:
+            font = font_obj
+            break
+    if not font:
+        raise ValueError(f'Font {font_family} {font_style} not found')
+    return ImageFont.truetype(font.fname, font_size)
+
+
 async def transcode_loop():
+    """
+    Continuously checks for videos that need to be transcoded and transcodes them. If no videos are available, it sleeps for 60 seconds before checking again.
+    """
     while True:
         video = await VideoFile.get_next_transcode()
         if video:
