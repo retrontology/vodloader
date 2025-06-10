@@ -306,7 +306,9 @@ async def transcode_loop():
     while not stop_event.is_set():
         video = await VideoFile.get_next_transcode()
         if video:
-            await generate_chat_video(video)
+            result = await generate_chat_video(video)
+            if result == None:
+                await transcode(video)
         else:
             await asyncio.sleep(360)
 
