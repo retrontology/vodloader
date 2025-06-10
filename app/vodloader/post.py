@@ -21,6 +21,7 @@ DEFAULT_BACKGROUND_COLOR = (0, 0, 0, 0)
 DEFAULT_MESSAGE_DURATION = 10
 
 
+stop_event = asyncio.Event()
 logger = logging.getLogger('vodloader.post')
 
 
@@ -302,12 +303,12 @@ async def transcode_loop():
     """
     Continuously checks for videos that need to be transcoded and transcodes them. If no videos are available, it sleeps for 60 seconds before checking again.
     """
-    while True:
+    while not stop_event.is_set():
         video = await VideoFile.get_next_transcode()
         if video:
             await generate_chat_video(video)
         else:
-            await asyncio.sleep(60)
+            await asyncio.sleep(360)
 
 
 class VideoAlreadyTranscoded(Exception): pass
