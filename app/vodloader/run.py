@@ -9,14 +9,9 @@ from vodloader.api import create_api
 from vodloader.twitch import twitch, webhook
 from vodloader.vodloader import subscribe
 from vodloader.chat import bot
-from vodloader.post import transcode_loop, stop_event
+from vodloader.post import transcode_loop
 from vodloader import config
 from threading import Thread
-import signal
-
-
-def handle_sigterm(signum, frame):
-    stop_event.set()
 
 
 def parse_args():
@@ -88,9 +83,6 @@ async def main():
     hypercorn_config.bind = [f"{config.API_HOST}:{config.API_PORT}"]
     api = create_api()
     api_task = loop.create_task(serve(api, hypercorn_config))
-
-    # Register signal handlers for graceful shutdown
-    signal.signal(signal.SIGTERM, handle_sigterm)
 
     # Run Transcode Task
     transcode_task = loop.create_task(transcode_loop())
