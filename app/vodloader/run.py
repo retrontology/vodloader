@@ -9,7 +9,7 @@ from vodloader.api import create_api
 from vodloader.twitch import twitch, webhook
 from vodloader.vodloader import subscribe
 from vodloader.chat import bot
-from vodloader.post import transcode_loop
+from vodloader.post import transcode_listener
 from vodloader import config
 from threading import Thread
 
@@ -82,26 +82,20 @@ async def main():
     hypercorn_config = HypercornConfig()
     hypercorn_config.bind = [f"{config.API_HOST}:{config.API_PORT}"]
     api = create_api()
-    api_task = loop.create_task(serve(api, hypercorn_config))
-
-    # Run Transcode Task
-    transcode_task = loop.create_task(transcode_loop())
     
     # Await everything
-    logger.info('Awaiting the API task...')
-    await api_task
-    logger.info('Awaiting the transcode task...')
-    await transcode_task
+    await asyncio.gather(
+        serve(api, hypercorn_config),
+        transcode_listener()
+    )
 
     # Cleanup
     logger.info('Shutting down the chatbot...')
     bot.die()
     bot.disconnect()
     logger.info('Shutting down the webhooks...')
-    await webhook.unsubscribe_all()
-    await webhook.stop()
-    logger.info('Shutting down the Twitch API...')
-    await twitch.close()
+    await asyncio.gather(webhook.unsubscribe_all(), webhook.stop(), twitch.close())
+
 
 
 if __name__ == '__main__':

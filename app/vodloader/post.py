@@ -10,7 +10,6 @@ from pathlib import Path
 import asyncio
 import logging
 from datetime import timedelta
-import signal
 
 
 DEFAULT_WIDTH = 320
@@ -22,12 +21,8 @@ DEFAULT_BACKGROUND_COLOR = (0, 0, 0, 0)
 DEFAULT_MESSAGE_DURATION = 10
 
 
-stop_event = asyncio.Event()
+transcode_queue = asyncio.Queue()
 logger = logging.getLogger('vodloader.post')
-
-
-def handle_sigterm(signum, frame):
-    stop_event.set()
 
 
 async def remove_original(video: VideoFile):
@@ -45,29 +40,7 @@ async def remove_original(video: VideoFile):
     logger.info(f'The original stream file at {path.__str__()} has been deleted')
 
 
-async def transcode(video: VideoFile) -> None:
-    """
-    Transcodes the original stream file into an mp4
-
-    Args:
-        video (VideoFile): The video file to transcode
-    """
-
-    if not video.ended_at:
-        raise VideoFileNotEnded
-    
-    if video.transcode_path:
-        raise VideoAlreadyTranscoded
-    
-    logger.info(f'Transcoding {video.path}')
-    loop = asyncio.get_event_loop()
-    video.transcode_path = await loop.run_in_executor(None, _transcode, video)
-    await video.save()
-    logger.info(f'Finished transcoding {video.path} to {video.transcode_path}')
-    await remove_original(video)
-
-
-def _transcode(video: VideoFile) -> Path:
+def transcode(video: VideoFile) -> Path:
     """
     Synchronous function to transcode a video file to mp4
 
@@ -76,15 +49,29 @@ def _transcode(video: VideoFile) -> Path:
     Returns:
         Path: The path to the transcoded file.
     """
+    if not video.ended_at:
+        raise VideoFileNotEnded
+    
+    if video.transcode_path:
+        raise VideoAlreadyTranscoded
+    
+    logger.info(f'Transcoding {video.path}')
+
+    loop = asyncio.new_event_loop()
+
     transcode_path = video.path.parent.joinpath(f'{video.path.stem}.mp4')
     stream = ffmpeg.input(video.path.__str__())
     stream = ffmpeg.output(stream, transcode_path.__str__(), vcodec='copy')
     stream = ffmpeg.overwrite_output(stream)
     ffmpeg.run(stream, quiet=True)
-    return transcode_path
+    video.transcode_path = transcode_path
+    loop.run_until_complete(video.save())
+    loop.run_until_complete(remove_original(video))
+
+    return video.transcode_path
 
 
-async def generate_chat_video(
+def generate_chat_video(
         video: VideoFile,
         width: int = DEFAULT_WIDTH,
         height: int = None,
@@ -114,6 +101,8 @@ async def generate_chat_video(
         Exception: If an error occurs during transcoding.
     """
 
+    loop = asyncio.new_event_loop()
+
     logger.info(f'Generating chat video for {video.path}')
 
     # Convert the message duration for easier handling
@@ -121,7 +110,7 @@ async def generate_chat_video(
 
     # Get the messages for this video
     message_index = 0
-    messages = await Message.for_video(video)
+    messages = loop.run_until_complete(Message.for_video(video))
     if len(messages) == 0:
         logger.info('No messages found for this video')
         return None
@@ -249,7 +238,7 @@ async def generate_chat_video(
 
     # Set the transcode path in the model
     video.transcode_path = transcode_path
-    await video.save()
+    loop.run_until_complete(video.save())
 
     # Remove the chat and original video files
     chat_video_path.unlink()
@@ -304,20 +293,13 @@ def get_font(
     return ImageFont.truetype(font.fname, font_size)
 
 
-async def transcode_loop():
-    """
-    Continuously checks for videos that need to be transcoded and transcodes them. If no videos are available, it sleeps for 60 seconds before checking again.
-    """
-    # Register signal handlers for graceful shutdown
-    signal.signal(signal.SIGTERM, handle_sigterm)
-    while not stop_event.is_set():
-        video = await VideoFile.get_next_transcode()
-        if video:
-            result = await generate_chat_video(video)
-            if result == None:
-                await transcode(video)
-        else:
-            await asyncio.sleep(360)
+async def transcode_listener():
+    loop = asyncio.get_event_loop()
+    while True:
+        video = await transcode_queue.get()
+        result = await loop.run_in_executor(None, generate_chat_video, video)
+        if result == None:
+            await loop.run_in_executor(None, transcode, video)
 
 
 class VideoAlreadyTranscoded(Exception): pass

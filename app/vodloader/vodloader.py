@@ -8,6 +8,7 @@ from vodloader.models import *
 from vodloader import config
 from vodloader.twitch import webhook
 from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, ChannelUpdateEvent
+from vodloader.post import transcode_queue
 
 
 CHUNK_SIZE = 8192
@@ -188,6 +189,7 @@ def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
                     if buffer.worker.playlist_sequence_last - start > CUTOFF:
                         logger.info(f'Video file {video_path} has reached the cutoff. Handing stream over to next file...')
                         loop.run_until_complete(video_file.end())
+                        loop.run_until_complete(transcode_queue.put(video_file))
                         part = part + 1
                         break
 
@@ -198,6 +200,7 @@ def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
     # End the last video being written to
     end_time = datetime.now(timezone.utc)
     loop.run_until_complete(video_file.end(end_time))
+    loop.run_until_complete(transcode_queue.put(video_file))
 
     # Cleanup the buffer and loop
     buffer.close()
