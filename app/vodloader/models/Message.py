@@ -137,14 +137,11 @@ class Message(BaseModel):
             (video.id, )
         )
         args_list = await cursor.fetchall()
+        messages = [cls(*args) for args in args_list]
         await cursor.close()
         closer = connection.close()
         if closer: await closer
-
-        if args_list:
-            return list(cls(*args) for args in args_list)
-        else:
-            return None
+        return messages
     
     def parse_badges(self) -> List[str] | None:
         if self.badges == None:
