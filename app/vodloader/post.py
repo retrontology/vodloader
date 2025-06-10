@@ -122,18 +122,18 @@ async def generate_chat_video(
     logger.info(f'Found {len(messages)} messages')
 
     # Load the font
-    logger.info('Loading the font...')
+    logger.debug('Loading the font...')
     font = get_font(font_family, font_style, font_size)
 
     # Open the input video file
-    logger.info('Opening the original stream file...')
+    logger.debug('Opening the original stream file...')
     video_in = cv2.VideoCapture(
         filename=video.path,
         apiPreference=cv2.CAP_FFMPEG
     )
 
     # Read properties of the input video file
-    logger.info('Reading the properties of the original stream video...')
+    logger.debug('Reading the properties of the original stream video...')
     video_width = video_in.get(cv2.CAP_PROP_FRAME_WIDTH)
     video_height = video_in.get(cv2.CAP_PROP_FRAME_HEIGHT)
     fps = video_in.get(cv2.CAP_PROP_FPS)
@@ -147,7 +147,7 @@ async def generate_chat_video(
     max_y = chat_height - (start_y * 2)
 
     # Open the output file
-    logger.info('Opening the output chat video file...')
+    logger.debug('Opening the output chat video file...')
     chat_video_path = video.path.parent.joinpath(f'{video.path.stem}.chat.mp4')
     video_out = cv2.VideoWriter(
         filename=chat_video_path,
@@ -228,18 +228,22 @@ async def generate_chat_video(
         video_out.write(np.array(base_image))
     
     # Release both input and output video files
-    logger.info('Releasing the video files...')
+    logger.debug('Releasing the video files...')
     video_in.release()
     video_out.release()
 
     # Mux the audio and video streams while transcoding the audio
-    logger.info('Muxing the chat video with transcoded audio...')
+    logger.debug('Muxing the chat video with transcoded audio...')
     transcode_path = video.path.parent.joinpath(f'{video.path.stem}.mp4')
     chat_stream = ffmpeg.input(chat_video_path.__str__())
     original_stream = ffmpeg.input(video.path.__str__())
     output_stream = ffmpeg.output(chat_stream['v:0'], original_stream['a:0'], transcode_path.__str__(), vcodec='copy', acodec='aac')
     output_stream = ffmpeg.overwrite_output(output_stream)
     ffmpeg.run(output_stream, quiet=True)
+
+    # Set the transcode path in the model
+    video.transcode_path = transcode_path
+    await video.save()
 
     # Remove the chat and original video files
     chat_video_path.unlink()
