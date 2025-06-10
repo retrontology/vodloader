@@ -119,7 +119,7 @@ def generate_chat_video(
     # Trim the input video
     #ffmpeg -ss 00:00:30 -i input.mp4 -c copy output.mp4
     trim_path = video.path.parent.joinpath(f'{video.path.stem}.trim.ts')
-    trim_video = ffmpeg.input(trim_path.__str__(), ss=30)
+    trim_video = ffmpeg.input(video.path.__str__(), ss=30)
     trim_video = ffmpeg.output(trim_video, transcode_path.__str__(), codec='copy')
     trim_video = ffmpeg.overwrite_output(trim_video)
     ffmpeg.run(trim_video, quiet=True)
