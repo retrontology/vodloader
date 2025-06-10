@@ -68,6 +68,7 @@ class VideoFile(EndableModel):
     async def get_nontranscoded(cls) -> List[Self]:
         results = await cls.get_many(
             transcode_path=None,
+            ended_at=NOT_NULL,
             order_by='started_at',
             order=OrderDirection.ASC
         )
