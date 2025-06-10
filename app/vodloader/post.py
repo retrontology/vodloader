@@ -17,7 +17,7 @@ DEFAULT_FONT_FAMILY = "FreeSans"
 DEFAULT_FONT_STYLE = "Regular"
 DEFAULT_FONT_SIZE = 24
 DEFAULT_FONT_COLOR = (255, 255, 255, 255)
-DEFAULT_BACKGROUND_COLOR = (0, 0, 0, 0)
+DEFAULT_BACKGROUND_COLOR = (0, 0, 0, 127)
 DEFAULT_MESSAGE_DURATION = 10
 
 
@@ -116,14 +116,22 @@ def generate_chat_video(
         return None
     logger.info(f'Found {len(messages)} messages')
 
+    # Trim the input video
+    #ffmpeg -ss 00:00:30 -i input.mp4 -c copy output.mp4
+    trim_path = video.path.parent.joinpath(f'{video.path.stem}.trim.ts')
+    trim_video = ffmpeg.input(trim_path.__str__(), ss=30)
+    trim_video = ffmpeg.output(trim_video, transcode_path.__str__(), codec='copy')
+    trim_video = ffmpeg.overwrite_output(trim_video)
+    ffmpeg.run(trim_video, quiet=True)
+
     # Load the font
     logger.debug('Loading the font...')
     font = get_font(font_family, font_style, font_size)
 
     # Open the input video file
-    logger.debug('Opening the original stream file...')
+    logger.debug('Opening the trimmed stream file...')
     video_in = cv2.VideoCapture(
-        filename=video.path,
+        filename=trim_path,
         apiPreference=cv2.CAP_FFMPEG
     )
 
@@ -203,7 +211,7 @@ def generate_chat_video(
                 break
 
             # Draw the message
-            draw.text((start_x, current_y), prefix, font=font, fill=message.color)
+            draw.text((start_x, current_y), prefix, font=font, fill=message.color, stroke_fill=background_color, stroke_width=2)
             current_x = start_x + draw.textlength(f'{prefix} ', font=font)
             for line in lines:
                 if not line:
@@ -226,6 +234,7 @@ def generate_chat_video(
     logger.debug('Releasing the video files...')
     video_in.release()
     video_out.release()
+    trim_path.unlink()
 
     # Mux the audio and video streams while transcoding the audio
     logger.debug('Muxing the chat video with transcoded audio...')
@@ -300,6 +309,12 @@ async def transcode_listener():
         result = await loop.run_in_executor(None, generate_chat_video, video)
         if result == None:
             await loop.run_in_executor(None, transcode, video)
+
+
+async def queue_trancodes():
+    videos = await VideoFile.get_nontranscoded()
+    for video in videos:
+        await transcode_queue.put(video)
 
 
 class VideoAlreadyTranscoded(Exception): pass

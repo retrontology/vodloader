@@ -9,7 +9,7 @@ from vodloader.api import create_api
 from vodloader.twitch import twitch, webhook
 from vodloader.vodloader import subscribe
 from vodloader.chat import bot
-from vodloader.post import transcode_listener, transcode_queue
+from vodloader.post import transcode_listener, transcode_queue, queue_trancodes
 from vodloader import config
 from threading import Thread
 
@@ -88,9 +88,7 @@ async def main():
     transcode_task = loop.create_task(transcode_listener())
 
     # Look for videos that need transcoding
-    videos = await VideoFile.get_nontranscoded()
-    for video in videos:
-        await transcode_queue.put(video)
+    await queue_trancodes()
     
     # Await everything
     await api_task

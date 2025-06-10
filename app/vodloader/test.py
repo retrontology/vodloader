@@ -1,14 +1,13 @@
 from vodloader.post import generate_chat_video
 from vodloader.models import VideoFile
+import asyncio
 
 
 async def app():
-    #video = await VideoFile.get(id='52dc83aa-98e9-4e46-8f9e-d6ac8daf39ac')
-    #await generate_chat_video(video)
-    videos = await VideoFile.get_nontranscoded()
-    print(videos)
+    loop = asyncio.get_event_loop()
+    video = await VideoFile.get(id='3f6db9ee-b7bc-4784-a38e-1fc7a2adfa56')
+    loop.run_in_executor(None, generate_chat_video, video)
 
 
 if __name__ == '__main__':
-    import asyncio
     asyncio.run(app())
