@@ -88,14 +88,19 @@ async def main():
     transcode_task = loop.create_task(transcode_loop())
     
     # Await everything
+    logger.info('Awaiting the API task...')
     await api_task
+    logger.info('Awaiting the transcode task...')
     await transcode_task
 
     # Cleanup
+    logger.info('Shutting down the chatbot...')
     bot.die()
     bot.disconnect()
+    logger.info('Shutting down the webhooks...')
     await webhook.unsubscribe_all()
     await webhook.stop()
+    logger.info('Shutting down the Twitch API...')
     await twitch.close()
 
 
