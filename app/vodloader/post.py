@@ -19,6 +19,7 @@ DEFAULT_FONT_SIZE = 24
 DEFAULT_FONT_COLOR = (255, 255, 255, 255)
 DEFAULT_BACKGROUND_COLOR = (0, 0, 0, 127)
 DEFAULT_MESSAGE_DURATION = 10
+TRIM_OFFSET = 30
 
 
 transcode_queue = asyncio.Queue()
@@ -119,7 +120,7 @@ def generate_chat_video(
     # Trim the input video
     #ffmpeg -ss 00:00:30 -i input.mp4 -c copy output.mp4
     trim_path = video.path.parent.joinpath(f'{video.path.stem}.trim.ts')
-    trim_video = ffmpeg.input(video.path.__str__(), ss=30)
+    trim_video = ffmpeg.input(video.path.__str__(), ss=TRIM_OFFSET)
     trim_video = ffmpeg.output(trim_video, trim_path.__str__(), codec='copy')
     trim_video = ffmpeg.overwrite_output(trim_video)
     ffmpeg.run(trim_video, quiet=True)
@@ -217,7 +218,7 @@ def generate_chat_video(
                 if not line:
                     continue
                 line = ' '.join(line)
-                draw.text((current_x, current_y), line, font=font, fill=font_color)
+                draw.text((current_x, current_y), line, font=font, fill=font_color, stroke_fill=background_color, stroke_width=2)
                 current_y += line_height
                 current_x = start_x
 
@@ -240,7 +241,7 @@ def generate_chat_video(
     logger.debug('Muxing the chat video with transcoded audio...')
     transcode_path = video.path.parent.joinpath(f'{video.path.stem}.mp4')
     chat_stream = ffmpeg.input(chat_video_path.__str__())
-    original_stream = ffmpeg.input(video.path.__str__())
+    original_stream = ffmpeg.input(video.path.__str__(), ss=TRIM_OFFSET)
     output_stream = ffmpeg.output(chat_stream['v:0'], original_stream['a:0'], transcode_path.__str__(), vcodec='copy', acodec='aac')
     output_stream = ffmpeg.overwrite_output(output_stream)
     ffmpeg.run(output_stream, quiet=True)
