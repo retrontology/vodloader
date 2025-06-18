@@ -235,13 +235,12 @@ def generate_chat_video(
     logger.debug('Releasing the video files...')
     video_in.release()
     video_out.release()
-    trim_path.unlink()
 
     # Mux the audio and video streams while transcoding the audio
     logger.debug('Muxing the chat video with transcoded audio...')
     transcode_path = video.path.parent.joinpath(f'{video.path.stem}.mp4')
     chat_stream = ffmpeg.input(chat_video_path.__str__())
-    original_stream = ffmpeg.input(video.path.__str__(), ss=TRIM_OFFSET)
+    original_stream = ffmpeg.input(trim_path.__str__())
     output_stream = ffmpeg.output(chat_stream['v:0'], original_stream['a:0'], transcode_path.__str__(), vcodec='copy', acodec='aac')
     output_stream = ffmpeg.overwrite_output(output_stream)
     ffmpeg.run(output_stream, quiet=True)
@@ -252,6 +251,7 @@ def generate_chat_video(
 
     # Remove the chat and original video files
     chat_video_path.unlink()
+    trim_path.unlink()
     #remove_original(video)
 
     # Return the path of the transcoded video file
