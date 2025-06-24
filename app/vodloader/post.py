@@ -10,6 +10,7 @@ from pathlib import Path
 import asyncio
 import logging
 from datetime import timedelta
+import subprocess
 
 
 DEFAULT_WIDTH = 320
@@ -307,15 +308,119 @@ async def transcode_listener():
     loop = asyncio.get_event_loop()
     while True:
         video = await transcode_queue.get()
-        result = await loop.run_in_executor(None, generate_chat_video, video)
-        if result == None:
-            await loop.run_in_executor(None, transcode, video)
+        await loop.run_in_executor(None, transcode, video)
+        #result = await loop.run_in_executor(None, generate_chat_video, video)
+        #if result == None:
+        #    await loop.run_in_executor(None, transcode, video)
 
 
 async def queue_trancodes():
     videos = await VideoFile.get_nontranscoded()
     for video in videos:
         await transcode_queue.put(video)
+
+
+def detect_video_segments_by_changes(video_path, fps_threshold=2.0):
+    """
+    Detects segments in the video where FPS or resolution changes.
+    
+    Args:
+        video_path (str): Path to the input video file.
+        fps_threshold (float): Minimum FPS difference to trigger a new segment.
+
+    Returns:
+        List of dicts with start_time, end_time, width, height, fps.
+    """
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-select_streams", "v:0",
+        "-show_entries", "frame=best_effort_timestamp_time,width,height",
+        "-of", "csv=p=0",
+        video_path
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    lines = result.stdout.strip().split('\n')
+
+    segments = []
+    frame_buffer = []
+    prev_width = prev_height = None
+
+    for i, line in enumerate(lines):
+        try:
+            pts_time_str, width_str, height_str = line.strip().split(',')
+            timestamp = float(pts_time_str)
+            width = int(width_str)
+            height = int(height_str)
+        except ValueError:
+            continue
+
+        frame_buffer.append((timestamp, width, height))
+
+        # Initialize or compare with previous values
+        if prev_width is None:
+            prev_width, prev_height = width, height
+            continue
+
+        # If resolution changed, end current segment
+        if width != prev_width or height != prev_height:
+            if len(frame_buffer) > 1:
+                segment_start = frame_buffer[0][0]
+                segment_end = frame_buffer[-2][0]  # before the change
+                duration = segment_end - segment_start
+                frame_count = len(frame_buffer) - 1
+                fps = frame_count / duration if duration > 0 else 0
+                segments.append({
+                    "start_time": segment_start,
+                    "end_time": segment_end,
+                    "width": prev_width,
+                    "height": prev_height,
+                    "fps": round(fps, 3)
+                })
+            frame_buffer = [(timestamp, width, height)]  # start new segment
+            prev_width, prev_height = width, height
+            continue
+
+        # Optional: detect FPS change using timestamp deltas
+        if len(frame_buffer) >= 3:
+            durations = [
+                frame_buffer[i+1][0] - frame_buffer[i][0]
+                for i in range(len(frame_buffer) - 1)
+            ]
+            avg_frame_time = sum(durations) / len(durations)
+            fps = 1.0 / avg_frame_time if avg_frame_time > 0 else 0
+
+            if 'prev_fps' in locals() and abs(fps - prev_fps) > fps_threshold:
+                segment_start = frame_buffer[0][0]
+                segment_end = frame_buffer[-2][0]
+                segments.append({
+                    "start_time": segment_start,
+                    "end_time": segment_end,
+                    "width": prev_width,
+                    "height": prev_height,
+                    "fps": round(prev_fps, 3)
+                })
+                frame_buffer = [(timestamp, width, height)]
+        
+            prev_fps = fps
+
+    # Add the final segment
+    if len(frame_buffer) > 1:
+        segment_start = frame_buffer[0][0]
+        segment_end = frame_buffer[-1][0]
+        duration = segment_end - segment_start
+        frame_count = len(frame_buffer)
+        fps = frame_count / duration if duration > 0 else 0
+        segments.append({
+            "start_time": segment_start,
+            "end_time": segment_end,
+            "width": prev_width,
+            "height": prev_height,
+            "fps": round(fps, 3)
+        })
+
+    return segments
+
 
 
 class VideoAlreadyTranscoded(Exception): pass
