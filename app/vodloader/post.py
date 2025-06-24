@@ -68,7 +68,7 @@ def transcode(video: VideoFile) -> Path:
     ffmpeg.run(stream, quiet=True)
     video.transcode_path = transcode_path
     loop.run_until_complete(video.save())
-    loop.run_until_complete(remove_original(video))
+    #loop.run_until_complete(remove_original(video))
 
     return video.transcode_path
 
