@@ -172,13 +172,6 @@ async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
         except asyncio.TimeoutError:
             logger.warning("Some tasks did not complete cancellation within timeout")
     
-    # Cleanup chat bot first (simplest)
-    try:
-        bot.die()
-        bot.disconnect()
-    except Exception as e:
-        logger.error(f"Error cleaning up chat bot: {e}")
-    
     # Cleanup webhooks
     logger.info("Unsubscribing from webhooks...")
     try:
@@ -192,6 +185,13 @@ async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
         await webhook.stop()
     except Exception as e:
         logger.error(f"Error stopping webhook server: {e}")
+
+    # Cleanup chat bot
+    try:
+        bot.die()
+        bot.disconnect()
+    except Exception as e:
+        logger.error(f"Error cleaning up chat bot: {e}")
     
     # Close Twitch connection
     logger.info("Closing Twitch connection...")
@@ -207,10 +207,6 @@ async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
 if __name__ == '__main__':
     try:
         asyncio.run(main())
-    except KeyboardInterrupt:
-        # This should be handled by the signal handler, but just in case
-        print("\nReceived interrupt signal, shutting down...")
-        sys.exit(0)
     except Exception as e:
         print(f"Fatal error: {e}")
         sys.exit(1)
