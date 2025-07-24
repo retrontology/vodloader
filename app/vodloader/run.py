@@ -50,10 +50,6 @@ def setup_logger(level=logging.INFO, path='logs'):
     logger.handlers.append(file_handler)
     logger.handlers.append(stream_handler)
     
-    # Reduce noise from TwitchAPI webhook warnings during shutdown
-    twitch_webhook_logger = logging.getLogger('twitchAPI.eventsub.webhook')
-    twitch_webhook_logger.setLevel(logging.ERROR)  # Only show errors, not warnings
-    
     return logging.getLogger('vodloader')
 
 
@@ -183,45 +179,24 @@ async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
     except Exception as e:
         logger.error(f"Error cleaning up chat bot: {e}")
     
-    # Cleanup webhooks - handle "not found" warnings gracefully
+    # Cleanup webhooks
     logger.info("Unsubscribing from webhooks...")
     try:
-        # Temporarily suppress webhook warnings during cleanup
-        webhook_logger = logging.getLogger('twitchAPI.eventsub.webhook')
-        original_level = webhook_logger.level
-        webhook_logger.setLevel(logging.ERROR)
-        
-        await asyncio.wait_for(webhook.unsubscribe_all(), timeout=10.0)
-        
-        # Restore original logging level
-        webhook_logger.setLevel(original_level)
-        
-    except asyncio.TimeoutError:
-        logger.warning("Webhook unsubscribe timed out")
+        await webhook.unsubscribe_all()
     except Exception as e:
-        logger.debug(f"Webhook unsubscribe completed with expected warnings: {e}")
+        logger.error(f"Error unsubscribing from webhooks: {e}")
     
-    # Stop webhook server more carefully
+    # Stop webhook server
     logger.info("Stopping webhook server...")
     try:
-        # Give webhook server time to clean up properly
-        await asyncio.wait_for(webhook.stop(), timeout=15.0)
-    except asyncio.TimeoutError:
-        logger.warning("Webhook server stop timed out")
+        await webhook.stop()
     except Exception as e:
-        # Filter out event loop errors during shutdown - these are common in async cleanup
-        error_msg = str(e).lower()
-        if any(phrase in error_msg for phrase in ["different loop", "event loop", "future", "task pending"]):
-            logger.debug(f"Event loop cleanup issue (expected during shutdown): {e}")
-        else:
-            logger.error(f"Error stopping webhook server: {e}")
+        logger.error(f"Error stopping webhook server: {e}")
     
     # Close Twitch connection
     logger.info("Closing Twitch connection...")
     try:
-        await asyncio.wait_for(twitch.close(), timeout=5.0)
-    except asyncio.TimeoutError:
-        logger.warning("Twitch connection close timed out")
+        await twitch.close()
     except Exception as e:
         logger.error(f"Error closing Twitch connection: {e}")
     
