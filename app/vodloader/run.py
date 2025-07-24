@@ -12,6 +12,7 @@ from vodloader.twitch import twitch, webhook
 from vodloader.vodloader import subscribe
 from vodloader.post import transcode_listener, transcode_queue, queue_trancodes
 from vodloader import config
+from vodloader.chat import bot
 
 
 def parse_args():
@@ -59,12 +60,7 @@ def setup_logger(level=logging.INFO, path='logs'):
 async def start_chat_bot():
     """Start chat bot as an async task instead of thread"""
     try:
-        # Import here to avoid circular imports
-        from vodloader.chat import bot
         await bot.start_async()
-    except ImportError:
-        logger.warning("Chat bot module not found, skipping chat functionality")
-        return None
     except Exception as e:
         logger.error(f"Failed to start chat bot: {e}")
         return None
@@ -112,12 +108,8 @@ async def main():
         tasks = []
         
         for channel in channels:
-            # Try to join channel if bot is available
-            try:
-                from vodloader.chat import bot
-                bot.join_channel(channel)
-            except ImportError:
-                pass
+            # Join channel with bot
+            bot.join_channel(channel)
             
             # Subscribe to webhooks
             tasks.append(subscribe(channel))
@@ -186,11 +178,8 @@ async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
     
     # Cleanup chat bot first (simplest)
     try:
-        from vodloader.chat import bot
         bot.die()
         bot.disconnect()
-    except ImportError:
-        pass
     except Exception as e:
         logger.error(f"Error cleaning up chat bot: {e}")
     
