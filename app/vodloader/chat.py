@@ -70,15 +70,3 @@ class AsyncChatBot:
 
 # Global bot instance for backward compatibility
 bot = AsyncChatBot()
-
-
-# Legacy sync interface for backward compatibility
-def start():
-    """Legacy sync start method - not recommended"""
-    logger.warning("Using legacy sync start method - consider using start_async()")
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        loop.run_until_complete(bot.start_async())
-    finally:
-        loop.close()
