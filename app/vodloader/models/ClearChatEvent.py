@@ -40,7 +40,7 @@ class ClearChatEvent(BaseModel):
         self.duration = duration
     
     @classmethod
-    def from_event(cls, event: Event):
+    def from_event(cls, event):
 
         tags = parse_tags(event)     
 

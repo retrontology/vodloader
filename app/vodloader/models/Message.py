@@ -3,7 +3,7 @@ from typing import Self, List, Dict, Tuple
 from vodloader.database import *
 from vodloader.util import *
 from vodloader.models import BaseModel, TwitchChannel, VideoFile
-from irc.client import Event
+from typing import Any
 
 
 class Message(BaseModel):
@@ -91,7 +91,7 @@ class Message(BaseModel):
 
 
     @classmethod
-    def from_event(cls, event: Event) -> Self:
+    def from_event(cls, event: Any) -> Self:
         
         tags = parse_tags(event)
 

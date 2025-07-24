@@ -54,9 +54,9 @@ def setup_logger(level=logging.INFO, path='logs'):
 
 
 async def start_chat_bot():
-    """Start chat bot as an async task instead of thread"""
+    """Start chat bot as an async task"""
     try:
-        await bot.start_async()
+        await bot.start()
     except Exception as e:
         logger.error(f"Failed to start chat bot: {e}")
         return None
@@ -188,8 +188,7 @@ async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
 
     # Cleanup chat bot
     try:
-        bot.die()
-        bot.disconnect()
+        await bot.stop()
     except Exception as e:
         logger.error(f"Error cleaning up chat bot: {e}")
     
