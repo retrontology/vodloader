@@ -8,10 +8,8 @@ from vodloader.models import TwitchChannel, VideoFile, initialize_models
 from vodloader.api import create_api
 from vodloader.twitch import twitch, webhook
 from vodloader.vodloader import subscribe
-from vodloader.chat import bot
 from vodloader.post import transcode_listener, transcode_queue, queue_trancodes
 from vodloader import config
-from threading import Thread
 
 
 def parse_args():
@@ -51,55 +49,125 @@ def setup_logger(level=logging.INFO, path='logs'):
     return logging.getLogger('vodloader')
 
 
-async def main():
+async def start_chat_bot():
+    """Start chat bot as an async task instead of thread"""
+    try:
+        # Import here to avoid circular imports
+        from vodloader.chat import bot
+        await bot.start_async()
+    except ImportError:
+        logger.warning("Chat bot module not found, skipping chat functionality")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to start chat bot: {e}")
+        return None
 
+
+async def main():
     # Initialize args
     args = parse_args()
     logger = setup_logger(args.debug)
-    loop = asyncio.get_event_loop()
 
     # Initialize DB
     await initialize_models()
 
-    # Intialize Twitch Connections
+    # Initialize Twitch Connections
     await twitch.authenticate_app([])
     webhook.start()
     await webhook.unsubscribe_all()
 
-    # Start chat bot
-    chatbot_task = Thread(target=bot.start, daemon=True)
-    chatbot_task.start()
-    while not bot.connection.connected:
-        await asyncio.sleep(1)
+    # Start chat bot as async task
+    chatbot_task = asyncio.create_task(start_chat_bot())
+    
+    # Give chat bot time to connect
+    await asyncio.sleep(2)
 
     # Subscribe to all active channel webhooks
     channels = await TwitchChannel.get_many(active=True)
+    tasks = []
+    
     for channel in channels:
-        bot.join_channel(channel)
-        await subscribe(channel)
+        # Try to join channel if bot is available
+        try:
+            from vodloader.chat import bot
+            bot.join_channel(channel)
+        except ImportError:
+            pass
+        
+        # Subscribe to webhooks
+        tasks.append(subscribe(channel))
+    
+    # Subscribe to all channels concurrently
+    if tasks:
+        await asyncio.gather(*tasks)
 
-    # Run API
+    # Setup API
     hypercorn_config = HypercornConfig()
     hypercorn_config.bind = [f"{config.API_HOST}:{config.API_PORT}"]
     api = create_api()
 
-    # Run tasks
-    api_task = loop.create_task(serve(api, hypercorn_config))
-    transcode_task = loop.create_task(transcode_listener())
+    # Create all async tasks
+    api_task = asyncio.create_task(serve(api, hypercorn_config))
+    transcode_task = asyncio.create_task(transcode_listener())
 
-    # Look for videos that need transcoding
+    # Queue existing videos for transcoding
     await queue_trancodes()
     
-    # Await everything
-    await api_task
-    await transcode_task
-
-    # Cleanup
-    logger.info('Shutting down the chatbot...')
-    bot.die()
-    bot.disconnect()
-    logger.info('Shutting down the webhooks...')
-    await asyncio.gather(webhook.unsubscribe_all(), webhook.stop(), twitch.close())
+    # Run all tasks concurrently with proper error handling
+    try:
+        results = await asyncio.gather(
+            api_task,
+            transcode_task,
+            chatbot_task,
+            return_exceptions=True
+        )
+        
+        # Log any exceptions that occurred
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                task_names = ['API', 'Transcode', 'Chat Bot']
+                logger.error(f"{task_names[i]} task failed: {result}")
+                
+    except KeyboardInterrupt:
+        logger.info("Received shutdown signal")
+    finally:
+        # Cleanup
+        logger.info('Shutting down services...')
+        
+        # Cancel tasks gracefully
+        tasks_to_cancel = [api_task, transcode_task, chatbot_task]
+        for task in tasks_to_cancel:
+            if task and not task.done():
+                task.cancel()
+        
+        # Wait for tasks to complete cancellation
+        if tasks_to_cancel:
+            await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+        
+        # Cleanup chat bot
+        try:
+            from vodloader.chat import bot
+            bot.die()
+            bot.disconnect()
+        except ImportError:
+            pass
+        
+        # Cleanup webhooks and twitch connection
+        cleanup_tasks = [
+            webhook.unsubscribe_all(),
+            webhook.stop(),
+            twitch.close()
+        ]
+        
+        cleanup_results = await asyncio.gather(*cleanup_tasks, return_exceptions=True)
+        
+        # Log any cleanup errors
+        for i, result in enumerate(cleanup_results):
+            if isinstance(result, Exception):
+                cleanup_names = ['webhook unsubscribe', 'webhook stop', 'twitch close']
+                logger.error(f"Error during {cleanup_names[i]}: {result}")
+        
+        logger.info("Shutdown complete")
 
 
 

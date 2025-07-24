@@ -128,33 +128,27 @@ async def _download_stream(channel: TwitchChannel):
 
     logger.info(f'Downloading stream from {channel.name} to {path}')
 
-    loop = asyncio.get_event_loop()
-    download_function = partial(_download, channel=channel, twitch_stream=twitch_stream, path=path)
-    end_time = await loop.run_in_executor(None, download_function)
+    # Use the async download function directly
+    end_time = await _download_async(channel, twitch_stream, path)
 
     await twitch_stream.end(end_time)
 
     logger.info(f'Finished downloading stream from {channel.name} to {path}')
 
 
-# Internal function for downloading stream in executor
-def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
-
-    # Get the event loop for the executor
-    loop = asyncio.new_event_loop()
-
+# Internal async function for downloading stream
+async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, path: Path):
+    """Async wrapper for the download process"""
+    
     try:
-
-        # Intialize the first variables for the recording loops
+        # Initialize the first variables for the recording loops
         part = 1
         video_stream = channel.get_video_stream()
         buffer = video_stream.open()
         data = buffer.read(CHUNK_SIZE)
         
-
         # First loop for iterating through video files
         while data:
-
             # Create video file
             start = buffer.worker.playlist_sequence_last
             video_path = path.joinpath(
@@ -174,37 +168,57 @@ def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
                 path=video_path,
                 started_at=datetime.now(timezone.utc),
             )
-            loop.run_until_complete(video_file.save())
+            await video_file.save()
 
             logger.info(f'Writing stream from {channel.name} to {video_path}')
 
-            with open(video_path, 'wb') as file:
-                
-                # Second loop for writing video stream data to file
-                while data:
-                    file.write(data)
-                    data = buffer.read(CHUNK_SIZE)
-                    
-                    # Check if the video has exceeded the cutoff and trigger next file if it does
-                    if buffer.worker.playlist_sequence_last - start > CUTOFF:
-                        logger.info(f'Video file {video_path} has reached the cutoff. Handing stream over to next file...')
-                        loop.run_until_complete(video_file.end())
-                        loop.run_until_complete(transcode_queue.put(video_file))
-                        part = part + 1
-                        break
-
+            # Run file writing in executor to avoid blocking
+            loop = asyncio.get_event_loop()
             
+            def write_video_chunk():
+                nonlocal data
+                with open(video_path, 'wb') as file:
+                    # Second loop for writing video stream data to file
+                    while data:
+                        file.write(data)
+                        data = buffer.read(CHUNK_SIZE)
+                        
+                        # Check if the video has exceeded the cutoff and trigger next file if it does
+                        if buffer.worker.playlist_sequence_last - start > CUTOFF:
+                            logger.info(f'Video file {video_path} has reached the cutoff. Handing stream over to next file...')
+                            return True  # Signal to break to next file
+                    return False  # Signal that stream ended
+            
+            should_continue = await loop.run_in_executor(None, write_video_chunk)
+            
+            if should_continue:
+                await video_file.end()
+                await transcode_queue.put(video_file)
+                part = part + 1
+            else:
+                # Stream ended, break out of main loop
+                break
+                
     except Exception as e:
         logger.error(e)
 
     # End the last video being written to
     end_time = datetime.now(timezone.utc)
-    loop.run_until_complete(video_file.end(end_time))
-    loop.run_until_complete(transcode_queue.put(video_file))
+    await video_file.end(end_time)
+    await transcode_queue.put(video_file)
 
-    # Cleanup the buffer and loop
+    # Cleanup the buffer
     buffer.close()
-    loop.stop()
-    loop.close()
 
     return end_time
+
+
+# Internal function for downloading stream in executor (legacy sync wrapper)
+def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path: Path):
+    """Sync wrapper that runs the async download function"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(_download_async(channel, twitch_stream, path))
+    finally:
+        loop.close()

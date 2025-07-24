@@ -42,9 +42,9 @@ async def remove_original(video: VideoFile):
     logger.info(f'The original stream file at {path.__str__()} has been deleted')
 
 
-def transcode(video: VideoFile) -> Path:
+async def transcode(video: VideoFile) -> Path:
     """
-    Synchronous function to transcode a video file to mp4
+    Async function to transcode a video file to mp4
 
     Args:
         video (VideoFile): The video file to transcode.
@@ -59,21 +59,27 @@ def transcode(video: VideoFile) -> Path:
     
     logger.info(f'Transcoding {video.path}')
 
-    loop = asyncio.new_event_loop()
-
     transcode_path = video.path.parent.joinpath(f'{video.path.stem}.mp4')
-    stream = ffmpeg.input(video.path.__str__())
-    stream = ffmpeg.output(stream, transcode_path.__str__(), vcodec='copy')
-    stream = ffmpeg.overwrite_output(stream)
-    ffmpeg.run(stream, quiet=True)
+    
+    # Run ffmpeg in executor to avoid blocking
+    loop = asyncio.get_event_loop()
+    
+    def run_ffmpeg():
+        stream = ffmpeg.input(video.path.__str__())
+        stream = ffmpeg.output(stream, transcode_path.__str__(), vcodec='copy')
+        stream = ffmpeg.overwrite_output(stream)
+        ffmpeg.run(stream, quiet=True)
+    
+    await loop.run_in_executor(None, run_ffmpeg)
+    
     video.transcode_path = transcode_path
-    loop.run_until_complete(video.save())
-    #loop.run_until_complete(remove_original(video))
+    await video.save()
+    #await remove_original(video)
 
     return video.transcode_path
 
 
-def generate_chat_video(
+async def generate_chat_video(
         video: VideoFile,
         width: int = DEFAULT_WIDTH,
         height: int = None,
@@ -103,8 +109,6 @@ def generate_chat_video(
         Exception: If an error occurs during transcoding.
     """
 
-    loop = asyncio.new_event_loop()
-
     logger.info(f'Generating chat video for {video.path}')
 
     # Convert the message duration for easier handling
@@ -112,7 +116,7 @@ def generate_chat_video(
 
     # Get the messages for this video
     message_index = 0
-    messages = loop.run_until_complete(Message.for_video(video))
+    messages = await Message.for_video(video)
     if len(messages) == 0:
         logger.info('No messages found for this video')
         return None
@@ -248,12 +252,12 @@ def generate_chat_video(
 
     # Set the transcode path in the model
     video.transcode_path = transcode_path
-    loop.run_until_complete(video.save())
+    await video.save()
 
     # Remove the chat and original video files
     chat_video_path.unlink()
     trim_path.unlink()
-    #remove_original(video)
+    #await remove_original(video)
 
     # Return the path of the transcoded video file
     return transcode_path
@@ -305,19 +309,51 @@ def get_font(
 
 
 async def transcode_listener():
-    loop = asyncio.get_event_loop()
+    """Listen for videos to transcode and process them"""
+    logger.info("Starting transcode listener")
+    
     while True:
-        video = await transcode_queue.get()
-        await loop.run_in_executor(None, transcode, video)
-        #result = await loop.run_in_executor(None, generate_chat_video, video)
-        #if result == None:
-        #    await loop.run_in_executor(None, transcode, video)
+        try:
+            # Use timeout to allow for graceful shutdown
+            video = await asyncio.wait_for(transcode_queue.get(), timeout=1.0)
+            
+            try:
+                logger.info(f"Processing video {video.id} for transcoding")
+                await transcode(video)
+                logger.info(f"Successfully transcoded video {video.id}")
+                
+                # Uncomment if you want to generate chat videos
+                # result = await generate_chat_video(video)
+                # if result is None:
+                #     await transcode(video)
+                    
+            except Exception as e:
+                logger.error(f"Error transcoding video {video.id}: {e}")
+            finally:
+                transcode_queue.task_done()
+                
+        except asyncio.TimeoutError:
+            # Timeout allows for graceful shutdown checks
+            continue
+        except asyncio.CancelledError:
+            logger.info("Transcode listener cancelled")
+            break
+        except Exception as e:
+            logger.error(f"Unexpected error in transcode listener: {e}")
+            await asyncio.sleep(1)  # Brief pause before retrying
 
 
 async def queue_trancodes():
-    videos = await VideoFile.get_nontranscoded()
-    for video in videos:
-        await transcode_queue.put(video)
+    """Queue all non-transcoded videos for processing"""
+    try:
+        videos = await VideoFile.get_nontranscoded()
+        logger.info(f"Queueing {len(videos)} videos for transcoding")
+        
+        for video in videos:
+            await transcode_queue.put(video)
+            
+    except Exception as e:
+        logger.error(f"Error queueing transcodes: {e}")
 
 
 def detect_video_segments_by_changes(video_path, fps_threshold=2.0):
