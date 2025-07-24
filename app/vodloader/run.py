@@ -48,6 +48,11 @@ def setup_logger(level=logging.INFO, path='logs'):
     stream_handler.setLevel(level)
     logger.handlers.append(file_handler)
     logger.handlers.append(stream_handler)
+    
+    # Reduce noise from TwitchAPI webhook warnings during shutdown
+    twitch_webhook_logger = logging.getLogger('twitchAPI.eventsub.webhook')
+    twitch_webhook_logger.setLevel(logging.ERROR)  # Only show errors, not warnings
+    
     return logging.getLogger('vodloader')
 
 
@@ -179,7 +184,7 @@ async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
         except asyncio.TimeoutError:
             logger.warning("Some tasks did not complete cancellation within timeout")
     
-    # Cleanup chat bot
+    # Cleanup chat bot first (simplest)
     try:
         from vodloader.chat import bot
         bot.die()
@@ -189,44 +194,59 @@ async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
     except Exception as e:
         logger.error(f"Error cleaning up chat bot: {e}")
     
-    # Cleanup webhooks and twitch connection with timeout
-    cleanup_tasks = []
-    
+    # Cleanup webhooks - handle "not found" warnings gracefully
+    logger.info("Unsubscribing from webhooks...")
     try:
-        cleanup_tasks.append(webhook.unsubscribe_all())
+        # Temporarily suppress webhook warnings during cleanup
+        webhook_logger = logging.getLogger('twitchAPI.eventsub.webhook')
+        original_level = webhook_logger.level
+        webhook_logger.setLevel(logging.ERROR)
+        
+        await asyncio.wait_for(webhook.unsubscribe_all(), timeout=10.0)
+        
+        # Restore original logging level
+        webhook_logger.setLevel(original_level)
+        
+    except asyncio.TimeoutError:
+        logger.warning("Webhook unsubscribe timed out")
     except Exception as e:
-        logger.error(f"Error creating webhook unsubscribe task: {e}")
+        logger.debug(f"Webhook unsubscribe completed with expected warnings: {e}")
     
+    # Stop webhook server more carefully
+    logger.info("Stopping webhook server...")
     try:
-        cleanup_tasks.append(webhook.stop())
+        # Give webhook server time to clean up properly
+        await asyncio.wait_for(webhook.stop(), timeout=15.0)
+    except asyncio.TimeoutError:
+        logger.warning("Webhook server stop timed out")
     except Exception as e:
-        logger.error(f"Error creating webhook stop task: {e}")
+        # Filter out event loop errors during shutdown - these are common in async cleanup
+        error_msg = str(e).lower()
+        if any(phrase in error_msg for phrase in ["different loop", "event loop", "future", "task pending"]):
+            logger.debug(f"Event loop cleanup issue (expected during shutdown): {e}")
+        else:
+            logger.error(f"Error stopping webhook server: {e}")
     
+    # Close Twitch connection
+    logger.info("Closing Twitch connection...")
     try:
-        cleanup_tasks.append(twitch.close())
+        await asyncio.wait_for(twitch.close(), timeout=5.0)
+    except asyncio.TimeoutError:
+        logger.warning("Twitch connection close timed out")
     except Exception as e:
-        logger.error(f"Error creating twitch close task: {e}")
-    
-    if cleanup_tasks:
-        try:
-            cleanup_results = await asyncio.wait_for(
-                asyncio.gather(*cleanup_tasks, return_exceptions=True),
-                timeout=5.0
-            )
-            
-            # Log any cleanup errors
-            cleanup_names = ['webhook unsubscribe', 'webhook stop', 'twitch close']
-            for i, result in enumerate(cleanup_results):
-                if isinstance(result, Exception):
-                    logger.error(f"Error during {cleanup_names[i]}: {result}")
-        except asyncio.TimeoutError:
-            logger.warning("Cleanup operations timed out")
-        except Exception as e:
-            logger.error(f"Error during cleanup: {e}")
+        logger.error(f"Error closing Twitch connection: {e}")
     
     logger.info("Shutdown complete")
 
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # This should be handled by the signal handler, but just in case
+        print("\nReceived interrupt signal, shutting down...")
+        sys.exit(0)
+    except Exception as e:
+        print(f"Fatal error: {e}")
+        sys.exit(1)
