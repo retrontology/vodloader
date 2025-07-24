@@ -27,14 +27,22 @@ class AsyncChatBot:
             self.connected = True
             logger.info("Chat bot connected successfully")
             
-            # Keep the bot running
+            # Keep the bot running with proper cancellation handling
             while self._running:
-                await asyncio.sleep(1)
-                # Add your chat bot logic here
-                
+                try:
+                    await asyncio.sleep(1)
+                    # Add your chat bot logic here
+                except asyncio.CancelledError:
+                    logger.info("Chat bot received cancellation signal")
+                    break
+                    
+        except asyncio.CancelledError:
+            logger.info("Chat bot task was cancelled")
+            raise  # Re-raise to properly handle cancellation
         except Exception as e:
             logger.error(f"Chat bot error: {e}")
         finally:
+            self._running = False
             self.connected = False
             logger.info("Chat bot disconnected")
     

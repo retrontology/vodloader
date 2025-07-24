@@ -140,6 +140,9 @@ async def _download_stream(channel: TwitchChannel):
 async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, path: Path):
     """Async wrapper for the download process"""
     
+    buffer = None
+    video_file = None
+    
     try:
         # Initialize the first variables for the recording loops
         part = 1
@@ -172,7 +175,7 @@ async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, p
 
             logger.info(f'Writing stream from {channel.name} to {video_path}')
 
-            # Run file writing in executor to avoid blocking
+            # Write video chunks with proper cancellation support
             loop = asyncio.get_event_loop()
             
             def write_video_chunk():
@@ -189,7 +192,14 @@ async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, p
                             return True  # Signal to break to next file
                     return False  # Signal that stream ended
             
-            should_continue = await loop.run_in_executor(None, write_video_chunk)
+            try:
+                should_continue = await loop.run_in_executor(None, write_video_chunk)
+            except asyncio.CancelledError:
+                logger.info(f"Download cancelled for {channel.name}")
+                # Cleanup partial file if needed
+                if video_path.exists():
+                    logger.info(f"Cleaning up partial file: {video_path}")
+                raise  # Re-raise to properly handle cancellation
             
             if should_continue:
                 await video_file.end()
@@ -199,18 +209,29 @@ async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, p
                 # Stream ended, break out of main loop
                 break
                 
+    except asyncio.CancelledError:
+        logger.info(f"Download cancelled for {channel.name}")
+        raise  # Re-raise to properly handle cancellation
     except Exception as e:
-        logger.error(e)
+        logger.error(f"Error during download for {channel.name}: {e}")
+    finally:
+        # Cleanup resources
+        if buffer:
+            try:
+                buffer.close()
+            except Exception as e:
+                logger.error(f"Error closing buffer: {e}")
+        
+        # End the last video being written to if it exists
+        if 'video_file' in locals() and video_file:
+            try:
+                end_time = datetime.now(timezone.utc)
+                await video_file.end(end_time)
+                await transcode_queue.put(video_file)
+            except Exception as e:
+                logger.error(f"Error finalizing video file: {e}")
 
-    # End the last video being written to
-    end_time = datetime.now(timezone.utc)
-    await video_file.end(end_time)
-    await transcode_queue.put(video_file)
-
-    # Cleanup the buffer
-    buffer.close()
-
-    return end_time
+    return datetime.now(timezone.utc)
 
 
 # Internal function for downloading stream in executor (legacy sync wrapper)
