@@ -154,10 +154,21 @@ async def queue_trancodes():
     """
     try:
         videos = await VideoFile.get_nontranscoded()
-        logger.info(f"Queueing {len(videos)} videos for transcoding")
-        
-        for video in videos:
-            await transcode_queue.put(video)
+        # Convert to list if it's a generator to get length
+        if hasattr(videos, '__aiter__'):
+            # It's an async generator
+            video_list = []
+            async for video in videos:
+                video_list.append(video)
+                await transcode_queue.put(video)
+            logger.info(f"Queued {len(video_list)} videos for transcoding")
+        else:
+            # It's a regular iterable, convert to list
+            video_list = list(videos)
+            logger.info(f"Queueing {len(video_list)} videos for transcoding")
+            
+            for video in video_list:
+                await transcode_queue.put(video)
             
     except Exception as e:
         logger.error(f"Error queueing transcodes: {e}")
