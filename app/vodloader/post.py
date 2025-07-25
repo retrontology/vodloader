@@ -1,4 +1,5 @@
 from vodloader.models import VideoFile, Message
+from vodloader.ad_detection import AdDetector
 import ffmpeg
 import cv2
 from PIL import Image, ImageDraw, ImageFont
@@ -88,7 +89,8 @@ async def generate_chat_video(
         font_size: int = DEFAULT_FONT_SIZE,
         font_color: str = DEFAULT_FONT_COLOR,
         background_color: str = DEFAULT_BACKGROUND_COLOR,
-        message_duration: int = DEFAULT_MESSAGE_DURATION
+        message_duration: int = DEFAULT_MESSAGE_DURATION,
+        remove_ads: bool = True
     ) -> Path:
     """
     Transcodes a stream and overlays chat messages on it.
@@ -103,6 +105,7 @@ async def generate_chat_video(
         font_color (str): The font color to use.
         background_color (str): The background color to use.
         message_duration (int): The duration of each message in seconds.
+        remove_ads (bool): Whether to remove ads before processing.
     Returns:
         Path: The path to the transcoded video.
     Raises:
@@ -122,10 +125,22 @@ async def generate_chat_video(
         return None
     logger.info(f'Found {len(messages)} messages')
 
-    # Trim the input video
-    #ffmpeg -ss 00:00:30 -i input.mp4 -c copy output.mp4
+    # Process the video (remove ads if requested, then trim)
+    processed_path = video.path
+    main_stream_properties = None
+    
+    if remove_ads:
+        logger.info('Removing ads from video...')
+        ad_free_path = video.path.parent.joinpath(f'{video.path.stem}.no_ads.mp4')
+        detector = AdDetector()
+        processed_path, main_stream_properties = detector.remove_ads(
+            video.path, ad_free_path
+        )
+        logger.info(f'Ad removal complete: {processed_path}')
+
+    # Trim the processed video
     trim_path = video.path.parent.joinpath(f'{video.path.stem}.trim.mp4')
-    trim_video = ffmpeg.input(video.path.__str__(), ss=TRIM_OFFSET)
+    trim_video = ffmpeg.input(processed_path.__str__(), ss=TRIM_OFFSET)
     trim_video = ffmpeg.output(trim_video, trim_path.__str__(), vcodec='copy')
     trim_video = ffmpeg.overwrite_output(trim_video)
     ffmpeg.run(trim_video, quiet=True)
@@ -142,10 +157,17 @@ async def generate_chat_video(
     )
 
     # Read properties of the input video file
-    logger.debug('Reading the properties of the original stream video...')
+    logger.debug('Reading the properties of the processed stream video...')
     video_width = video_in.get(cv2.CAP_PROP_FRAME_WIDTH)
     video_height = video_in.get(cv2.CAP_PROP_FRAME_HEIGHT)
     fps = video_in.get(cv2.CAP_PROP_FPS)
+    
+    # Use main stream properties if available (from ad detection)
+    if main_stream_properties:
+        logger.info(f'Using main stream properties: {main_stream_properties.width}x{main_stream_properties.height} @ {main_stream_properties.fps}fps')
+        video_width = main_stream_properties.width
+        video_height = main_stream_properties.height
+        fps = main_stream_properties.fps
 
     # Calculate chat dimensions
     chat_width = width
@@ -254,9 +276,14 @@ async def generate_chat_video(
     video.transcode_path = transcode_path
     await video.save()
 
-    # Remove the chat and original video files
+    # Clean up temporary files
     chat_video_path.unlink()
     trim_path.unlink()
+    
+    # Clean up ad-free file if it was created
+    if remove_ads and processed_path != video.path:
+        processed_path.unlink()
+    
     #await remove_original(video)
 
     # Return the path of the transcoded video file
@@ -356,106 +383,7 @@ async def queue_trancodes():
         logger.error(f"Error queueing transcodes: {e}")
 
 
-def detect_video_segments_by_changes(video_path, fps_threshold=2.0):
-    """
-    Detects segments in the video where FPS or resolution changes.
-    
-    Args:
-        video_path (str): Path to the input video file.
-        fps_threshold (float): Minimum FPS difference to trigger a new segment.
 
-    Returns:
-        List of dicts with start_time, end_time, width, height, fps.
-    """
-    cmd = [
-        "ffprobe", "-v", "error",
-        "-select_streams", "v:0",
-        "-show_entries", "frame=best_effort_timestamp_time,width,height",
-        "-of", "csv=p=0",
-        video_path
-    ]
-
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    lines = result.stdout.strip().split('\n')
-
-    segments = []
-    frame_buffer = []
-    prev_width = prev_height = None
-
-    for i, line in enumerate(lines):
-        try:
-            pts_time_str, width_str, height_str = line.strip().split(',')
-            timestamp = float(pts_time_str)
-            width = int(width_str)
-            height = int(height_str)
-        except ValueError:
-            continue
-
-        frame_buffer.append((timestamp, width, height))
-
-        # Initialize or compare with previous values
-        if prev_width is None:
-            prev_width, prev_height = width, height
-            continue
-
-        # If resolution changed, end current segment
-        if width != prev_width or height != prev_height:
-            if len(frame_buffer) > 1:
-                segment_start = frame_buffer[0][0]
-                segment_end = frame_buffer[-2][0]  # before the change
-                duration = segment_end - segment_start
-                frame_count = len(frame_buffer) - 1
-                fps = frame_count / duration if duration > 0 else 0
-                segments.append({
-                    "start_time": segment_start,
-                    "end_time": segment_end,
-                    "width": prev_width,
-                    "height": prev_height,
-                    "fps": round(fps, 3)
-                })
-            frame_buffer = [(timestamp, width, height)]  # start new segment
-            prev_width, prev_height = width, height
-            continue
-
-        # Optional: detect FPS change using timestamp deltas
-        if len(frame_buffer) >= 3:
-            durations = [
-                frame_buffer[i+1][0] - frame_buffer[i][0]
-                for i in range(len(frame_buffer) - 1)
-            ]
-            avg_frame_time = sum(durations) / len(durations)
-            fps = 1.0 / avg_frame_time if avg_frame_time > 0 else 0
-
-            if 'prev_fps' in locals() and abs(fps - prev_fps) > fps_threshold:
-                segment_start = frame_buffer[0][0]
-                segment_end = frame_buffer[-2][0]
-                segments.append({
-                    "start_time": segment_start,
-                    "end_time": segment_end,
-                    "width": prev_width,
-                    "height": prev_height,
-                    "fps": round(prev_fps, 3)
-                })
-                frame_buffer = [(timestamp, width, height)]
-        
-            prev_fps = fps
-
-    # Add the final segment
-    if len(frame_buffer) > 1:
-        segment_start = frame_buffer[0][0]
-        segment_end = frame_buffer[-1][0]
-        duration = segment_end - segment_start
-        frame_count = len(frame_buffer)
-        fps = frame_count / duration if duration > 0 else 0
-        segments.append({
-            "start_time": segment_start,
-            "end_time": segment_end,
-            "width": prev_width,
-            "height": prev_height,
-            "fps": round(fps, 3)
-        })
-
-    return segments
 
 
 
