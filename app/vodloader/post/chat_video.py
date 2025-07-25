@@ -154,9 +154,8 @@ class ChatArea:
         self.video_width = video_width
         self.video_height = video_height
         
-        # Chat area dimensions
-        self.width = config.width
-        self.height = config.height if config.height else video_height
+        # Auto-size chat area to fit within video bounds
+        self.width, self.height = self._calculate_optimal_dimensions(config, video_width, video_height)
         
         # Chat area position (top-left corner of chat area)
         self.x = config.x_offset
@@ -170,6 +169,39 @@ class ChatArea:
         
         # Maximum Y coordinate for content
         self.max_content_y = self.content_y + self.content_height
+    
+    def _calculate_optimal_dimensions(self, config: ChatVideoConfig, video_width: int, video_height: int) -> Tuple[int, int]:
+        """Calculate optimal chat area dimensions that fit within video bounds."""
+        # Start with configured or default dimensions
+        width = config.width
+        height = config.height
+        
+        # Calculate maximum available space
+        max_width = video_width - config.x_offset
+        max_height = video_height - config.y_offset
+        
+        # Auto-size width if it exceeds bounds
+        if width > max_width:
+            width = max_width
+            logger.info(f'Auto-sizing chat width from {config.width} to {width} to fit video bounds')
+        
+        # Auto-size height if not specified or if it exceeds bounds
+        if height is None:
+            # Default to a reasonable portion of video height
+            height = min(video_height // 2, max_height)
+            logger.info(f'Auto-sizing chat height to {height} (50% of video height or max available)')
+        elif height > max_height:
+            height = max_height
+            logger.info(f'Auto-sizing chat height from {config.height} to {height} to fit video bounds')
+        
+        # Ensure minimum dimensions for usability
+        min_width = 200
+        min_height = 100
+        
+        width = max(width, min_width)
+        height = max(height, min_height)
+        
+        return width, height
     
     def fits_in_video(self) -> bool:
         """Check if chat area fits within video bounds."""
@@ -194,10 +226,13 @@ class ChatRenderer:
         """Setup the chat area for the given video dimensions."""
         self.chat_area = ChatArea(self.config, video_width, video_height)
         
+        logger.info(f'Chat area: {self.chat_area.width}x{self.chat_area.height} '
+                   f'at ({self.chat_area.x}, {self.chat_area.y}) '
+                   f'for video {video_width}x{video_height}')
+        
+        # This should always pass now due to auto-sizing, but keep as safety check
         if not self.chat_area.fits_in_video():
-            logger.warning(f'Chat area ({self.chat_area.width}x{self.chat_area.height}) '
-                         f'at ({self.chat_area.x}, {self.chat_area.y}) exceeds video bounds '
-                         f'({video_width}x{video_height})')
+            logger.error(f'Chat area still exceeds video bounds after auto-sizing!')
         
         return self.chat_area
     
