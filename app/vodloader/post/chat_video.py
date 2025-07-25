@@ -420,6 +420,9 @@ class ChatVideoGenerator:
         # Clean up chat video
         chat_video_path.unlink()
         
+        # Remove original video file (commented out for now)
+        # video.path.unlink()
+        
         return transcode_path
 
 
