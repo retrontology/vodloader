@@ -296,10 +296,10 @@ class ChatRenderer:
             # Render from bottom up
             for i in range(len(lines_to_render) - 1, -1, -1):
                 current_y -= self.line_height
-                # For truncated messages, show prefix on the first line we display (top line)
-                # For complete messages, show prefix on the actual first line
+                # For truncated messages, don't show prefix (it would be misleading)
+                # For complete messages, show prefix on the first line
                 if is_truncated:
-                    show_prefix = (i == 0)  # First line of the lines we're showing
+                    show_prefix = False  # No prefix for truncated messages
                 else:
                     show_prefix = (i == 0)  # First line of the complete message
                 
