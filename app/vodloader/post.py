@@ -133,10 +133,14 @@ async def generate_chat_video(
         logger.info('Removing ads from video...')
         ad_free_path = video.path.parent.joinpath(f'{video.path.stem}.no_ads.mp4')
         detector = AdDetector()
-        processed_path, main_stream_properties = detector.remove_ads(
-            video.path, ad_free_path
-        )
-        logger.info(f'Ad removal complete: {processed_path}')
+        result = detector.remove_ads(video.path, ad_free_path)
+        
+        if result is not None:
+            processed_path, main_stream_properties = result
+            logger.info(f'Ad removal complete: {processed_path}')
+        else:
+            logger.info('No ads detected, using original video')
+            # Use original video since no ads were found
 
     # Trim the processed video
     trim_path = video.path.parent.joinpath(f'{video.path.stem}.trim.mp4')
@@ -381,10 +385,6 @@ async def queue_trancodes():
             
     except Exception as e:
         logger.error(f"Error queueing transcodes: {e}")
-
-
-
-
 
 
 class VideoAlreadyTranscoded(Exception): pass
