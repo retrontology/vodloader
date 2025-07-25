@@ -306,38 +306,56 @@ class ChatRenderer:
     def _wrap_message(self, draw: ImageDraw.Draw, message: Message) -> List[str]:
         """Wrap message text into lines that fit the chat width."""
         prefix = f'{message.display_name}: '
-        content = message.content
+        content = message.content.strip()
+        
+        # Handle empty content
+        if not content:
+            return ['']
         
         # Calculate available widths
         prefix_width = draw.textlength(prefix, font=self.font)
         first_line_width = self.chat_area.content_width - prefix_width
         full_line_width = self.chat_area.content_width
         
-        words = content.split(' ')
+        words = content.split()  # split() handles multiple spaces better than split(' ')
         lines = []
         current_line = []
         is_first_line = True
         
         for word in words:
-            # Calculate width needed for this word
-            if current_line:
-                # Adding to existing line - need space before word
-                word_width = draw.textlength(f' {word}', font=self.font)
-            else:
-                # First word on line - no space needed
-                word_width = draw.textlength(word, font=self.font)
+            # Skip empty words (shouldn't happen with split() but safety first)
+            if not word:
+                continue
             
-            # Check available width for current line
+            # Check if this single word is too long for any line
+            word_width = draw.textlength(word, font=self.font)
             available_width = first_line_width if is_first_line else full_line_width
             
-            if current_line and word_width > available_width:
-                # Word doesn't fit, start new line
-                lines.append(' '.join(current_line))
-                current_line = [word]
+            if word_width > available_width:
+                # Single word is too long - put it on its own line anyway
+                # (Better to overflow than to break the word)
+                if current_line:
+                    lines.append(' '.join(current_line))
+                    current_line = []
+                    is_first_line = False
+                lines.append(word)
                 is_first_line = False
-            else:
+                continue
+            
+            # Calculate what the line would look like with this word added
+            test_line = current_line + [word]
+            test_text = ' '.join(test_line)
+            test_width = draw.textlength(test_text, font=self.font)
+            
+            if test_width <= available_width:
                 # Word fits on current line
                 current_line.append(word)
+            else:
+                # Word doesn't fit, start new line
+                if current_line:
+                    lines.append(' '.join(current_line))
+                current_line = [word]
+                is_first_line = False
         
         # Add the last line
         if current_line:
