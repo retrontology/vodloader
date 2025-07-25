@@ -351,12 +351,28 @@ class ChatRenderer:
         return lines if lines else ['']
     
     def _fit_messages_in_area(self, layouts: List[dict]) -> List[dict]:
-        """Remove oldest messages until they fit in the available height."""
+        """Fit messages in area, allowing partial visibility of oldest message."""
+        if not layouts:
+            return layouts
+        
         total_height = sum(layout['height'] for layout in layouts)
         
-        while total_height > self.chat_area.content_height and layouts:
+        # If everything fits, return as-is
+        if total_height <= self.chat_area.content_height:
+            return layouts
+        
+        # Remove complete messages from the top until we have space
+        while len(layouts) > 1 and total_height > self.chat_area.content_height:
             removed_layout = layouts.pop(0)
             total_height -= removed_layout['height']
+        
+        # If we still have overflow with just one message, allow partial rendering
+        if total_height > self.chat_area.content_height and layouts:
+            # Mark the first (oldest) message for partial rendering
+            layouts[0]['partial_render'] = True
+            layouts[0]['available_height'] = self.chat_area.content_height - sum(
+                layout['height'] for layout in layouts[1:]
+            )
         
         return layouts
     
@@ -365,7 +381,14 @@ class ChatRenderer:
         if not layouts:
             return self.chat_area.content_y
         
-        total_height = sum(layout['height'] for layout in layouts)
+        # Calculate effective height (considering partial rendering)
+        total_height = 0
+        for layout in layouts:
+            if layout.get('partial_render', False):
+                # Use available height for partial messages
+                total_height += layout.get('available_height', layout['height'])
+            else:
+                total_height += layout['height']
         
         # Bottom-align within content area
         start_y = self.chat_area.max_content_y - total_height
@@ -379,22 +402,41 @@ class ChatRenderer:
         prefix = layout['prefix']
         lines = layout['lines']
         
-        current_y = start_y
+        # Check if this is a partial render
+        is_partial = layout.get('partial_render', False)
+        available_height = layout.get('available_height', float('inf'))
         
-        # Draw prefix on first line
-        draw.text(
-            (self.chat_area.content_x, current_y),
-            prefix,
-            font=self.font,
-            fill=message.color,
-            stroke_fill=self.config.background_color,
-            stroke_width=2
-        )
+        current_y = start_y
+        lines_rendered = 0
+        max_lines = int(available_height // self.line_height) if is_partial else len(lines)
+        
+        # Don't render if no space available
+        if max_lines <= 0:
+            return start_y
+        
+        # Draw prefix on first line (if we have space)
+        if current_y + self.line_height <= self.chat_area.max_content_y:
+            draw.text(
+                (self.chat_area.content_x, current_y),
+                prefix,
+                font=self.font,
+                fill=message.color,
+                stroke_fill=self.config.background_color,
+                stroke_width=2
+            )
         
         # Draw message content
         prefix_width = draw.textlength(f'{prefix} ', font=self.font)
         
         for i, line in enumerate(lines):
+            # Stop if we've reached our line limit for partial rendering
+            if i >= max_lines:
+                break
+            
+            # Stop if we would exceed the content area
+            if current_y + self.line_height > self.chat_area.max_content_y:
+                break
+            
             if i == 0:
                 # First line: draw after prefix
                 x_pos = self.chat_area.content_x + prefix_width
@@ -412,6 +454,8 @@ class ChatRenderer:
                     stroke_fill=self.config.background_color,
                     stroke_width=2
                 )
+            
+            lines_rendered += 1
         
         # Return Y position for next message
         return current_y + self.line_height
