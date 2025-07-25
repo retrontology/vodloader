@@ -29,6 +29,7 @@ class ChatVideoConfig:
         self,
         width: int = 320,
         height: Optional[int] = None,
+        max_height: Optional[int] = None,
         font_family: str = "FreeSans",
         font_style: str = "Regular", 
         font_size: int = 24,
@@ -40,6 +41,7 @@ class ChatVideoConfig:
     ):
         self.width = width
         self.height = height
+        self.max_height = max_height
         self.font_family = font_family
         self.font_style = font_style
         self.font_size = font_size
@@ -158,6 +160,11 @@ class ChatRenderer:
         """Calculate chat dimensions based on video properties."""
         chat_width = self.config.width
         chat_height = self.config.height if self.config.height else video_height
+        
+        # Apply max_height constraint if specified
+        if self.config.max_height:
+            chat_height = min(chat_height, self.config.max_height)
+        
         max_y = chat_height - (self.start_y * 2)
         return chat_width, chat_height, max_y
     
@@ -174,11 +181,12 @@ class ChatRenderer:
         base_image = Image.fromarray(frame, mode="RGB")
         draw = ImageDraw.Draw(base_image)
         
-        # Iterate through visible messages
-        current_y = self.start_y
+        # Collect visible messages first to calculate total height
+        visible_messages = []
         visible_message_index = message_index
         
-        while visible_message_index >= 0 and current_y <= max_y:
+        # Go backwards from current message to find all visible messages
+        while visible_message_index >= 0:
             message = messages[visible_message_index]
             
             # Check if message is still visible
@@ -190,7 +198,35 @@ class ChatRenderer:
             if (current_time - message_time) > self.config.message_duration:
                 break
             
-            # Render this message
+            visible_messages.append(message)
+            visible_message_index -= 1
+        
+        # Reverse the list so oldest messages are first (will be rendered at top)
+        visible_messages.reverse()
+        
+        # Calculate total height needed for all messages
+        total_height = 0
+        message_heights = []
+        
+        for message in visible_messages:
+            height = self._calculate_message_height(draw, message, chat_width)
+            message_heights.append(height)
+            total_height += height
+        
+        # Start rendering from the bottom if messages exceed max height
+        if total_height > max_y:
+            # Remove oldest messages until we fit
+            while total_height > max_y and visible_messages:
+                removed_height = message_heights.pop(0)
+                total_height -= removed_height
+                visible_messages.pop(0)
+        
+        # Calculate starting Y position (bottom-aligned within chat area)
+        start_y = max(self.start_y, max_y - total_height + self.start_y)
+        current_y = start_y
+        
+        # Render messages from oldest to newest (top to bottom)
+        for i, message in enumerate(visible_messages):
             lines_rendered = self._render_message(
                 draw, message, current_y, chat_width, max_y
             )
@@ -200,9 +236,33 @@ class ChatRenderer:
                 break
             
             current_y += lines_rendered * self.line_height
-            visible_message_index -= 1
         
         return np.array(base_image)
+    
+    def _calculate_message_height(
+        self,
+        draw: ImageDraw.Draw,
+        message: Message,
+        chat_width: int
+    ) -> float:
+        """Calculate the height needed for a message without rendering it."""
+        prefix = f'{message.display_name}:'
+        
+        # Break the message into lines
+        words = message.content.split(' ')
+        lines = [[]]
+        temp_x = self.start_x + draw.textlength(prefix, font=self.font)
+        
+        for word in words:
+            word_length = draw.textlength(f' {word}', font=self.font)
+            if temp_x + word_length > chat_width:
+                lines.append([word])
+                temp_x = self.start_x + draw.textlength(word, font=self.font)
+            else:
+                lines[-1].append(word)
+                temp_x += word_length
+        
+        return len(lines) * self.line_height
     
     def _render_message(
         self,
@@ -453,6 +513,7 @@ async def generate_chat_video(
     video: VideoFile,
     width: int = 320,
     height: Optional[int] = None,
+    max_height: Optional[int] = None,
     font_family: str = "FreeSans",
     font_style: str = "Regular",
     font_size: int = 24,
@@ -467,6 +528,7 @@ async def generate_chat_video(
     config = ChatVideoConfig(
         width=width,
         height=height,
+        max_height=max_height,
         font_family=font_family,
         font_style=font_style,
         font_size=font_size,
