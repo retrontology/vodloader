@@ -10,7 +10,7 @@ from vodloader.models import TwitchChannel, VideoFile, initialize_models
 from vodloader.api import create_api
 from vodloader.twitch import twitch, webhook
 from vodloader.vodloader import subscribe
-from vodloader.post import transcode_listener, transcode_queue, queue_trancodes
+from vodloader.post.transcoding import transcode_listener, transcode_queue, queue_trancodes
 from vodloader import config
 from vodloader.chat import bot
 

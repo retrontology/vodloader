@@ -8,7 +8,7 @@ from vodloader.models import *
 from vodloader import config
 from vodloader.twitch import webhook
 from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, ChannelUpdateEvent
-from vodloader.post import transcode_queue
+from vodloader.post.transcoding import transcode_queue
 
 
 CHUNK_SIZE = 8192

@@ -1,4 +1,4 @@
-from vodloader.post import generate_chat_video
+from vodloader.post.chat_video import generate_chat_video
 from vodloader.models import VideoFile
 import asyncio
 
