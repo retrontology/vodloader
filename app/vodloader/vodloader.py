@@ -137,6 +137,21 @@ async def _download_stream(channel: TwitchChannel):
 
 
 # Internal async function for downloading stream
+def _write_video_chunk(video_path, buffer, data, start):
+    """Write video chunks to file and check for cutoff"""
+    with open(video_path, 'wb') as file:
+        # Loop for writing video stream data to file
+        while data:
+            file.write(data)
+            data = buffer.read(CHUNK_SIZE)
+            
+            # Check if the video has exceeded the cutoff and trigger next file if it does
+            if buffer.worker.playlist_sequence_last - start > CUTOFF:
+                logger.info(f'Video file {video_path} has reached the cutoff. Handing stream over to next file...')
+                return True, data  # Signal to break to next file, return remaining data
+        return False, data  # Signal that stream ended, return remaining data
+
+
 async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, path: Path):
     """Async wrapper for the download process"""
     
@@ -178,22 +193,10 @@ async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, p
             # Write video chunks with proper cancellation support
             loop = asyncio.get_event_loop()
             
-            def write_video_chunk():
-                nonlocal data
-                with open(video_path, 'wb') as file:
-                    # Second loop for writing video stream data to file
-                    while data:
-                        file.write(data)
-                        data = buffer.read(CHUNK_SIZE)
-                        
-                        # Check if the video has exceeded the cutoff and trigger next file if it does
-                        if buffer.worker.playlist_sequence_last - start > CUTOFF:
-                            logger.info(f'Video file {video_path} has reached the cutoff. Handing stream over to next file...')
-                            return True  # Signal to break to next file
-                    return False  # Signal that stream ended
-            
             try:
-                should_continue = await loop.run_in_executor(None, write_video_chunk)
+                should_continue, data = await loop.run_in_executor(
+                    None, _write_video_chunk, video_path, buffer, data, start
+                )
             except asyncio.CancelledError:
                 logger.info(f"Download cancelled for {channel.name}")
                 # Cleanup partial file if needed
