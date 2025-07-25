@@ -316,21 +316,30 @@ class ChatRenderer:
         words = content.split(' ')
         lines = []
         current_line = []
-        available_width = first_line_width
+        is_first_line = True
         
         for word in words:
-            word_width = draw.textlength(f' {word}' if current_line else word, font=self.font)
-            
-            if word_width <= available_width:
-                current_line.append(word)
-                available_width -= word_width
+            # Calculate width needed for this word
+            if current_line:
+                # Adding to existing line - need space before word
+                word_width = draw.textlength(f' {word}', font=self.font)
             else:
-                # Start new line
-                if current_line:
-                    lines.append(' '.join(current_line))
+                # First word on line - no space needed
+                word_width = draw.textlength(word, font=self.font)
+            
+            # Check available width for current line
+            available_width = first_line_width if is_first_line else full_line_width
+            
+            if current_line and word_width > available_width:
+                # Word doesn't fit, start new line
+                lines.append(' '.join(current_line))
                 current_line = [word]
-                available_width = full_line_width - draw.textlength(word, font=self.font)
+                is_first_line = False
+            else:
+                # Word fits on current line
+                current_line.append(word)
         
+        # Add the last line
         if current_line:
             lines.append(' '.join(current_line))
         
