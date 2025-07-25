@@ -38,7 +38,6 @@ class ChatVideoConfig:
         font_color: Tuple[int, int, int, int] = (255, 255, 255, 255),
         background_color: Tuple[int, int, int, int] = (0, 0, 0, 127),
         message_duration: int = 10,
-        trim_offset: int = 30,
         remove_ads: bool = True
     ):
         self.width = width
@@ -52,7 +51,6 @@ class ChatVideoConfig:
         self.font_color = font_color
         self.background_color = background_color
         self.message_duration = timedelta(seconds=message_duration)
-        self.trim_offset = trim_offset
         self.remove_ads = remove_ads
 
 
@@ -112,7 +110,7 @@ class VideoProcessor:
     
     def preprocess_video(self, video: VideoFile) -> Tuple[Path, Optional[object]]:
         """
-        Preprocess video by removing ads and trimming.
+        Preprocess video by removing ads.
         
         Returns:
             Tuple of (processed_video_path, main_stream_properties)
@@ -132,18 +130,7 @@ class VideoProcessor:
             else:
                 logger.info('No ads detected, using original video')
         
-        # Trim the processed video
-        trim_path = video.path.parent.joinpath(f'{video.path.stem}.trim.mp4')
-        trim_video = ffmpeg.input(str(processed_path), ss=self.config.trim_offset)
-        trim_video = ffmpeg.output(trim_video, str(trim_path), vcodec='copy')
-        trim_video = ffmpeg.overwrite_output(trim_video)
-        ffmpeg.run(trim_video, quiet=True)
-        
-        # Clean up ad-free file if it was created and different from original
-        if self.config.remove_ads and processed_path != video.path:
-            processed_path.unlink()
-        
-        return trim_path, main_stream_properties
+        return processed_path, main_stream_properties
 
 
 class ChatArea:
@@ -427,29 +414,29 @@ class ChatVideoGenerator:
         
         logger.info(f'Found {len(messages)} messages')
         
-        # Preprocess video (ad removal, trimming)
-        trim_path, main_stream_properties = self.video_processor.preprocess_video(video)
+        # Preprocess video (ad removal)
+        processed_path, main_stream_properties = self.video_processor.preprocess_video(video)
         
         try:
             # Process the video
             return await self._process_video(
-                video, trim_path, messages, main_stream_properties
+                video, processed_path, messages, main_stream_properties
             )
         finally:
-            # Clean up trimmed file
-            if trim_path.exists():
-                trim_path.unlink()
+            # Clean up processed file if it's different from original
+            if processed_path != video.path and processed_path.exists():
+                processed_path.unlink()
     
     async def _process_video(
         self,
         video: VideoFile,
-        trim_path: Path,
+        processed_path: Path,
         messages: List[Message],
         main_stream_properties: Optional[object]
     ) -> Path:
         """Process the video with chat overlay."""
         # Open input video
-        video_in = cv2.VideoCapture(str(trim_path), apiPreference=cv2.CAP_FFMPEG)
+        video_in = cv2.VideoCapture(str(processed_path), apiPreference=cv2.CAP_FFMPEG)
         
         # Get video properties
         video_width = int(video_in.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -514,7 +501,7 @@ class ChatVideoGenerator:
             video_out.release()
         
         # Mux with audio
-        return await self._mux_audio(video, trim_path, chat_video_path)
+        return await self._mux_audio(video, processed_path, chat_video_path)
     
     def _update_message_index(
         self,
@@ -544,7 +531,7 @@ class ChatVideoGenerator:
     async def _mux_audio(
         self,
         video: VideoFile,
-        trim_path: Path,
+        processed_path: Path,
         chat_video_path: Path
     ) -> Path:
         """Mux the chat video with audio from original."""
@@ -552,7 +539,7 @@ class ChatVideoGenerator:
         
         transcode_path = video.path.parent.joinpath(f'{video.path.stem}.mp4')
         chat_stream = ffmpeg.input(str(chat_video_path))
-        original_stream = ffmpeg.input(str(trim_path))
+        original_stream = ffmpeg.input(str(processed_path))
         
         output_stream = ffmpeg.output(
             chat_stream['v:0'],
