@@ -351,30 +351,42 @@ class ChatRenderer:
         return lines if lines else ['']
     
     def _fit_messages_in_area(self, layouts: List[dict]) -> List[dict]:
-        """Fit messages in area, allowing partial visibility of oldest message."""
+        """Fit messages in area, allowing partial visibility when needed."""
         if not layouts:
             return layouts
         
-        total_height = sum(layout['height'] for layout in layouts)
+        # Always return at least something, even if it needs to be partially rendered
+        # This prevents the blank chat issue
         
-        # If everything fits, return as-is
-        if total_height <= self.chat_area.content_height:
-            return layouts
+        # Start from the newest messages (at the end) and work backwards
+        # to ensure newer messages are always fully visible
+        fitted_layouts = []
+        remaining_height = self.chat_area.content_height
         
-        # Remove complete messages from the top until we have space
-        while len(layouts) > 1 and total_height > self.chat_area.content_height:
-            removed_layout = layouts.pop(0)
-            total_height -= removed_layout['height']
+        # Process messages from newest to oldest
+        for layout in reversed(layouts):
+            if layout['height'] <= remaining_height:
+                # Message fits completely
+                fitted_layouts.insert(0, layout)
+                remaining_height -= layout['height']
+            elif remaining_height > self.line_height and not fitted_layouts:
+                # This is the case where we have a very large message
+                # and no other messages fit. Show it partially.
+                layout['partial_render'] = True
+                layout['max_lines'] = max(1, int(remaining_height // self.line_height))
+                fitted_layouts.insert(0, layout)
+                remaining_height = 0
+            elif remaining_height > self.line_height:
+                # We have some space left, show partial message
+                layout['partial_render'] = True
+                layout['max_lines'] = max(1, int(remaining_height // self.line_height))
+                fitted_layouts.insert(0, layout)
+                remaining_height = 0
+            else:
+                # No more space, skip this message
+                break
         
-        # If we still have overflow with just one message, allow partial rendering
-        if total_height > self.chat_area.content_height and layouts:
-            # Mark the first (oldest) message for partial rendering
-            layouts[0]['partial_render'] = True
-            layouts[0]['available_height'] = self.chat_area.content_height - sum(
-                layout['height'] for layout in layouts[1:]
-            )
-        
-        return layouts
+        return fitted_layouts
     
     def _calculate_start_position(self, layouts: List[dict]) -> int:
         """Calculate Y position to start rendering (bottom-aligned)."""
@@ -385,8 +397,9 @@ class ChatRenderer:
         total_height = 0
         for layout in layouts:
             if layout.get('partial_render', False):
-                # Use available height for partial messages
-                total_height += layout.get('available_height', layout['height'])
+                # Use actual lines that will be rendered
+                max_lines = layout.get('max_lines', len(layout['lines']))
+                total_height += max_lines * self.line_height
             else:
                 total_height += layout['height']
         
@@ -402,40 +415,34 @@ class ChatRenderer:
         prefix = layout['prefix']
         lines = layout['lines']
         
-        # Check if this is a partial render
+        # Determine how many lines to render
         is_partial = layout.get('partial_render', False)
-        available_height = layout.get('available_height', float('inf'))
+        max_lines = layout.get('max_lines', len(lines)) if is_partial else len(lines)
         
-        current_y = start_y
-        lines_rendered = 0
-        max_lines = int(available_height // self.line_height) if is_partial else len(lines)
+        # Ensure we don't render more lines than we have
+        max_lines = min(max_lines, len(lines))
         
-        # Don't render if no space available
+        # Don't render if no lines to show
         if max_lines <= 0:
             return start_y
         
-        # Draw prefix on first line (if we have space)
-        if current_y + self.line_height <= self.chat_area.max_content_y:
-            draw.text(
-                (self.chat_area.content_x, current_y),
-                prefix,
-                font=self.font,
-                fill=message.color,
-                stroke_fill=self.config.background_color,
-                stroke_width=2
-            )
+        current_y = start_y
+        
+        # Draw prefix on first line
+        draw.text(
+            (self.chat_area.content_x, current_y),
+            prefix,
+            font=self.font,
+            fill=message.color,
+            stroke_fill=self.config.background_color,
+            stroke_width=2
+        )
         
         # Draw message content
         prefix_width = draw.textlength(f'{prefix} ', font=self.font)
         
-        for i, line in enumerate(lines):
-            # Stop if we've reached our line limit for partial rendering
-            if i >= max_lines:
-                break
-            
-            # Stop if we would exceed the content area
-            if current_y + self.line_height > self.chat_area.max_content_y:
-                break
+        for i in range(max_lines):
+            line = lines[i] if i < len(lines) else ""
             
             if i == 0:
                 # First line: draw after prefix
@@ -454,8 +461,6 @@ class ChatRenderer:
                     stroke_fill=self.config.background_color,
                     stroke_width=2
                 )
-            
-            lines_rendered += 1
         
         # Return Y position for next message
         return current_y + self.line_height
