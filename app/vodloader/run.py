@@ -53,7 +53,7 @@ def setup_logger(level=logging.INFO, path='logs'):
     return logging.getLogger('vodloader')
 
 
-async def start_chat_bot():
+async def start_chat_bot(logger):
     """Start chat bot as an async task"""
     try:
         await bot.start()
@@ -94,7 +94,7 @@ async def main():
         await webhook.unsubscribe_all()
 
         # Start chat bot as async task
-        chatbot_task = asyncio.create_task(start_chat_bot())
+        chatbot_task = asyncio.create_task(start_chat_bot(logger))
         
         # Give chat bot time to connect
         await asyncio.sleep(2)
