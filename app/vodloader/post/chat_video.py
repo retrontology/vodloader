@@ -10,7 +10,7 @@ import ffmpeg
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from pathlib import Path
-from datetime import timedelta
+from datetime import timedelta, timezone
 from typing import List, Optional, Tuple
 import logging
 
@@ -182,7 +182,12 @@ class ChatRenderer:
             message = messages[visible_message_index]
             
             # Check if message is still visible
-            if (current_time - message.timestamp) > self.config.message_duration:
+            message_time = message.timestamp
+            if message_time.tzinfo is None:
+                # Make naive timestamp timezone-aware to match current_time
+                message_time = message_time.replace(tzinfo=timezone.utc)
+            
+            if (current_time - message_time) > self.config.message_duration:
                 break
             
             # Render this message
@@ -354,6 +359,14 @@ class ChatVideoGenerator:
                 time_offset = timedelta(milliseconds=video_in.get(cv2.CAP_PROP_POS_MSEC))
                 current_time = video.started_at + time_offset
                 
+                # Ensure timezone consistency for comparisons
+                if current_time.tzinfo is not None and current_time.tzinfo.utcoffset(current_time) is not None:
+                    # current_time is timezone-aware, make sure we handle naive message timestamps
+                    pass  # We'll handle this in the comparison methods
+                else:
+                    # current_time is naive, make it UTC-aware if needed
+                    current_time = current_time.replace(tzinfo=timezone.utc)
+                
                 # Update message index
                 message_index = self._update_message_index(
                     messages, message_index, current_time
@@ -378,12 +391,21 @@ class ChatVideoGenerator:
         self,
         messages: List[Message],
         current_index: int,
-        current_time: timedelta
+        current_time
     ) -> int:
         """Update message index to point to the newest message for current time."""
         while current_index < len(messages) - 1:
-            if messages[current_index].timestamp <= current_time:
-                if messages[current_index + 1].timestamp > current_time:
+            message_time = messages[current_index].timestamp
+            next_message_time = messages[current_index + 1].timestamp
+            
+            # Ensure timezone consistency
+            if message_time.tzinfo is None:
+                message_time = message_time.replace(tzinfo=timezone.utc)
+            if next_message_time.tzinfo is None:
+                next_message_time = next_message_time.replace(tzinfo=timezone.utc)
+            
+            if message_time <= current_time:
+                if next_message_time > current_time:
                     break
                 current_index += 1
             else:
