@@ -29,7 +29,6 @@ class ChatVideoConfig:
         self,
         width: int = 320,
         height: Optional[int] = None,
-        max_height: Optional[int] = None,
         font_family: str = "FreeSans",
         font_style: str = "Regular", 
         font_size: int = 24,
@@ -41,7 +40,6 @@ class ChatVideoConfig:
     ):
         self.width = width
         self.height = height
-        self.max_height = max_height
         self.font_family = font_family
         self.font_style = font_style
         self.font_size = font_size
@@ -160,11 +158,6 @@ class ChatRenderer:
         """Calculate chat dimensions based on video properties."""
         chat_width = self.config.width
         chat_height = self.config.height if self.config.height else video_height
-        
-        # Apply max_height constraint if specified
-        if self.config.max_height:
-            chat_height = min(chat_height, self.config.max_height)
-        
         max_y = chat_height - (self.start_y * 2)
         return chat_width, chat_height, max_y
     
@@ -513,7 +506,6 @@ async def generate_chat_video(
     video: VideoFile,
     width: int = 320,
     height: Optional[int] = None,
-    max_height: Optional[int] = None,
     font_family: str = "FreeSans",
     font_style: str = "Regular",
     font_size: int = 24,
@@ -528,7 +520,6 @@ async def generate_chat_video(
     config = ChatVideoConfig(
         width=width,
         height=height,
-        max_height=max_height,
         font_family=font_family,
         font_style=font_style,
         font_size=font_size,
