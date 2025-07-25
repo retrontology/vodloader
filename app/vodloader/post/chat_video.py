@@ -29,6 +29,9 @@ class ChatVideoConfig:
         self,
         width: int = 320,
         height: Optional[int] = None,
+        x_offset: int = 20,
+        y_offset: int = 20,
+        padding: int = 20,
         font_family: str = "FreeSans",
         font_style: str = "Regular", 
         font_size: int = 24,
@@ -40,6 +43,9 @@ class ChatVideoConfig:
     ):
         self.width = width
         self.height = height
+        self.x_offset = x_offset  # Distance from left edge of video
+        self.y_offset = y_offset  # Distance from top edge of video
+        self.padding = padding    # Internal padding within chat area
         self.font_family = font_family
         self.font_style = font_style
         self.font_size = font_size
@@ -140,6 +146,37 @@ class VideoProcessor:
         return trim_path, main_stream_properties
 
 
+class ChatArea:
+    """Represents the chat overlay area with proper positioning."""
+    
+    def __init__(self, config: ChatVideoConfig, video_width: int, video_height: int):
+        self.config = config
+        self.video_width = video_width
+        self.video_height = video_height
+        
+        # Chat area dimensions
+        self.width = config.width
+        self.height = config.height if config.height else video_height
+        
+        # Chat area position (top-left corner of chat area)
+        self.x = config.x_offset
+        self.y = config.y_offset
+        
+        # Content area (inside padding)
+        self.content_x = self.x + config.padding
+        self.content_y = self.y + config.padding
+        self.content_width = self.width - (config.padding * 2)
+        self.content_height = self.height - (config.padding * 2)
+        
+        # Maximum Y coordinate for content
+        self.max_content_y = self.content_y + self.content_height
+    
+    def fits_in_video(self) -> bool:
+        """Check if chat area fits within video bounds."""
+        return (self.x + self.width <= self.video_width and 
+                self.y + self.height <= self.video_height)
+
+
 class ChatRenderer:
     """Handles chat message rendering on video frames."""
     
@@ -151,41 +188,70 @@ class ChatRenderer:
             config.font_size
         )
         self.line_height = config.font_size * 1.2
-        self.start_x = 20
-        self.start_y = 20
+        self.chat_area = None
     
-    def setup_dimensions(self, video_width: int, video_height: int) -> Tuple[int, int, int]:
-        """Calculate chat dimensions based on video properties."""
-        chat_width = self.config.width
-        chat_height = self.config.height if self.config.height else video_height
-        max_y = chat_height - (self.start_y * 2)
-        return chat_width, chat_height, max_y
+    def setup_chat_area(self, video_width: int, video_height: int) -> ChatArea:
+        """Setup the chat area for the given video dimensions."""
+        self.chat_area = ChatArea(self.config, video_width, video_height)
+        
+        if not self.chat_area.fits_in_video():
+            logger.warning(f'Chat area ({self.chat_area.width}x{self.chat_area.height}) '
+                         f'at ({self.chat_area.x}, {self.chat_area.y}) exceeds video bounds '
+                         f'({video_width}x{video_height})')
+        
+        return self.chat_area
     
     def render_messages_on_frame(
         self,
         frame: np.ndarray,
         messages: List[Message],
         current_time: timedelta,
-        message_index: int,
-        chat_width: int,
-        max_y: int
+        message_index: int
     ) -> np.ndarray:
         """Render chat messages on a single frame."""
+        if not self.chat_area:
+            raise ValueError("Chat area not initialized. Call setup_chat_area first.")
+        
         base_image = Image.fromarray(frame, mode="RGB")
         draw = ImageDraw.Draw(base_image)
         
-        # Collect visible messages first to calculate total height
+        # Get visible messages
+        visible_messages = self._get_visible_messages(messages, current_time, message_index)
+        if not visible_messages:
+            return np.array(base_image)
+        
+        # Calculate message layouts
+        message_layouts = self._calculate_message_layouts(draw, visible_messages)
+        
+        # Fit messages within available space (remove oldest if needed)
+        fitted_layouts = self._fit_messages_in_area(message_layouts)
+        
+        # Calculate starting position (newer messages at bottom)
+        start_y = self._calculate_start_position(fitted_layouts)
+        
+        # Render messages
+        current_y = start_y
+        for layout in fitted_layouts:
+            current_y = self._render_message_with_layout(draw, layout, current_y)
+        
+        return np.array(base_image)
+    
+    def _get_visible_messages(
+        self, 
+        messages: List[Message], 
+        current_time: timedelta, 
+        message_index: int
+    ) -> List[Message]:
+        """Get all messages that should be visible at current time."""
         visible_messages = []
         visible_message_index = message_index
         
-        # Go backwards from current message to find all visible messages
         while visible_message_index >= 0:
             message = messages[visible_message_index]
             
             # Check if message is still visible
             message_time = message.timestamp
             if message_time.tzinfo is None:
-                # Make naive timestamp timezone-aware to match current_time
                 message_time = message_time.replace(tzinfo=timezone.utc)
             
             if (current_time - message_time) > self.config.message_duration:
@@ -194,106 +260,95 @@ class ChatRenderer:
             visible_messages.append(message)
             visible_message_index -= 1
         
-        # Reverse the list so oldest messages are first (will be rendered at top)
+        # Reverse so oldest messages are first (rendered at top)
         visible_messages.reverse()
-        
-        # Calculate total height needed for all messages
-        total_height = 0
-        message_heights = []
-        
-        for message in visible_messages:
-            height = self._calculate_message_height(draw, message, chat_width)
-            message_heights.append(height)
-            total_height += height
-        
-        # Start rendering from the bottom if messages exceed max height
-        if total_height > max_y:
-            # Remove oldest messages until we fit
-            while total_height > max_y and visible_messages:
-                removed_height = message_heights.pop(0)
-                total_height -= removed_height
-                visible_messages.pop(0)
-        
-        # Calculate starting Y position (bottom-aligned within chat area)
-        start_y = max(self.start_y, max_y - total_height + self.start_y)
-        current_y = start_y
-        
-        # Render messages from oldest to newest (top to bottom)
-        for i, message in enumerate(visible_messages):
-            lines_rendered = self._render_message(
-                draw, message, current_y, chat_width, max_y
-            )
-            
-            if lines_rendered == 0:
-                # Message too big to fit, stop rendering
-                break
-            
-            current_y += lines_rendered * self.line_height
-        
-        return np.array(base_image)
+        return visible_messages
     
-    def _calculate_message_height(
-        self,
-        draw: ImageDraw.Draw,
-        message: Message,
-        chat_width: int
-    ) -> float:
-        """Calculate the height needed for a message without rendering it."""
-        prefix = f'{message.display_name}:'
+    def _calculate_message_layouts(self, draw: ImageDraw.Draw, messages: List[Message]) -> List[dict]:
+        """Calculate layout information for all messages."""
+        layouts = []
         
-        # Break the message into lines
-        words = message.content.split(' ')
-        lines = [[]]
-        temp_x = self.start_x + draw.textlength(prefix, font=self.font)
+        for message in messages:
+            prefix = f'{message.display_name}:'
+            
+            # Break message into lines that fit within content width
+            lines = self._break_message_into_lines(draw, prefix, message.content)
+            height = len(lines) * self.line_height
+            
+            layout = {
+                'message': message,
+                'prefix': prefix,
+                'lines': lines,
+                'height': height
+            }
+            layouts.append(layout)
+        
+        return layouts
+    
+    def _break_message_into_lines(self, draw: ImageDraw.Draw, prefix: str, content: str) -> List[str]:
+        """Break a message into lines that fit within the content width."""
+        words = content.split(' ')
+        lines = []
+        current_line = []
+        
+        # Calculate available width for first line (after prefix)
+        prefix_width = draw.textlength(f'{prefix} ', font=self.font)
+        first_line_width = self.chat_area.content_width - prefix_width
+        current_width = first_line_width
         
         for word in words:
-            word_length = draw.textlength(f' {word}', font=self.font)
-            if temp_x + word_length > chat_width:
-                lines.append([word])
-                temp_x = self.start_x + draw.textlength(word, font=self.font)
+            word_width = draw.textlength(f' {word}' if current_line else word, font=self.font)
+            
+            if word_width <= current_width:
+                current_line.append(word)
+                current_width -= word_width
             else:
-                lines[-1].append(word)
-                temp_x += word_length
+                # Start new line
+                if current_line:
+                    lines.append(' '.join(current_line))
+                current_line = [word]
+                current_width = self.chat_area.content_width - draw.textlength(word, font=self.font)
         
-        return len(lines) * self.line_height
+        # Add remaining words
+        if current_line:
+            lines.append(' '.join(current_line))
+        
+        return lines if lines else ['']
     
-    def _render_message(
-        self,
-        draw: ImageDraw.Draw,
-        message: Message,
-        start_y: int,
-        chat_width: int,
-        max_y: int
-    ) -> int:
-        """
-        Render a single message and return number of lines rendered.
-        Returns 0 if message couldn't fit.
-        """
-        prefix = f'{message.display_name}:'
+    def _fit_messages_in_area(self, layouts: List[dict]) -> List[dict]:
+        """Remove oldest messages until they fit in the available height."""
+        total_height = sum(layout['height'] for layout in layouts)
         
-        # Break the message into lines
-        words = message.content.split(' ')
-        lines = [[]]
-        temp_x = self.start_x + draw.textlength(prefix, font=self.font)
+        while total_height > self.chat_area.content_height and layouts:
+            removed_layout = layouts.pop(0)
+            total_height -= removed_layout['height']
         
-        for word in words:
-            word_length = draw.textlength(f' {word}', font=self.font)
-            if temp_x + word_length > chat_width:
-                lines.append([word])
-                temp_x = self.start_x + draw.textlength(word, font=self.font)
-            else:
-                lines[-1].append(word)
-                temp_x += word_length
+        return layouts
+    
+    def _calculate_start_position(self, layouts: List[dict]) -> int:
+        """Calculate Y position to start rendering (bottom-aligned)."""
+        if not layouts:
+            return self.chat_area.content_y
         
-        # Check if message fits
-        total_height = len(lines) * self.line_height
-        if start_y + total_height > max_y:
-            return 0
+        total_height = sum(layout['height'] for layout in layouts)
         
-        # Draw the message
+        # Bottom-align within content area
+        start_y = self.chat_area.max_content_y - total_height
+        
+        # Don't go above content area
+        return max(start_y, self.chat_area.content_y)
+    
+    def _render_message_with_layout(self, draw: ImageDraw.Draw, layout: dict, start_y: int) -> int:
+        """Render a message using its pre-calculated layout."""
+        message = layout['message']
+        prefix = layout['prefix']
+        lines = layout['lines']
+        
         current_y = start_y
+        
+        # Draw prefix on first line
         draw.text(
-            (self.start_x, current_y),
+            (self.chat_area.content_x, current_y),
             prefix,
             font=self.font,
             fill=message.color,
@@ -301,24 +356,30 @@ class ChatRenderer:
             stroke_width=2
         )
         
-        current_x = self.start_x + draw.textlength(f'{prefix} ', font=self.font)
+        # Draw message content
+        prefix_width = draw.textlength(f'{prefix} ', font=self.font)
         
-        for line in lines:
-            if not line:
-                continue
-            line_text = ' '.join(line)
-            draw.text(
-                (current_x, current_y),
-                line_text,
-                font=self.font,
-                fill=self.config.font_color,
-                stroke_fill=self.config.background_color,
-                stroke_width=2
-            )
-            current_y += self.line_height
-            current_x = self.start_x
+        for i, line in enumerate(lines):
+            if i == 0:
+                # First line: draw after prefix
+                x_pos = self.chat_area.content_x + prefix_width
+            else:
+                # Subsequent lines: start at content x
+                x_pos = self.chat_area.content_x
+                current_y += self.line_height
+            
+            if line:  # Only draw non-empty lines
+                draw.text(
+                    (x_pos, current_y),
+                    line,
+                    font=self.font,
+                    fill=self.config.font_color,
+                    stroke_fill=self.config.background_color,
+                    stroke_width=2
+                )
         
-        return len(lines)
+        # Return Y position for next message
+        return current_y + self.line_height
 
 
 class ChatVideoGenerator:
@@ -385,10 +446,8 @@ class ChatVideoGenerator:
             video_height = main_stream_properties.height
             fps = main_stream_properties.fps
         
-        # Setup chat dimensions
-        chat_width, chat_height, max_y = self.chat_renderer.setup_dimensions(
-            video_width, video_height
-        )
+        # Setup chat area
+        chat_area = self.chat_renderer.setup_chat_area(video_width, video_height)
         
         # Open output video
         chat_video_path = video.path.parent.joinpath(f'{video.path.stem}.chat.mp4')
@@ -427,7 +486,7 @@ class ChatVideoGenerator:
                 
                 # Render chat on frame
                 frame_with_chat = self.chat_renderer.render_messages_on_frame(
-                    frame, messages, current_time, message_index, chat_width, max_y
+                    frame, messages, current_time, message_index
                 )
                 
                 # Write frame
@@ -506,6 +565,9 @@ async def generate_chat_video(
     video: VideoFile,
     width: int = 320,
     height: Optional[int] = None,
+    x_offset: int = 20,
+    y_offset: int = 20,
+    padding: int = 20,
     font_family: str = "FreeSans",
     font_style: str = "Regular",
     font_size: int = 24,
@@ -520,6 +582,9 @@ async def generate_chat_video(
     config = ChatVideoConfig(
         width=width,
         height=height,
+        x_offset=x_offset,
+        y_offset=y_offset,
+        padding=padding,
         font_family=font_family,
         font_style=font_style,
         font_size=font_size,
