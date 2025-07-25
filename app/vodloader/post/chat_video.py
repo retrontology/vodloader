@@ -283,10 +283,22 @@ class ChatRenderer:
             if lines_to_show <= 0:
                 break
             
+            # If truncated, show the LAST lines instead of first lines
+            if lines_to_show < len(message_lines):
+                # Take the last N lines
+                lines_to_render = message_lines[-lines_to_show:]
+                is_truncated = True
+            else:
+                # Show all lines
+                lines_to_render = message_lines
+                is_truncated = False
+            
             # Render from bottom up
-            for i in range(lines_to_show - 1, -1, -1):
+            for i in range(len(lines_to_render) - 1, -1, -1):
                 current_y -= self.line_height
-                self._draw_message_line(draw, message, message_lines[i], current_y, i == 0)
+                # For truncated messages, only the last line gets the prefix
+                show_prefix = (i == len(lines_to_render) - 1) if is_truncated else (i == 0)
+                self._draw_message_line(draw, message, lines_to_render[i], current_y, show_prefix)
                 lines_used += 1
         
         return np.array(base_image)
