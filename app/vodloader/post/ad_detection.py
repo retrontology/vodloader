@@ -13,7 +13,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from collections import Counter
 
-logger = logging.getLogger('vodloader.post.ad_detect)
+logger = logging.getLogger('vodloader.post.ad_detect')
 
 
 @dataclass
