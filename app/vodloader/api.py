@@ -79,7 +79,7 @@ async def get_channels():
     channels = await TwitchChannel.all()
     output = {
         'channels': [
-            x for x in channels
+            x.login for x in channels
         ]
     }
 
