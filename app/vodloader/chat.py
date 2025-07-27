@@ -66,6 +66,10 @@ class AsyncTwitchBot:
 
     async def disconnect(self):
         """Disconnect from Twitch IRC server"""
+        await self._disconnect_async()
+
+    async def _disconnect_async(self):
+        """Internal async disconnect implementation"""
         self.running = False
         if self.writer:
             self.writer.close()
@@ -258,10 +262,10 @@ class AsyncTwitchBot:
     def disconnect_sync(self):
         """Legacy sync method for disconnecting"""
         if self.writer:
-            asyncio.create_task(self.disconnect())
+            asyncio.create_task(self._disconnect_async())
 
-    # Alias for compatibility
-    disconnect = disconnect_sync
+    # Remove the problematic alias that causes recursion
+    # disconnect = disconnect_sync
 
     async def start_async(self):
         """Async start method for compatibility with run.py"""
