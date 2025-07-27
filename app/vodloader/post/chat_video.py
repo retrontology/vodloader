@@ -364,7 +364,7 @@ class ChatRenderer:
                 (self.chat_area.content_x, y),
                 prefix,
                 font=self.font,
-                fill=message.color,
+                fill=message.color if message.color else '#ffffff',
                 stroke_fill=self.config.background_color,
                 stroke_width=2
             )
