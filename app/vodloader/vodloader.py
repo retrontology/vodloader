@@ -178,11 +178,19 @@ async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, p
                     ext=VIDEO_EXTENSION
                 )
             )
+            try:
+                config = await channel.get_config()
+                quality = config.quality
+            except:
+                # Fallback to default quality if config doesn't exist
+                logger.warning(f'No config found for channel {channel.login}, using default quality')
+                quality = 'best'
+            
             video_file = VideoFile(
                 id=uuid4().__str__(),
                 stream=twitch_stream.id,
                 channel=channel.id,
-                quality=channel.quality,
+                quality=quality,
                 path=video_path,
                 started_at=datetime.now(timezone.utc),
             )

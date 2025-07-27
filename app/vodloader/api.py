@@ -23,6 +23,11 @@ async def add_channel(name: str):
         quality = request.args['quality']
     else:
         quality = 'best'
+    
+    if 'delete_original_video' in request.args:
+        delete_original_video = request.args['delete_original_video'].lower() in ('true', '1', 'yes')
+    else:
+        delete_original_video = False
 
     channel = await TwitchChannel.get(login=name)
 
@@ -32,15 +37,23 @@ async def add_channel(name: str):
             await channel.activate()
             bot.join_channel(channel)
             await subscribe(channel)
+        
+        # Update config if parameters are specified
+        if 'quality' in request.args or 'delete_original_video' in request.args:
+            config = await channel.get_config()
+            if 'quality' in request.args:
+                config.quality = quality
+            if 'delete_original_video' in request.args:
+                config.delete_original_video = delete_original_video
+            await config.save()
 
     else:
 
-        channel = await TwitchChannel.from_name(name, quality)
+        channel = await TwitchChannel.create_with_config(name, quality=quality, delete_original_video=delete_original_video)
 
         if not channel:
             return "Channel does not exist on Twitch", 400
-
-        await channel.save()
+        
         bot.join_channel(channel)
         await subscribe(channel)
 

@@ -7,6 +7,7 @@ from .YouTubeVideo import YouTubeVideo
 from .Message import Message
 from .ClearChatEvent import ClearChatEvent
 from .ClearMsgEvent import ClearMsgEvent
+from .ChannelConfig import ChannelConfig
 
 
 MODELS: List[BaseModel] = [
@@ -18,6 +19,7 @@ MODELS: List[BaseModel] = [
     Message,
     ClearChatEvent,
     ClearMsgEvent,
+    ChannelConfig,
 ]
 
 
