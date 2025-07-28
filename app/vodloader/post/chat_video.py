@@ -13,6 +13,9 @@ from pathlib import Path
 from datetime import timedelta, timezone
 from typing import List, Optional, Tuple
 import logging
+import asyncio
+import concurrent.futures
+from multiprocessing import cpu_count
 
 from vodloader.models import VideoFile, Message
 from .ad_detection import AdDetector
@@ -38,7 +41,10 @@ class ChatVideoConfig:
         font_color: Tuple[int, int, int, int] = (255, 255, 255, 255),
         background_color: Tuple[int, int, int, int] = (0, 0, 0, 127),
         message_duration: int = 10,
-        remove_ads: bool = True
+        remove_ads: bool = True,
+        use_gpu: bool = True,
+        batch_size: int = 30,
+        num_workers: Optional[int] = None
     ):
         self.width = width
         self.height = height
@@ -52,6 +58,9 @@ class ChatVideoConfig:
         self.background_color = background_color
         self.message_duration = timedelta(seconds=message_duration)
         self.remove_ads = remove_ads
+        self.use_gpu = use_gpu
+        self.batch_size = batch_size
+        self.num_workers = num_workers or min(cpu_count(), 8)
 
 
 class FontManager:
@@ -208,6 +217,7 @@ class ChatRenderer:
         )
         self.line_height = config.font_size * 1.2
         self.chat_area = None
+        self._message_cache = {}  # Cache for pre-computed message layouts
     
     def setup_chat_area(self, video_width: int, video_height: int) -> ChatArea:
         """Setup the chat area for the given video dimensions."""
@@ -296,13 +306,20 @@ class ChatRenderer:
         return np.array(base_image)
     
     def _wrap_message(self, draw: ImageDraw.Draw, message: Message) -> List[str]:
-        """Wrap message text into lines that fit the chat width."""
+        """Wrap message text into lines that fit the chat width (with caching)."""
+        # Check cache first
+        cache_key = (message.id, self.chat_area.content_width)
+        if cache_key in self._message_cache:
+            return self._message_cache[cache_key]
+        
         prefix = f'{message.display_name}: '
         content = message.content.strip()
         
         # Handle empty content
         if not content:
-            return ['']
+            result = ['']
+            self._message_cache[cache_key] = result
+            return result
         
         # Calculate available widths
         prefix_width = draw.textlength(prefix, font=self.font)
@@ -353,7 +370,9 @@ class ChatRenderer:
         if current_line:
             lines.append(' '.join(current_line))
         
-        return lines if lines else ['']
+        result = lines if lines else ['']
+        self._message_cache[cache_key] = result
+        return result
     
     def _draw_message_line(self, draw: ImageDraw.Draw, message: Message, line: str, y: int, is_first_line: bool):
         """Draw a single line of a message."""
@@ -393,6 +412,7 @@ class ChatVideoGenerator:
         self.config = config or ChatVideoConfig()
         self.video_processor = VideoProcessor(self.config)
         self.chat_renderer = ChatRenderer(self.config)
+        self._check_gpu_support()
     
     async def generate(self, video: VideoFile) -> Optional[Path]:
         """
@@ -427,6 +447,24 @@ class ChatVideoGenerator:
             if processed_path != video.path and processed_path.exists():
                 processed_path.unlink()
     
+    def _check_gpu_support(self):
+        """Check if GPU acceleration is available."""
+        if not self.config.use_gpu:
+            logger.info("GPU acceleration disabled in config")
+            return
+            
+        try:
+            # Check for CUDA support
+            if cv2.cuda.getCudaEnabledDeviceCount() > 0:
+                logger.info(f"Found {cv2.cuda.getCudaEnabledDeviceCount()} CUDA devices")
+                self.gpu_available = True
+            else:
+                logger.warning("CUDA devices not found, falling back to CPU")
+                self.gpu_available = False
+        except AttributeError:
+            logger.warning("OpenCV not compiled with CUDA support, falling back to CPU")
+            self.gpu_available = False
+    
     async def _process_video(
         self,
         video: VideoFile,
@@ -434,14 +472,19 @@ class ChatVideoGenerator:
         messages: List[Message],
         main_stream_properties: Optional[object]
     ) -> Path:
-        """Process the video with chat overlay."""
-        # Open input video
-        video_in = cv2.VideoCapture(str(processed_path), apiPreference=cv2.CAP_FFMPEG)
+        """Process the video with chat overlay using batch processing."""
+        # Open input video with GPU support if available
+        api_preference = cv2.CAP_FFMPEG
+        if self.config.use_gpu and hasattr(cv2, 'CAP_CUDA'):
+            api_preference = cv2.CAP_CUDA
+            
+        video_in = cv2.VideoCapture(str(processed_path), apiPreference=api_preference)
         
         # Get video properties
         video_width = int(video_in.get(cv2.CAP_PROP_FRAME_WIDTH))
         video_height = int(video_in.get(cv2.CAP_PROP_FRAME_HEIGHT))
         fps = video_in.get(cv2.CAP_PROP_FPS)
+        total_frames = int(video_in.get(cv2.CAP_PROP_FRAME_COUNT))
         
         # Use main stream properties if available
         if main_stream_properties:
@@ -453,48 +496,73 @@ class ChatVideoGenerator:
         # Setup chat area
         chat_area = self.chat_renderer.setup_chat_area(video_width, video_height)
         
-        # Open output video
+        # Open output video with GPU encoding if available
         chat_video_path = video.path.parent.joinpath(f'{video.path.stem}.chat.mp4')
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+        if self.config.use_gpu and hasattr(cv2, 'VideoWriter_fourcc'):
+            # Try H.264 hardware encoding
+            try:
+                fourcc = cv2.VideoWriter_fourcc(*'H264')
+            except:
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                
         video_out = cv2.VideoWriter(
             str(chat_video_path),
-            cv2.VideoWriter_fourcc(*'mp4v'),
+            fourcc,
             fps,
             (video_width, video_height)
         )
         
-        # Process frames
-        message_index = 0
+        logger.info(f"Processing {total_frames} frames in batches of {self.config.batch_size}")
         
         try:
-            while True:
-                ret, frame = video_in.read()
-                if not ret:
+            # Process frames in batches
+            frame_count = 0
+            message_index = 0
+            
+            while frame_count < total_frames:
+                # Read batch of frames
+                batch_frames = []
+                batch_times = []
+                batch_indices = []
+                
+                for _ in range(self.config.batch_size):
+                    ret, frame = video_in.read()
+                    if not ret:
+                        break
+                    
+                    # Calculate current time
+                    time_offset = timedelta(milliseconds=video_in.get(cv2.CAP_PROP_POS_MSEC))
+                    current_time = video.started_at + time_offset
+                    
+                    # Ensure timezone consistency
+                    if current_time.tzinfo is None:
+                        current_time = current_time.replace(tzinfo=timezone.utc)
+                    
+                    # Update message index
+                    message_index = self._update_message_index(
+                        messages, message_index, current_time
+                    )
+                    
+                    batch_frames.append(frame)
+                    batch_times.append(current_time)
+                    batch_indices.append(message_index)
+                    frame_count += 1
+                
+                if not batch_frames:
                     break
                 
-                # Calculate current time
-                time_offset = timedelta(milliseconds=video_in.get(cv2.CAP_PROP_POS_MSEC))
-                current_time = video.started_at + time_offset
-                
-                # Ensure timezone consistency for comparisons
-                if current_time.tzinfo is not None and current_time.tzinfo.utcoffset(current_time) is not None:
-                    # current_time is timezone-aware, make sure we handle naive message timestamps
-                    pass  # We'll handle this in the comparison methods
-                else:
-                    # current_time is naive, make it UTC-aware if needed
-                    current_time = current_time.replace(tzinfo=timezone.utc)
-                
-                # Update message index
-                message_index = self._update_message_index(
-                    messages, message_index, current_time
+                # Process batch in parallel
+                processed_frames = await self._process_frame_batch(
+                    batch_frames, batch_times, batch_indices, messages
                 )
                 
-                # Render chat on frame
-                frame_with_chat = self.chat_renderer.render_messages_on_frame(
-                    frame, messages, current_time, message_index
-                )
+                # Write processed frames
+                for processed_frame in processed_frames:
+                    video_out.write(processed_frame)
                 
-                # Write frame
-                video_out.write(frame_with_chat)
+                if frame_count % (self.config.batch_size * 10) == 0:
+                    logger.info(f"Processed {frame_count}/{total_frames} frames ({frame_count/total_frames*100:.1f}%)")
         
         finally:
             video_in.release()
@@ -502,6 +570,44 @@ class ChatVideoGenerator:
         
         # Mux with audio
         return await self._mux_audio(video, processed_path, chat_video_path)
+    
+    async def _process_frame_batch(
+        self,
+        frames: List[np.ndarray],
+        times: List,
+        message_indices: List[int],
+        messages: List[Message]
+    ) -> List[np.ndarray]:
+        """Process a batch of frames in parallel."""
+        loop = asyncio.get_event_loop()
+        
+        # Create tasks for parallel processing
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.config.num_workers) as executor:
+            tasks = []
+            for frame, current_time, message_index in zip(frames, times, message_indices):
+                task = loop.run_in_executor(
+                    executor,
+                    self._process_single_frame,
+                    frame, messages, current_time, message_index
+                )
+                tasks.append(task)
+            
+            # Wait for all frames to be processed
+            processed_frames = await asyncio.gather(*tasks)
+        
+        return processed_frames
+    
+    def _process_single_frame(
+        self,
+        frame: np.ndarray,
+        messages: List[Message],
+        current_time,
+        message_index: int
+    ) -> np.ndarray:
+        """Process a single frame (thread-safe)."""
+        return self.chat_renderer.render_messages_on_frame(
+            frame, messages, current_time, message_index
+        )
     
     def _update_message_index(
         self,
@@ -578,7 +684,10 @@ async def generate_chat_video(
     font_color: Tuple[int, int, int, int] = (255, 255, 255, 255),
     background_color: Tuple[int, int, int, int] = (0, 0, 0, 127),
     message_duration: int = 10,
-    remove_ads: bool = True
+    remove_ads: bool = True,
+    use_gpu: bool = True,
+    batch_size: int = 30,
+    num_workers: Optional[int] = None
 ) -> Optional[Path]:
     """
     Generate a chat overlay video (backward compatibility function).
@@ -595,7 +704,10 @@ async def generate_chat_video(
         font_color=font_color,
         background_color=background_color,
         message_duration=message_duration,
-        remove_ads=remove_ads
+        remove_ads=remove_ads,
+        use_gpu=use_gpu,
+        batch_size=batch_size,
+        num_workers=num_workers
     )
     
     generator = ChatVideoGenerator(config)
