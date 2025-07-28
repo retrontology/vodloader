@@ -104,10 +104,8 @@ async def main():
         tasks = []
         
         for channel in channels:
-            # Join channel with bot
-            bot.join_channel(channel)
-            
-            # Subscribe to webhooks
+            # Join channel with bot and subscribe to webhooks
+            tasks.append(bot.join_channel(channel))
             tasks.append(subscribe(channel))
         
         # Subscribe to all channels concurrently

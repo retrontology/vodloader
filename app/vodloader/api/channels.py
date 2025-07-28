@@ -47,7 +47,7 @@ async def add_channel(name: str):
         # Channel exists, just activate it if needed
         if not channel.active:
             await channel.activate()
-            bot.join_channel(channel)
+            await bot.join_channel(channel)
             await subscribe(channel)
             return {"status": STATUS_SUCCESS, "message": "Channel activated"}, HTTP_OK
         else:
@@ -67,7 +67,7 @@ async def add_channel(name: str):
                 "message": "Channel does not exist on Twitch"
             }, HTTP_BAD_REQUEST
         
-        bot.join_channel(channel)
+        await bot.join_channel(channel)
         await subscribe(channel)
         return {
             "status": STATUS_SUCCESS, 
@@ -149,7 +149,7 @@ async def delete_channel(name: str):
     
     if channel.active:
         await channel.deactivate()
-        bot.leave_channel(channel)
+        await bot.leave_channel(channel)
         await unsubscribe(channel)
         return {"status": STATUS_SUCCESS, "message": "Channel deactivated"}, HTTP_OK
     else:

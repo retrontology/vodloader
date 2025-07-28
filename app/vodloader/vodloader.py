@@ -245,12 +245,3 @@ async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, p
     return datetime.now(timezone.utc)
 
 
-# Internal function for downloading stream in executor (legacy sync wrapper)
-def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path: Path):
-    """Sync wrapper that runs the async download function"""
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(_download_async(channel, twitch_stream, path))
-    finally:
-        loop.close()
