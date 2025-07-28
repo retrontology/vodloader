@@ -108,13 +108,14 @@ class AdDetector:
             logger.error(f"Failed to get video info: {e}")
             raise
     
-    def analyze_video_segments(self, video_path: Path) -> List[VideoSegment]:
+    def analyze_video_segments(self, video_path: Path, process_ref: Optional[dict] = None) -> List[VideoSegment]:
         """
         Analyze video file and extract segments with different properties.
         Uses streaming approach to avoid loading all frame data into memory.
         
         Args:
             video_path: Path to the video file
+            process_ref: Optional dict to store process reference for cancellation
             
         Returns:
             List of VideoSegment objects
@@ -133,12 +134,27 @@ class AdDetector:
         try:
             # Use Popen for streaming processing instead of run()
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            return self._parse_frame_data_streaming(process.stdout)
+            
+            # Store process reference for potential cancellation
+            if process_ref is not None:
+                process_ref['process'] = process
+            
+            try:
+                return self._parse_frame_data_streaming(process.stdout, process)
+            finally:
+                # Ensure process is cleaned up
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        
         except Exception as e:
             logger.error(f"ffprobe failed: {e}")
             raise
     
-    def _parse_frame_data_streaming(self, stdout) -> List[VideoSegment]:
+    def _parse_frame_data_streaming(self, stdout, process) -> List[VideoSegment]:
         """Parse ffprobe frame data into video segments using streaming approach."""
         segments = []
         current_segment_frames = []
@@ -146,6 +162,11 @@ class AdDetector:
         
         try:
             for line in stdout:
+                # Check if process was terminated (for cancellation support)
+                if process.poll() is not None and process.returncode != 0:
+                    logger.info("ffprobe process terminated")
+                    break
+                    
                 line = line.strip()
                 if not line:
                     continue
@@ -276,20 +297,24 @@ class AdDetector:
         logger.info(f"Classified {len(content_segments)} content segments and {len(ad_segments)} ad segments")
         return content_segments, ad_segments
     
-    def detect_ads(self, video_path: Path) -> Tuple[List[VideoSegment], List[VideoSegment], StreamProperties]:
+    def detect_ads(self, video_path: Path, process_ref: Optional[dict] = None) -> Tuple[List[VideoSegment], List[VideoSegment], StreamProperties]:
         """
         Complete ad detection pipeline.
+        
+        Args:
+            video_path: Path to the video file
+            process_ref: Optional dict to store process reference for cancellation
         
         Returns:
             Tuple of (content_segments, ad_segments, main_properties)
         """
-        segments = self.analyze_video_segments(video_path)
+        segments = self.analyze_video_segments(video_path, process_ref)
         main_properties = self.identify_main_stream_properties(segments)
         content_segments, ad_segments = self.classify_segments(segments, main_properties)
         
         return content_segments, ad_segments, main_properties
     
-    def remove_ads(self, input_path: Path, output_path: Path) -> Optional[Tuple[Path, StreamProperties]]:
+    def remove_ads(self, input_path: Path, output_path: Path, process_ref: Optional[dict] = None) -> Optional[Tuple[Path, StreamProperties]]:
         """
         Remove ads from a video file and return the cleaned version.
         Uses streaming approach to minimize memory usage.
@@ -297,6 +322,7 @@ class AdDetector:
         Args:
             input_path: Path to input video with ads
             output_path: Path for output video without ads
+            process_ref: Optional dict to store process reference for cancellation
             
         Returns:
             Tuple of (output_path, main_stream_properties) if ads were found and removed,
@@ -304,61 +330,82 @@ class AdDetector:
         """
         logger.info(f"Removing ads from {input_path}")
         
-        # Detect ad segments
-        content_segments, ad_segments, main_properties = self.detect_ads(input_path)
-        
-        if not ad_segments:
-            logger.info("No ads detected, returning None")
-            return None
-        
-        # Use streaming approach for large numbers of segments
-        if len(content_segments) > 50:
-            logger.info(f"Large number of segments ({len(content_segments)}), using streaming approach")
-            return self._remove_ads_streaming(input_path, output_path, content_segments, main_properties)
-        
-        # Create ffmpeg filter for content segments
-        filter_parts = []
-        for i, segment in enumerate(content_segments):
-            filter_parts.append(f"[0:v]trim=start={segment.start_time}:end={segment.end_time},setpts=PTS-STARTPTS[v{i}]")
-            filter_parts.append(f"[0:a]atrim=start={segment.start_time}:end={segment.end_time},asetpts=PTS-STARTPTS[a{i}]")
-        
-        # Concatenate all segments
-        video_inputs = "".join(f"[v{i}]" for i in range(len(content_segments)))
-        audio_inputs = "".join(f"[a{i}]" for i in range(len(content_segments)))
-        filter_parts.append(f"{video_inputs}concat=n={len(content_segments)}:v=1:a=0[outv]")
-        filter_parts.append(f"{audio_inputs}concat=n={len(content_segments)}:v=0:a=1[outa]")
-        
-        filter_complex = ";".join(filter_parts)
-        
-        # Run ffmpeg to create ad-free video with streaming output
-        cmd = [
-            "ffmpeg", "-i", str(input_path),
-            "-filter_complex", filter_complex,
-            "-map", "[outv]", "-map", "[outa]",
-            "-c:v", "libx264", "-preset", "fast",  # Faster encoding
-            "-c:a", "aac", "-movflags", "+faststart",  # Optimize for streaming
-            "-y", str(output_path)
-        ]
-        
         try:
+            # Detect ad segments
+            content_segments, ad_segments, main_properties = self.detect_ads(input_path, process_ref)
+            
+            if not ad_segments:
+                logger.info("No ads detected, returning None")
+                return None
+            
+            # Use streaming approach for large numbers of segments
+            if len(content_segments) > 50:
+                logger.info(f"Large number of segments ({len(content_segments)}), using streaming approach")
+                return self._remove_ads_streaming(input_path, output_path, content_segments, main_properties, process_ref)
+            
+            # Create ffmpeg filter for content segments
+            filter_parts = []
+            for i, segment in enumerate(content_segments):
+                filter_parts.append(f"[0:v]trim=start={segment.start_time}:end={segment.end_time},setpts=PTS-STARTPTS[v{i}]")
+                filter_parts.append(f"[0:a]atrim=start={segment.start_time}:end={segment.end_time},asetpts=PTS-STARTPTS[a{i}]")
+            
+            # Concatenate all segments
+            video_inputs = "".join(f"[v{i}]" for i in range(len(content_segments)))
+            audio_inputs = "".join(f"[a{i}]" for i in range(len(content_segments)))
+            filter_parts.append(f"{video_inputs}concat=n={len(content_segments)}:v=1:a=0[outv]")
+            filter_parts.append(f"{audio_inputs}concat=n={len(content_segments)}:v=0:a=1[outa]")
+            
+            filter_complex = ";".join(filter_parts)
+            
+            # Run ffmpeg to create ad-free video with streaming output
+            cmd = [
+                "ffmpeg", "-i", str(input_path),
+                "-filter_complex", filter_complex,
+                "-map", "[outv]", "-map", "[outa]",
+                "-c:v", "libx264", "-preset", "fast",  # Faster encoding
+                "-c:a", "aac", "-movflags", "+faststart",  # Optimize for streaming
+                "-y", str(output_path)
+            ]
+            
             # Use streaming approach for ffmpeg as well
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stdout, stderr = process.communicate()
             
-            if process.returncode != 0:
-                logger.error(f"ffmpeg failed with return code {process.returncode}")
-                logger.error(f"stderr: {stderr.decode()}")
-                raise subprocess.CalledProcessError(process.returncode, cmd)
+            # Store process reference for potential cancellation
+            if process_ref is not None:
+                process_ref['process'] = process
+            
+            try:
+                stdout, stderr = process.communicate()
                 
-            logger.info(f"Successfully created ad-free video: {output_path}")
-            return output_path, main_properties
+                if process.returncode != 0:
+                    logger.error(f"ffmpeg failed with return code {process.returncode}")
+                    logger.error(f"stderr: {stderr.decode()}")
+                    raise subprocess.CalledProcessError(process.returncode, cmd)
+                    
+                logger.info(f"Successfully created ad-free video: {output_path}")
+                return output_path, main_properties
+                
+            finally:
+                # Ensure process is cleaned up
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        
         except Exception as e:
-            logger.error(f"ffmpeg failed: {e}")
+            logger.error(f"Ad removal failed: {e}")
+            # Clean up partial output file
+            if output_path.exists():
+                output_path.unlink()
+                logger.info(f"Cleaned up partial output file: {output_path}")
             raise
     
     def _remove_ads_streaming(self, input_path: Path, output_path: Path, 
                              content_segments: List[VideoSegment], 
-                             main_properties: StreamProperties) -> Tuple[Path, StreamProperties]:
+                             main_properties: StreamProperties,
+                             process_ref: Optional[dict] = None) -> Tuple[Path, StreamProperties]:
         """
         Remove ads using a streaming approach for videos with many segments.
         Processes segments in batches to avoid command line length limits.
@@ -399,7 +446,21 @@ class AdDetector:
                     "-c:a", "aac", "-y", str(temp_file)
                 ]
                 
-                subprocess.run(cmd, check=True, capture_output=True)
+                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if process_ref is not None:
+                    process_ref['process'] = process
+                
+                try:
+                    stdout, stderr = process.communicate()
+                    if process.returncode != 0:
+                        raise subprocess.CalledProcessError(process.returncode, cmd, stderr)
+                finally:
+                    if process.poll() is None:
+                        process.terminate()
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
                 logger.info(f"Processed batch {i//batch_size + 1}/{(len(content_segments) + batch_size - 1)//batch_size}")
             
             # Concatenate all batch files
@@ -419,7 +480,21 @@ class AdDetector:
                     "-c", "copy", "-y", str(output_path)
                 ]
                 
-                subprocess.run(cmd, check=True, capture_output=True)
+                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if process_ref is not None:
+                    process_ref['process'] = process
+                
+                try:
+                    stdout, stderr = process.communicate()
+                    if process.returncode != 0:
+                        raise subprocess.CalledProcessError(process.returncode, cmd, stderr)
+                finally:
+                    if process.poll() is None:
+                        process.terminate()
+                        try:
+                            process.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            process.kill()
                 concat_list.unlink()
             
             logger.info(f"Successfully created ad-free video using streaming approach: {output_path}")

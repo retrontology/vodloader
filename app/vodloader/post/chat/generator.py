@@ -8,6 +8,7 @@ import numpy as np
 import asyncio
 import concurrent.futures
 import logging
+import subprocess
 from pathlib import Path
 from datetime import timedelta, timezone
 from typing import List, Optional
@@ -41,26 +42,46 @@ class ChatVideoGenerator:
         """
         logger.info(f'Generating chat video for {video.path}')
         
-        # Get messages for this video
-        messages = await Message.for_video(video)
-        if len(messages) == 0:
-            logger.info('No messages found for this video')
-            return None
-        
-        logger.info(f'Found {len(messages)} messages')
-        
-        # Preprocess video (ad removal)
-        processed_path, main_stream_properties = self.video_processor.preprocess_video(video)
+        # Track temporary files for cleanup
+        temp_files = []
         
         try:
+            # Get messages for this video
+            messages = await Message.for_video(video)
+            if len(messages) == 0:
+                logger.info('No messages found for this video')
+                return None
+            
+            logger.info(f'Found {len(messages)} messages')
+            
+            # Check for cancellation before starting heavy processing
+            await asyncio.sleep(0)
+            
+            # Preprocess video (ad removal)
+            processed_path, main_stream_properties = await self.video_processor.preprocess_video(video)
+            
+            # Track processed file for cleanup if different from original
+            if processed_path != video.path:
+                temp_files.append(processed_path)
+            
+            # Check for cancellation after preprocessing
+            await asyncio.sleep(0)
+            
             # Process the video
             return await self._process_video(
-                video, processed_path, messages, main_stream_properties
+                video, processed_path, messages, main_stream_properties, temp_files
             )
+            
+        except asyncio.CancelledError:
+            logger.info(f"Chat video generation cancelled for {video.path}")
+            # Cleanup will happen in finally block
+            raise
+        except Exception as e:
+            logger.error(f"Error generating chat video for {video.path}: {e}")
+            raise
         finally:
-            # Clean up processed file if it's different from original
-            if processed_path != video.path and processed_path.exists():
-                processed_path.unlink()
+            # Clean up all temporary files
+            await self._cleanup_temp_files(temp_files)
     
     def _check_gpu_support(self):
         """Check if GPU acceleration is available."""
@@ -85,7 +106,8 @@ class ChatVideoGenerator:
         video: VideoFile,
         processed_path: Path,
         messages: List[Message],
-        main_stream_properties: Optional[object]
+        main_stream_properties: Optional[object],
+        temp_files: List[Path]
     ) -> Path:
         """Process the video with chat overlay using batch processing."""
         # Open input video with GPU support if available
@@ -113,6 +135,8 @@ class ChatVideoGenerator:
         
         # Open output video with GPU encoding if available
         chat_video_path = video.path.parent.joinpath(f'{video.path.stem}.chat.mp4')
+        temp_files.append(chat_video_path)  # Track for cleanup
+        
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         if self.config.use_gpu and hasattr(cv2, 'VideoWriter_fourcc'):
             # Try H.264 hardware encoding
@@ -136,6 +160,9 @@ class ChatVideoGenerator:
             message_index = 0
             
             while frame_count < total_frames:
+                # Check for cancellation at the start of each batch
+                await asyncio.sleep(0)
+                
                 # Read batch of frames
                 batch_frames = []
                 batch_times = []
@@ -167,7 +194,7 @@ class ChatVideoGenerator:
                 if not batch_frames:
                     break
                 
-                # Process batch in parallel
+                # Process batch in parallel with cancellation support
                 processed_frames = await self._process_frame_batch(
                     batch_frames, batch_times, batch_indices, messages
                 )
@@ -179,6 +206,9 @@ class ChatVideoGenerator:
                 if frame_count % (self.config.batch_size * 10) == 0:
                     logger.info(f"Processed {frame_count}/{total_frames} frames ({frame_count/total_frames*100:.1f}%)")
         
+        except asyncio.CancelledError:
+            logger.info("Frame processing cancelled")
+            raise
         finally:
             video_in.release()
             video_out.release()
@@ -193,7 +223,7 @@ class ChatVideoGenerator:
         message_indices: List[int],
         messages: List[Message]
     ) -> List[np.ndarray]:
-        """Process a batch of frames in parallel."""
+        """Process a batch of frames in parallel with cancellation support."""
         loop = asyncio.get_event_loop()
         
         # Create tasks for parallel processing
@@ -207,8 +237,24 @@ class ChatVideoGenerator:
                 )
                 tasks.append(task)
             
-            # Wait for all frames to be processed
-            processed_frames = await asyncio.gather(*tasks)
+            try:
+                # Wait for all frames to be processed with cancellation support
+                processed_frames = await asyncio.gather(*tasks)
+            except asyncio.CancelledError:
+                logger.info("Frame batch processing cancelled")
+                # Cancel all running tasks
+                for task in tasks:
+                    if not task.done():
+                        task.cancel()
+                # Wait briefly for tasks to complete cancellation
+                try:
+                    await asyncio.wait_for(
+                        asyncio.gather(*tasks, return_exceptions=True),
+                        timeout=1.0
+                    )
+                except asyncio.TimeoutError:
+                    logger.warning("Some frame processing tasks did not complete cancellation within timeout")
+                raise
         
         return processed_frames
     
@@ -255,10 +301,12 @@ class ChatVideoGenerator:
         processed_path: Path,
         chat_video_path: Path
     ) -> Path:
-        """Mux the chat video with audio from original."""
+        """Mux the chat video with audio from original with cancellation support."""
         logger.debug('Muxing chat video with audio...')
         
         transcode_path = video.path.parent.joinpath(f'{video.path.stem}.mp4')
+        
+        # Build ffmpeg command
         chat_stream = ffmpeg.input(str(chat_video_path))
         original_stream = ffmpeg.input(str(processed_path))
         
@@ -270,19 +318,68 @@ class ChatVideoGenerator:
             acodec='aac'
         )
         output_stream = ffmpeg.overwrite_output(output_stream)
-        ffmpeg.run(output_stream, quiet=True)
+        
+        # Run ffmpeg with cancellation support
+        loop = asyncio.get_event_loop()
+        
+        def run_ffmpeg_mux():
+            # Use subprocess for better control
+            cmd = ffmpeg.compile(output_stream)
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            return process
+        
+        try:
+            # Start ffmpeg process
+            process = await loop.run_in_executor(None, run_ffmpeg_mux)
+            
+            # Wait for completion with cancellation support
+            await loop.run_in_executor(None, process.wait)
+            
+            if process.returncode != 0:
+                stderr = process.stderr.read().decode() if process.stderr else "Unknown error"
+                raise subprocess.CalledProcessError(process.returncode, "ffmpeg", stderr)
+            
+        except asyncio.CancelledError:
+            logger.info("Audio muxing cancelled")
+            if 'process' in locals():
+                process.terminate()
+                try:
+                    await asyncio.wait_for(
+                        loop.run_in_executor(None, process.wait),
+                        timeout=5.0
+                    )
+                except asyncio.TimeoutError:
+                    process.kill()
+            
+            # Clean up partial output file
+            if transcode_path.exists():
+                transcode_path.unlink()
+            raise
         
         # Update video model
         video.transcode_path = transcode_path
         await video.save()
         
-        # Clean up chat video
-        chat_video_path.unlink()
+        # Clean up chat video (will be handled by cleanup function)
+        # chat_video_path.unlink()
         
-        # Remove original video file (commented out for now)
-        # video.path.unlink()
+        # Keep original video file as requested
         
         return transcode_path
+    
+    async def _cleanup_temp_files(self, temp_files: List[Path]):
+        """Clean up temporary files created during processing."""
+        for temp_file in temp_files:
+            try:
+                if temp_file.exists():
+                    temp_file.unlink()
+                    logger.debug(f"Cleaned up temporary file: {temp_file}")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temporary file {temp_file}: {e}")
 
 
 # Convenience function for backward compatibility
