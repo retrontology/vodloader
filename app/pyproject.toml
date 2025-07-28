@@ -15,7 +15,7 @@ dependencies = [
     "quart==0.19.6",
     "google-api-python-client==2.141.0",
     "Flask[async]==3.0.3",
-    "opencv-python==4.11.0.86",
+    "opencv-contrib-python==4.11.0.86",
     "numpy==2.2.6",
     "pillow==11.2.1",
     "matplotlib==3.10.3"
