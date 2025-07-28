@@ -78,11 +78,11 @@ async def get_db() -> BaseDatabase:
 
         case 'mysql':
             return MySQLDatabase(
-                host=os.environ['DB_HOST'],
-                port=os.environ['DB_PORT'],
-                user=os.environ['DB_USER'],
-                password=os.environ['DB_PASS'],
-                schema=os.environ['DB_SCHEMA'],
+                host=config.DB_HOST,
+                port=config.DB_PORT,
+                user=config.DB_USER,
+                password=config.DB_PASS,
+                schema=config.DB_SCHEMA,
             )
 
         case _:
