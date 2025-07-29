@@ -161,7 +161,7 @@ async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, p
     try:
         # Initialize the first variables for the recording loops
         part = 1
-        video_stream = channel.get_video_stream()
+        video_stream = await channel.get_video_stream()
         buffer = video_stream.open()
         data = buffer.read(CHUNK_SIZE)
         
