@@ -1,26 +1,13 @@
 """
-Chat video generation package.
+Simple chat video generation module.
 
-This package provides functionality to overlay chat messages on video streams
-with proper timing and formatting.
+This is a basic skeleton for chat video generation functionality.
+Use the Spec feature to implement a better, cleaner solution.
 """
 
-from .config import ChatVideoConfig
-from .generator import ChatVideoGenerator
-from .renderer import ChatRenderer
-from .area import ChatArea
-from .font_manager import FontManager
-from .video_processor import VideoProcessor
-
-# Convenience function for backward compatibility
-from .generator import generate_chat_video
+from .generator import ChatVideoGenerator, generate_chat_video
 
 __all__ = [
-    'ChatVideoConfig',
-    'ChatVideoGenerator', 
-    'ChatRenderer',
-    'ChatArea',
-    'FontManager',
-    'VideoProcessor',
+    'ChatVideoGenerator',
     'generate_chat_video'
 ]
