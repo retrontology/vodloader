@@ -9,7 +9,7 @@ This module contains all post-processing functionality including:
 """
 
 from .transcoding import transcode, remove_original, transcode_listener, queue_trancodes
-from .chat_video import generate_chat_video, ChatVideoGenerator, ChatVideoConfig
+from .chat_video import generate_chat_video, ChatVideoGenerator
 from .ad_detection import AdDetector, VideoSegment, StreamProperties
 
 __all__ = [
@@ -22,7 +22,6 @@ __all__ = [
     # Chat video generation
     'generate_chat_video',
     'ChatVideoGenerator',
-    'ChatVideoConfig',
     
     # Ad detection
     'AdDetector',
