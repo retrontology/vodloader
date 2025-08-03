@@ -258,20 +258,7 @@ class ChatVideoGenerator:
         if not message.timestamp:
             logger.debug(f'Message {message.id} validation failed: missing timestamp')
             return False
-        
-        # Check timestamp is reasonable (not too far in past/future)
-        now = datetime.now()
-        min_timestamp = now - timedelta(days=365)
-        max_timestamp = now + timedelta(hours=1)
-        
-        if message.timestamp < min_timestamp:
-            logger.debug(f'Message {message.id} validation failed: timestamp too old ({message.timestamp})')
-            return False
-            
-        if message.timestamp > max_timestamp:
-            logger.debug(f'Message {message.id} validation failed: timestamp in future ({message.timestamp})')
-            return False
-        
+
         # Content can be None for some message types (actions, etc.)
         return True
     
