@@ -1,19 +1,25 @@
 """
-Simple chat video generation module.
+Chat video generation module.
 
-This is a basic skeleton for chat video generation functionality.
-Use the Spec feature to implement a better, cleaner solution.
+Provides components for generating chat overlay videos from Twitch chat data
+using browser automation and video processing.
 """
 
-from .generator import ChatVideoGenerator, generate_chat_video
+from .generator import ChatVideoGenerator, generate_chat_video, ChatOverlayError, ChatDataError
 from .browser_manager import BrowserManager, BrowserManagerError, BrowserTimeoutError, BrowserResourceError, browser_context
+from .chat_renderer import ChatRenderer, ChatRendererError, VideoMetadataError
 
 __all__ = [
     'ChatVideoGenerator',
     'generate_chat_video',
+    'ChatOverlayError',
+    'ChatDataError',
     'BrowserManager',
     'BrowserManagerError', 
     'BrowserTimeoutError',
     'BrowserResourceError',
-    'browser_context'
+    'browser_context',
+    'ChatRenderer',
+    'ChatRendererError',
+    'VideoMetadataError'
 ]

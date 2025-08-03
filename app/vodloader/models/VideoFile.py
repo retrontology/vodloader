@@ -100,4 +100,4 @@ class VideoFile(EndableModel):
                 stream['start_time'] = float(stream['start_time'])
             if 'time_base' in stream:
                 stream['time_base'] = (int(x) for x in stream['time_base'].split('/'))
-        return 
+        return info 
