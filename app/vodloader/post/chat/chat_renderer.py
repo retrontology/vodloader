@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
@@ -18,6 +19,7 @@ import ffmpeg
 from playwright.async_api import Page
 
 from vodloader.models import Message, ChannelConfig, VideoFile
+from .template_manager import TemplateManager, TemplateError
 
 logger = logging.getLogger('vodloader.chat_video.chat_renderer')
 
@@ -54,12 +56,15 @@ class ChatRenderer:
         self.video_info = video_info
         self.template_dir = Path(__file__).parent.parent / "chat_templates"
         
+        # Initialize template manager
+        try:
+            self.template_manager = TemplateManager(self.template_dir)
+        except TemplateError as e:
+            raise ChatRendererError(f"Template manager initialization failed: {e}") from e
+        
         # Validate inputs
         if not self.messages:
             raise ChatRendererError("No messages provided for rendering")
-        
-        if not self.template_dir.exists():
-            raise ChatRendererError(f"Template directory not found: {self.template_dir}")
         
         logger.info(f"ChatRenderer initialized with {len(self.messages)} messages")
         logger.debug(f"Video info: {self.video_info}")
@@ -231,59 +236,36 @@ class ChatRenderer:
         logger.info(f"Prepared {len(message_data)} messages for rendering")
         return message_data
     
-    def generate_dynamic_css(self) -> str:
+    def _build_template_config(self) -> Dict[str, Any]:
         """
-        Generate dynamic CSS with configuration values.
+        Build configuration dictionary for template manager.
         
         Returns:
-            CSS string with custom variables
-        """
-        overlay_width, overlay_height = self.calculate_overlay_dimensions()
-        
-        css_variables = {
-            '--chat-font-family': f"'{self.config.get_chat_font_family()}', monospace",
-            '--chat-font-size': f"{self.config.get_chat_font_size()}px",
-            '--chat-font-style': self.config.get_chat_font_style(),
-            '--chat-font-weight': self.config.get_chat_font_weight(),
-            '--chat-text-color': self.config.get_chat_text_color(),
-            '--chat-text-shadow-color': self.config.get_chat_text_shadow_color(),
-            '--chat-text-shadow-size': f"{self.config.get_chat_text_shadow_size()}px",
-            '--chat-overlay-width': f"{overlay_width}px",
-            '--chat-overlay-height': f"{overlay_height}px",
-            '--chat-padding': f"{self.config.get_chat_padding()}px"
-        }
-        
-        css_rules = []
-        css_rules.append(":root {")
-        for var_name, var_value in css_variables.items():
-            css_rules.append(f"    {var_name}: {var_value};")
-        css_rules.append("}")
-        
-        return "\n".join(css_rules)
-    
-    def generate_config_object(self) -> Dict[str, Any]:
-        """
-        Generate configuration object for JavaScript injection.
-        
-        Returns:
-            Dictionary containing runtime configuration
+            Dictionary containing all configuration values for template generation
         """
         overlay_width, overlay_height = self.calculate_overlay_dimensions()
         
         return {
-            'messageDuration': self.config.get_chat_message_duration(),
-            'overlayWidth': overlay_width,
-            'overlayHeight': overlay_height,
+            'font_family': self.config.get_chat_font_family(),
+            'font_size': self.config.get_chat_font_size(),
+            'font_style': self.config.get_chat_font_style(),
+            'font_weight': self.config.get_chat_font_weight(),
+            'text_color': self.config.get_chat_text_color(),
+            'text_shadow_color': self.config.get_chat_text_shadow_color(),
+            'text_shadow_size': self.config.get_chat_text_shadow_size(),
+            'overlay_width': overlay_width,
+            'overlay_height': overlay_height,
             'position': self.config.get_chat_position(),
             'padding': self.config.get_chat_padding(),
-            'frameRate': self.video_info.get('frame_rate', 30.0),
-            'videoDuration': self.video_info.get('duration', 0),
-            'showTimestamps': False  # Can be made configurable later
+            'message_duration': self.config.get_chat_message_duration(),
+            'frame_rate': self.video_info.get('frame_rate', 30.0),
+            'video_duration': self.video_info.get('duration', 0),
+            'show_timestamps': False  # Can be made configurable later
         }
     
     async def generate_html_content(self, video_start_time: datetime) -> str:
         """
-        Generate complete HTML content with injected data.
+        Generate complete HTML content with injected data using template manager.
         
         Args:
             video_start_time: Start time of the video for message timing
@@ -292,41 +274,25 @@ class ChatRenderer:
             Complete HTML string ready for browser loading
         """
         try:
-            # Read template files
-            base_html = (self.template_dir / "base.html").read_text(encoding='utf-8')
-            chat_css = (self.template_dir / "chat.css").read_text(encoding='utf-8')
-            chat_js = (self.template_dir / "chat.js").read_text(encoding='utf-8')
-            
-            # Prepare data
+            # Prepare message data
             message_data = self.prepare_message_data(video_start_time)
-            config_object = self.generate_config_object()
-            dynamic_css = self.generate_dynamic_css()
             
-            # Create data injection scripts
-            config_script = f"window.chatConfig = {json.dumps(config_object, indent=2)};"
-            messages_script = f"window.chatMessages = {json.dumps(message_data, indent=2)};"
+            # Build configuration for template manager
+            template_config = self._build_template_config()
             
-            # Replace placeholders in HTML
-            html_content = base_html.replace(
-                '<link rel="stylesheet" href="chat.css">',
-                f'<style>\n{chat_css}\n</style>'
-            ).replace(
-                '/* Dynamic CSS variables will be injected here */',
-                dynamic_css
-            ).replace(
-                '/* Dynamic configuration object will be injected here */',
-                config_script
-            ).replace(
-                '/* Message data will be injected here */',
-                messages_script
-            ).replace(
-                '<script src="chat.js"></script>',
-                f'<script>\n{chat_js}\n</script>'
+            # Generate complete HTML using template manager
+            html_content = self.template_manager.generate_complete_html(
+                messages=message_data,
+                config=template_config,
+                use_cache=True
             )
             
-            logger.debug("Generated HTML content with injected data")
+            logger.debug("Generated HTML content with template manager")
             return html_content
             
+        except TemplateError as e:
+            logger.error(f"Template generation failed: {e}")
+            raise ChatRendererError(f"HTML generation failed: {e}") from e
         except Exception as e:
             logger.error(f"Failed to generate HTML content: {e}")
             raise ChatRendererError(f"HTML generation failed: {e}") from e
@@ -342,19 +308,35 @@ class ChatRenderer:
         Raises:
             ChatRendererError: If video rendering fails
         """
+        render_start_time = time.time()
+        
         try:
+            logger.info(f"Starting chat video rendering with {len(self.messages)} messages")
+            
+            # Determine video start time
             video_start_time = self.messages[0].timestamp if self.messages else datetime.now()
+            logger.debug(f"Video start time: {video_start_time}")
             
             # Generate and load HTML content
+            logger.debug("Generating HTML content for chat rendering")
             html_content = await self.generate_html_content(video_start_time)
             
-            # Load content into page
-            await page.set_content(html_content, wait_until='networkidle')
+            # Load content into page with timeout monitoring
+            logger.debug("Loading HTML content into browser page")
+            try:
+                await asyncio.wait_for(
+                    page.set_content(html_content, wait_until='networkidle'),
+                    timeout=30.0  # 30 second timeout for page load
+                )
+            except asyncio.TimeoutError:
+                raise ChatRendererError("Page content loading timed out")
             
             # Wait for fonts to load
+            logger.debug("Waiting for fonts to load")
             await page.wait_for_timeout(2000)
             
             # Initialize chat overlay
+            logger.debug("Initializing chat overlay in browser")
             await page.evaluate("window.AUTOMATION_MODE = true;")
             await page.evaluate("window.initializeChatOverlay();")
             
@@ -364,54 +346,120 @@ class ChatRenderer:
             overlay_width, overlay_height = self.calculate_overlay_dimensions()
             
             if duration <= 0:
-                raise ChatRendererError("Invalid video duration")
+                raise ChatRendererError(f"Invalid video duration: {duration}")
             
             # Calculate frame parameters
             total_frames = int(duration * frame_rate)
             frame_duration_ms = 1000 / frame_rate
             
-            logger.info(f"Starting video recording: {total_frames} frames at {frame_rate}fps")
+            logger.info(
+                f"Starting video recording: {total_frames} frames at {frame_rate}fps "
+                f"({overlay_width}x{overlay_height} overlay, {duration:.1f}s duration)"
+            )
+            
+            # Validate frame count is reasonable
+            if total_frames > 300000:  # More than ~2.7 hours at 30fps
+                logger.warning(f"Very large frame count: {total_frames} frames")
             
             # Create temporary directory for frames
             with tempfile.TemporaryDirectory() as temp_dir:
                 temp_path = Path(temp_dir)
                 frame_paths = []
+                failed_frames = 0
                 
-                # Record frames
+                # Record frames with progress monitoring
                 for frame_num in range(total_frames):
                     timestamp = frame_num / frame_rate
                     
-                    # Render chat at this timestamp
-                    await page.evaluate(f"window.renderChatAtTimestamp({timestamp});")
-                    
-                    # Wait for rendering to complete
-                    await page.wait_for_timeout(50)  # Small delay for DOM updates
-                    
-                    # Capture frame
-                    frame_path = temp_path / f"frame_{frame_num:06d}.png"
-                    await page.screenshot(
-                        path=frame_path,
-                        full_page=True,
-                        omit_background=True  # Transparent background
-                    )
-                    
-                    frame_paths.append(frame_path)
+                    try:
+                        # Render chat at this timestamp
+                        await page.evaluate(f"window.renderChatAtTimestamp({timestamp});")
+                        
+                        # Wait for rendering to complete
+                        await page.wait_for_timeout(50)  # Small delay for DOM updates
+                        
+                        # Capture frame
+                        frame_path = temp_path / f"frame_{frame_num:06d}.png"
+                        await page.screenshot(
+                            path=frame_path,
+                            full_page=True,
+                            omit_background=True  # Transparent background
+                        )
+                        
+                        # Verify frame was created
+                        if not frame_path.exists() or frame_path.stat().st_size == 0:
+                            failed_frames += 1
+                            logger.warning(f"Frame {frame_num} was not created or is empty")
+                            continue
+                        
+                        frame_paths.append(frame_path)
+                        
+                    except Exception as frame_error:
+                        failed_frames += 1
+                        logger.warning(f"Failed to capture frame {frame_num}: {frame_error}")
+                        continue
                     
                     # Log progress periodically
-                    if frame_num % (total_frames // 10) == 0:
+                    if total_frames > 100 and frame_num % (total_frames // 10) == 0:
                         progress = (frame_num / total_frames) * 100
-                        logger.info(f"Recording progress: {progress:.1f}% ({frame_num}/{total_frames} frames)")
+                        elapsed = time.time() - render_start_time
+                        estimated_total = elapsed / (frame_num + 1) * total_frames
+                        remaining = estimated_total - elapsed
+                        
+                        logger.info(
+                            f"Recording progress: {progress:.1f}% ({frame_num}/{total_frames} frames, "
+                            f"~{remaining:.0f}s remaining)"
+                        )
                 
-                logger.info("Frame capture complete, encoding video...")
+                # Check if we have enough frames
+                if not frame_paths:
+                    raise ChatRendererError("No frames were successfully captured")
+                
+                if failed_frames > 0:
+                    logger.warning(f"Failed to capture {failed_frames} out of {total_frames} frames")
+                
+                logger.info(f"Frame capture complete: {len(frame_paths)} frames captured, encoding video...")
                 
                 # Encode frames to video with transparent background
                 await self._encode_frames_to_video(frame_paths, output_path, frame_rate, overlay_width, overlay_height)
                 
-                logger.info(f"Chat video rendered successfully: {output_path}")
+                # Verify output file
+                if not output_path.exists():
+                    raise ChatRendererError(f"Output video file was not created: {output_path}")
                 
+                output_size_mb = output_path.stat().st_size / (1024 * 1024)
+                render_duration = time.time() - render_start_time
+                
+                logger.info(
+                    f"Chat video rendered successfully: {output_path} "
+                    f"({output_size_mb:.1f}MB) in {render_duration:.1f}s"
+                )
+                
+        except ChatRendererError:
+            # Re-raise renderer errors as-is
+            raise
         except Exception as e:
-            logger.error(f"Failed to render chat video: {e}")
+            render_duration = time.time() - render_start_time
+            logger.error(f"Failed to render chat video after {render_duration:.1f}s: {e}")
             raise ChatRendererError(f"Video rendering failed: {e}") from e
+    
+    def clear_template_cache(self) -> None:
+        """
+        Clear the template cache to force reload of template files.
+        
+        Useful for development or when template files have been updated.
+        """
+        self.template_manager.clear_cache()
+        logger.debug("Template cache cleared")
+    
+    def get_template_cache_info(self) -> Dict[str, Any]:
+        """
+        Get information about the template cache.
+        
+        Returns:
+            Dictionary with cache statistics and information
+        """
+        return self.template_manager.get_cache_info()
     
     async def _encode_frames_to_video(
         self, 

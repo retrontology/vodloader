@@ -9,6 +9,7 @@ quality preservation.
 import ffmpeg
 import asyncio
 import logging
+import time
 from pathlib import Path
 from typing import Dict, Tuple, Optional
 
@@ -151,22 +152,47 @@ async def composite_videos(
         VideoCompositionError: If composition fails
         FrameRateMismatchError: If video frame rates don't match
     """
+    composition_start_time = time.time()
+    
     logger.info(f"Starting video composition: {original_path} + {overlay_path} -> {output_path}")
     
     try:
-        # Get video information for both files
+        # Get video information for both files with detailed logging
+        logger.debug("Analyzing input video files")
         original_info = await get_video_info(original_path)
         overlay_info = await get_video_info(overlay_path)
         
-        logger.info(f"Original video: {original_info['width']}x{original_info['height']} @ {original_info['frame_rate']}fps")
-        logger.info(f"Overlay video: {overlay_info['width']}x{overlay_info['height']} @ {overlay_info['frame_rate']}fps")
+        logger.info(
+            f"Original video: {original_info['width']}x{original_info['height']} "
+            f"@ {original_info['frame_rate']:.2f}fps, {original_info['duration']:.1f}s, "
+            f"codec: {original_info['codec']}"
+        )
+        logger.info(
+            f"Overlay video: {overlay_info['width']}x{overlay_info['height']} "
+            f"@ {overlay_info['frame_rate']:.2f}fps, {overlay_info['duration']:.1f}s, "
+            f"codec: {overlay_info['codec']}"
+        )
         
         # Verify frame rate compatibility
         frame_rate_tolerance = 0.1  # Allow small differences due to floating point precision
-        if abs(original_info['frame_rate'] - overlay_info['frame_rate']) > frame_rate_tolerance:
-            raise FrameRateMismatchError(
-                f"Frame rate mismatch: original={original_info['frame_rate']}fps, "
-                f"overlay={overlay_info['frame_rate']}fps"
+        frame_rate_diff = abs(original_info['frame_rate'] - overlay_info['frame_rate'])
+        
+        if frame_rate_diff > frame_rate_tolerance:
+            error_msg = (
+                f"Frame rate mismatch: original={original_info['frame_rate']:.2f}fps, "
+                f"overlay={overlay_info['frame_rate']:.2f}fps (diff: {frame_rate_diff:.2f}fps)"
+            )
+            logger.error(error_msg)
+            raise FrameRateMismatchError(error_msg)
+        
+        logger.debug(f"Frame rates compatible (diff: {frame_rate_diff:.3f}fps)")
+        
+        # Verify duration compatibility (warning only)
+        duration_diff = abs(original_info['duration'] - overlay_info['duration'])
+        if duration_diff > 1.0:  # More than 1 second difference
+            logger.warning(
+                f"Duration mismatch: original={original_info['duration']:.1f}s, "
+                f"overlay={overlay_info['duration']:.1f}s (diff: {duration_diff:.1f}s)"
             )
         
         # Calculate overlay position
@@ -182,9 +208,22 @@ async def composite_videos(
             padding
         )
         
-        logger.info(f"Positioning overlay at ({overlay_x}, {overlay_y}) with position='{position}' and padding={padding}")
+        logger.info(
+            f"Positioning overlay at ({overlay_x}, {overlay_y}) "
+            f"with position='{position}' and padding={padding}px"
+        )
+        
+        # Validate overlay position is within bounds
+        if (overlay_x + overlay_info['width'] > original_info['width'] or
+            overlay_y + overlay_info['height'] > original_info['height']):
+            logger.warning(
+                f"Overlay extends beyond original video bounds: "
+                f"overlay at ({overlay_x}, {overlay_y}) with size {overlay_info['width']}x{overlay_info['height']} "
+                f"on {original_info['width']}x{original_info['height']} original"
+            )
         
         # Create FFmpeg streams
+        logger.debug("Creating FFmpeg streams")
         original_input = ffmpeg.input(str(original_path))
         overlay_input = ffmpeg.input(str(overlay_path))
         
@@ -214,30 +253,70 @@ async def composite_videos(
         output_stream = ffmpeg.overwrite_output(output_stream)
         
         # Run composition in executor to avoid blocking
+        logger.info("Starting FFmpeg composition process")
         loop = asyncio.get_event_loop()
         
         def run_composition():
-            ffmpeg.run(output_stream, quiet=True, capture_stdout=True, capture_stderr=True)
+            try:
+                ffmpeg.run(output_stream, quiet=True, capture_stdout=True, capture_stderr=True)
+            except ffmpeg.Error as e:
+                # Re-raise with captured stderr
+                raise e
         
-        await loop.run_in_executor(None, run_composition)
+        # Run with timeout to prevent hanging
+        try:
+            await asyncio.wait_for(
+                loop.run_in_executor(None, run_composition),
+                timeout=300.0  # 5 minute timeout for composition
+            )
+        except asyncio.TimeoutError:
+            logger.error("Video composition timed out after 5 minutes")
+            raise VideoCompositionError("Video composition timed out")
+        
+        composition_duration = time.time() - composition_start_time
         
         # Verify output file was created
         if not output_path.exists():
             raise VideoCompositionError(f"Output file was not created: {output_path}")
         
+        # Check output file size
+        output_size = output_path.stat().st_size
+        if output_size == 0:
+            raise VideoCompositionError(f"Output file is empty: {output_path}")
+        
         # Get final video info for logging
-        final_info = await get_video_info(output_path)
-        logger.info(
-            f"Successfully composed video: {final_info['width']}x{final_info['height']} "
-            f"@ {final_info['frame_rate']}fps, size: {output_path.stat().st_size / (1024*1024):.1f}MB"
-        )
+        try:
+            final_info = await get_video_info(output_path)
+            logger.info(
+                f"Successfully composed video: {final_info['width']}x{final_info['height']} "
+                f"@ {final_info['frame_rate']:.2f}fps, "
+                f"size: {output_size / (1024*1024):.1f}MB, "
+                f"duration: {composition_duration:.1f}s"
+            )
+        except Exception as info_error:
+            # Don't fail if we can't get final info, just log the basic success
+            logger.info(
+                f"Successfully composed video: {output_path} "
+                f"({output_size / (1024*1024):.1f}MB) in {composition_duration:.1f}s"
+            )
+            logger.debug(f"Could not retrieve final video info: {info_error}")
         
     except ffmpeg.Error as e:
         # Extract stderr for better error reporting
         stderr = e.stderr.decode('utf-8') if e.stderr else 'No error details available'
+        composition_duration = time.time() - composition_start_time
+        
+        logger.error(
+            f"FFmpeg error during composition after {composition_duration:.1f}s: {stderr}"
+        )
         raise VideoCompositionError(f"FFmpeg error during composition: {stderr}")
+    except (FrameRateMismatchError, VideoCompositionError):
+        # Re-raise these specific errors as-is
+        raise
     except Exception as e:
-        raise VideoCompositionError(f"Unexpected error during video composition: {e}")
+        composition_duration = time.time() - composition_start_time
+        logger.error(f"Unexpected error during video composition after {composition_duration:.1f}s: {e}")
+        raise VideoCompositionError(f"Unexpected error during video composition: {e}") from e
 
 
 async def verify_composition_requirements(

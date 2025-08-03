@@ -15,6 +15,7 @@ from quart import Quart
 from vodloader import config
 
 from .channels import channels_bp
+from .chat_config import chat_config_bp
 
 
 def create_api() -> Quart:
@@ -28,13 +29,17 @@ def create_api() -> Quart:
     
     # Register blueprints
     app.register_blueprint(channels_bp)
+    app.register_blueprint(chat_config_bp)
     
     return app
 
 
 # Export commonly used functions and constants
 from .auth import check_auth, require_auth
-from .validation import validate_quality, validate_delete_original_video, validate_channel_config
+from .validation import (
+    validate_quality, validate_delete_original_video, validate_channel_config,
+    validate_chat_config, VALID_CHAT_POSITIONS, VALID_FONT_STYLES, VALID_FONT_WEIGHTS
+)
 from .utils import parse_json_body
 from .constants import VALID_QUALITIES, STATUS_SUCCESS, STATUS_ERROR, STATUS_INFO
 
@@ -45,8 +50,12 @@ __all__ = [
     'validate_quality',
     'validate_delete_original_video',
     'validate_channel_config',
+    'validate_chat_config',
     'parse_json_body',
     'VALID_QUALITIES',
+    'VALID_CHAT_POSITIONS',
+    'VALID_FONT_STYLES',
+    'VALID_FONT_WEIGHTS',
     'STATUS_SUCCESS',
     'STATUS_ERROR', 
     'STATUS_INFO'

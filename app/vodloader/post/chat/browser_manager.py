@@ -206,55 +206,159 @@ class BrowserManager:
             
             # Check memory limit
             if memory_mb > self.MAX_MEMORY_MB:
-                logger.error(f"Browser memory usage ({memory_mb:.1f}MB) exceeds limit ({self.MAX_MEMORY_MB}MB)")
-                raise BrowserResourceError(f"Memory limit exceeded: {memory_mb:.1f}MB > {self.MAX_MEMORY_MB}MB")
+                error_msg = f"Browser memory usage ({memory_mb:.1f}MB) exceeds limit ({self.MAX_MEMORY_MB}MB)"
+                logger.error(error_msg)
+                
+                # Log additional context for debugging
+                logger.error(f"Browser uptime: {time.time() - self._start_time:.1f}s")
+                
+                # Attempt emergency cleanup
+                try:
+                    await self._emergency_cleanup()
+                except Exception as cleanup_error:
+                    logger.error(f"Emergency cleanup failed: {cleanup_error}")
+                
+                raise BrowserResourceError(error_msg)
             
             # Get CPU usage
             cpu_percent = current_process.cpu_percent()
             
+            # Check for high CPU usage (warning only)
+            if cpu_percent > 90:
+                logger.warning(f"High browser CPU usage: {cpu_percent:.1f}%")
+            
             resource_info = {
                 'memory_mb': memory_mb,
                 'cpu_percent': cpu_percent,
-                'uptime_seconds': time.time() - self._start_time if self._start_time else 0
+                'uptime_seconds': time.time() - self._start_time if self._start_time else 0,
+                'process_id': current_process.pid
             }
             
-            logger.debug(f"Browser resources: {memory_mb:.1f}MB memory, {cpu_percent:.1f}% CPU")
+            # Log resource usage periodically
+            if not hasattr(self, '_last_resource_log'):
+                self._last_resource_log = time.time()
+                logger.debug(f"Browser resources: {memory_mb:.1f}MB memory, {cpu_percent:.1f}% CPU")
+            elif time.time() - self._last_resource_log > 30:  # Log every 30 seconds
+                logger.debug(f"Browser resources: {memory_mb:.1f}MB memory, {cpu_percent:.1f}% CPU")
+                self._last_resource_log = time.time()
+            
             return resource_info
             
         except psutil.NoSuchProcess:
-            logger.warning("Browser process no longer exists")
-            return {'memory_mb': 0, 'cpu_percent': 0, 'uptime_seconds': 0}
+            logger.warning("Browser process no longer exists during resource monitoring")
+            return {'memory_mb': 0, 'cpu_percent': 0, 'uptime_seconds': 0, 'process_id': None}
+        except BrowserResourceError:
+            # Re-raise resource errors
+            raise
         except Exception as e:
             logger.warning(f"Could not monitor browser resources: {e}")
-            return {'memory_mb': 0, 'cpu_percent': 0, 'uptime_seconds': 0}
+            return {'memory_mb': 0, 'cpu_percent': 0, 'uptime_seconds': 0, 'process_id': None}
     
-    async def _cleanup(self):
-        """Clean up browser resources."""
+    async def _emergency_cleanup(self) -> None:
+        """
+        Perform emergency cleanup when resource limits are exceeded.
+        
+        This method attempts to free resources immediately without
+        waiting for normal cleanup procedures.
+        """
+        logger.warning("Performing emergency browser cleanup due to resource limits")
+        
         try:
             if self._browser:
-                logger.debug("Closing browser")
-                await asyncio.wait_for(
-                    self._browser.close(),
-                    timeout=10.0  # 10 second timeout for cleanup
-                )
+                # Close all pages immediately
+                pages = self._browser.contexts
+                for context in pages:
+                    try:
+                        await asyncio.wait_for(context.close(), timeout=2.0)
+                    except Exception as e:
+                        logger.debug(f"Error closing browser context during emergency cleanup: {e}")
+                
+                # Force close browser
+                try:
+                    await asyncio.wait_for(self._browser.close(), timeout=3.0)
+                except Exception as e:
+                    logger.debug(f"Error closing browser during emergency cleanup: {e}")
+                
                 self._browser = None
                 
-            if self._playwright:
-                logger.debug("Stopping Playwright")
-                await asyncio.wait_for(
-                    self._playwright.stop(),
-                    timeout=10.0  # 10 second timeout for cleanup
-                )
-                self._playwright = None
-                
-        except asyncio.TimeoutError:
-            logger.warning("Browser cleanup timed out")
         except Exception as e:
-            logger.warning(f"Error during browser cleanup: {e}")
+            logger.error(f"Emergency cleanup failed: {e}")
+        
+        logger.info("Emergency browser cleanup completed")
+    
+    async def _cleanup(self):
+        """Clean up browser resources with comprehensive error handling."""
+        cleanup_start_time = time.time()
+        cleanup_errors = []
+        
+        try:
+            logger.debug("Starting browser cleanup")
+            
+            # Close browser with timeout
+            if self._browser:
+                try:
+                    logger.debug("Closing browser instance")
+                    await asyncio.wait_for(
+                        self._browser.close(),
+                        timeout=10.0  # 10 second timeout for cleanup
+                    )
+                    logger.debug("Browser closed successfully")
+                except asyncio.TimeoutError:
+                    cleanup_errors.append("Browser close timed out")
+                    logger.warning("Browser close timed out, attempting force cleanup")
+                    
+                    # Attempt to force close by terminating process
+                    if self._process_id:
+                        try:
+                            browser_process = psutil.Process(self._process_id)
+                            if browser_process.is_running():
+                                browser_process.terminate()
+                                logger.debug(f"Terminated browser process {self._process_id}")
+                        except Exception as proc_error:
+                            cleanup_errors.append(f"Failed to terminate browser process: {proc_error}")
+                            
+                except Exception as e:
+                    cleanup_errors.append(f"Browser close error: {e}")
+                    logger.warning(f"Error closing browser: {e}")
+                finally:
+                    self._browser = None
+                
+            # Stop Playwright with timeout
+            if self._playwright:
+                try:
+                    logger.debug("Stopping Playwright")
+                    await asyncio.wait_for(
+                        self._playwright.stop(),
+                        timeout=10.0  # 10 second timeout for cleanup
+                    )
+                    logger.debug("Playwright stopped successfully")
+                except asyncio.TimeoutError:
+                    cleanup_errors.append("Playwright stop timed out")
+                    logger.warning("Playwright stop timed out")
+                except Exception as e:
+                    cleanup_errors.append(f"Playwright stop error: {e}")
+                    logger.warning(f"Error stopping Playwright: {e}")
+                finally:
+                    self._playwright = None
+                
+        except Exception as e:
+            cleanup_errors.append(f"Unexpected cleanup error: {e}")
+            logger.error(f"Unexpected error during browser cleanup: {e}")
         finally:
+            # Always reset state regardless of errors
             self._browser = None
             self._playwright = None
             self._process_id = None
+            
+            cleanup_duration = time.time() - cleanup_start_time
+            
+            if cleanup_errors:
+                logger.warning(
+                    f"Browser cleanup completed with errors in {cleanup_duration:.2f}s: "
+                    f"{'; '.join(cleanup_errors)}"
+                )
+            else:
+                logger.debug(f"Browser cleanup completed successfully in {cleanup_duration:.2f}s")
 
 
 @asynccontextmanager
