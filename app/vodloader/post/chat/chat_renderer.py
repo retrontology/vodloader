@@ -508,12 +508,21 @@ class ChatRenderer:
                 }
             )
             
-            # Run ffmpeg
-            await asyncio.create_subprocess_exec(
+            # Run ffmpeg and wait for completion
+            process = await asyncio.create_subprocess_exec(
                 *ffmpeg.compile(output_stream, overwrite_output=True),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                error_msg = stderr.decode() if stderr else "Unknown ffmpeg error"
+                logger.error(f"FFmpeg failed with return code {process.returncode}: {error_msg}")
+                raise ChatRendererError(f"Video encoding failed: {error_msg}")
+            
+            logger.debug("FFmpeg encoding completed successfully")
             
             # Clean up frame list file
             frame_list_path.unlink(missing_ok=True)
