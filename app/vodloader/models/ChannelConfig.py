@@ -122,6 +122,14 @@ class ChannelConfig(BaseModel):
         """Get chat overlay height (None means calculate from stream dimensions)"""
         return self.chat_overlay_height
     
+    def get_chat_position(self) -> str:
+        """Get chat position for video compositor with default fallback to top-right"""
+        return self.chat_position or "top-right"
+    
+    def get_chat_padding(self) -> int:
+        """Get chat padding for video compositor with default fallback to 20"""
+        return self.chat_padding or 20
+    
 
     
     def get_chat_message_duration(self) -> float:
