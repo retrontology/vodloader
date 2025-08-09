@@ -90,10 +90,8 @@ class VideoFile(EndableModel):
         path = self.transcode_path if self.transcode_path else self.path
         info = ffmpeg.probe(path)
         for stream in info['streams']:
-            if 'r_frame_rate' in stream:
-                stream['r_frame_rate'] = (int(x) for x in stream['r_frame_rate'].split('/'))
-            if 'avg_frame_rate' in stream:
-                stream['avg_frame_rate'] = (int(x) for x in stream['avg_frame_rate'].split('/'))
+            # Keep frame rates as strings for proper parsing in downstream code
+            # The original string format like "25/1" is more reliable than converting to generators
             if 'duration' in stream:
                 stream['duration'] = float(stream['duration'])
             if 'start_time' in stream:
