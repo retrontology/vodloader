@@ -1,6 +1,6 @@
 /* Twitch Chat Overlay CSS */
 
-/* CSS Variables for dynamic configuration */
+/* CSS Variables for styling configuration */
 :root {
     --chat-font-family: 'Roboto Mono', monospace;
     --chat-font-size: 14px;
@@ -9,9 +9,6 @@
     --chat-text-color: #ffffff;
     --chat-text-shadow-color: #000000;
     --chat-text-shadow-size: 1px;
-    --chat-overlay-width: 350px;
-    --chat-overlay-height: 400px;
-    --chat-padding: 20px;
 }
 
 /* Import Google Fonts for default font */
@@ -34,13 +31,13 @@ body {
     overflow: hidden;
 }
 
-/* Chat container - positioned absolutely for overlay */
+/* Chat container - fixed positioning for overlay */
 #chat-container {
-    position: absolute;
-    width: var(--chat-overlay-width);
-    height: var(--chat-overlay-height);
-    top: var(--chat-padding);
-    right: var(--chat-padding);
+    position: fixed;
+    width: 350px;
+    height: 400px;
+    top: 20px;
+    right: 20px;
     background: transparent;
 }
 
@@ -103,14 +100,37 @@ body {
 }
 
 /* Default username colors (will be overridden by Twitch colors) */
-.chat-username.color-red { color: #ff6b6b; }
-.chat-username.color-blue { color: #4dabf7; }
-.chat-username.color-green { color: #51cf66; }
-.chat-username.color-purple { color: #9775fa; }
-.chat-username.color-orange { color: #ff922b; }
-.chat-username.color-pink { color: #f783ac; }
-.chat-username.color-yellow { color: #ffd43b; }
-.chat-username.color-cyan { color: #22d3ee; }
+.chat-username.color-red {
+    color: #ff6b6b;
+}
+
+.chat-username.color-blue {
+    color: #4dabf7;
+}
+
+.chat-username.color-green {
+    color: #51cf66;
+}
+
+.chat-username.color-purple {
+    color: #9775fa;
+}
+
+.chat-username.color-orange {
+    color: #ff922b;
+}
+
+.chat-username.color-pink {
+    color: #f783ac;
+}
+
+.chat-username.color-yellow {
+    color: #ffd43b;
+}
+
+.chat-username.color-cyan {
+    color: #22d3ee;
+}
 
 /* Message text styling */
 .chat-text {
@@ -125,57 +145,14 @@ body {
     margin-right: 8px;
 }
 
-/* Positioning classes for different overlay positions */
-.position-top-left {
-    top: var(--chat-padding);
-    left: var(--chat-padding);
-    right: auto;
-    bottom: auto;
-}
 
-.position-top-right {
-    top: var(--chat-padding);
-    right: var(--chat-padding);
-    left: auto;
-    bottom: auto;
-}
-
-.position-bottom-left {
-    bottom: var(--chat-padding);
-    left: var(--chat-padding);
-    right: auto;
-    top: auto;
-}
-
-.position-bottom-right {
-    bottom: var(--chat-padding);
-    right: var(--chat-padding);
-    left: auto;
-    top: auto;
-}
-
-.position-left {
-    top: 50%;
-    left: var(--chat-padding);
-    right: auto;
-    bottom: auto;
-    transform: translateY(-50%);
-}
-
-.position-right {
-    top: 50%;
-    right: var(--chat-padding);
-    left: auto;
-    bottom: auto;
-    transform: translateY(-50%);
-}
 
 /* Responsive adjustments for smaller overlays */
 @media (max-width: 300px) {
     #chat-messages {
         padding: 6px 8px;
     }
-    
+
     .chat-message {
         margin-bottom: 2px;
         font-size: 0.9em;
@@ -193,6 +170,7 @@ body {
         opacity: 0;
         transform: translateY(20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -204,6 +182,7 @@ body {
         opacity: 1;
         transform: translateY(0);
     }
+
     to {
         opacity: 0;
         transform: translateY(-10px);

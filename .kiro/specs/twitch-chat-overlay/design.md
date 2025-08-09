@@ -196,7 +196,7 @@ class ChannelConfig(BaseModel):
         return self.chat_text_shadow_size or 1
     
     def get_chat_position(self) -> str:
-        return self.chat_position or "top-right"
+        return self.chat_position or "top-left"
     
     def get_chat_padding(self) -> int:
         return self.chat_padding or 20

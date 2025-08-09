@@ -186,7 +186,7 @@ class TemplateManager:
                 'messageDuration': config.get('message_duration', 30.0),
                 'overlayWidth': config.get('overlay_width', 350),
                 'overlayHeight': config.get('overlay_height', 400),
-                'position': config.get('position', 'top-right'),
+                'position': config.get('position', 'top-left'),
                 'padding': config.get('padding', 20),
                 'frameRate': config.get('frame_rate', 30.0),
                 'videoDuration': config.get('video_duration', 0),

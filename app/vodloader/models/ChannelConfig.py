@@ -122,8 +122,8 @@ class ChannelConfig(BaseModel):
         return self.chat_overlay_height
     
     def get_chat_position(self) -> str:
-        """Get chat position with default fallback to top-right"""
-        return self.chat_position or "top-right"
+        """Get chat position with default fallback to top-left"""
+        return self.chat_position or "top-left"
     
     def get_chat_padding(self) -> int:
         """Get chat padding with default fallback to 20"""
