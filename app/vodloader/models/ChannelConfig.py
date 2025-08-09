@@ -19,7 +19,8 @@ class ChannelConfig(BaseModel):
             chat_text_shadow_size INT DEFAULT NULL,
             chat_overlay_width INT DEFAULT NULL,
             chat_overlay_height INT DEFAULT NULL,
-
+            chat_position VARCHAR(20) DEFAULT NULL,
+            chat_padding INT DEFAULT NULL,
             chat_message_duration FLOAT DEFAULT NULL,
             keep_chat_overlay BOOL DEFAULT TRUE,
             PRIMARY KEY (id),
@@ -41,6 +42,8 @@ class ChannelConfig(BaseModel):
     chat_text_shadow_size: Optional[int]
     chat_overlay_width: Optional[int]
     chat_overlay_height: Optional[int]
+    chat_position: Optional[str]  # Deprecated - kept for DB compatibility
+    chat_padding: Optional[int]   # Deprecated - kept for DB compatibility
     chat_message_duration: Optional[float]
     keep_chat_overlay: Optional[bool]
 
@@ -58,7 +61,8 @@ class ChannelConfig(BaseModel):
         chat_text_shadow_size: Optional[int] = None,
         chat_overlay_width: Optional[int] = None,
         chat_overlay_height: Optional[int] = None,
-
+        chat_position: Optional[str] = None,  # Deprecated - kept for DB compatibility
+        chat_padding: Optional[int] = None,   # Deprecated - kept for DB compatibility
         chat_message_duration: Optional[float] = None,
         keep_chat_overlay: Optional[bool] = None,
     ) -> None:
@@ -75,7 +79,9 @@ class ChannelConfig(BaseModel):
         self.chat_text_shadow_size = chat_text_shadow_size
         self.chat_overlay_width = chat_overlay_width
         self.chat_overlay_height = chat_overlay_height
-
+        # Deprecated fields - kept for DB compatibility but not used
+        self.chat_position = chat_position
+        self.chat_padding = chat_padding
         self.chat_message_duration = chat_message_duration
         self.keep_chat_overlay = keep_chat_overlay
 
