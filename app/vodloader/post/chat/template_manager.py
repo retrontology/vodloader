@@ -299,7 +299,8 @@ class TemplateManager:
         css_content: str,
         js_content: str,
         config_js: str,
-        messages_js: str
+        messages_js: str,
+        config: Dict[str, Any]
     ) -> str:
         """
         Substitute placeholders in template with dynamic content.
@@ -310,6 +311,7 @@ class TemplateManager:
             js_content: JavaScript content to inject
             config_js: JavaScript configuration code
             messages_js: JavaScript message data code
+            config: Configuration dictionary for dynamic values
             
         Returns:
             Complete HTML with all substitutions made
@@ -433,7 +435,8 @@ class TemplateManager:
                 combined_css,
                 chat_js,
                 config_js,
-                messages_js
+                messages_js,
+                config
             )
             
             logger.info("Complete HTML template generated successfully")
