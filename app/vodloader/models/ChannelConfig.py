@@ -114,13 +114,13 @@ class ChannelConfig(BaseModel):
         """Get chat text shadow size with default fallback to 1"""
         return self.chat_text_shadow_size or 1
     
-    def get_chat_overlay_width(self) -> int:
-        """Get chat overlay width with default fallback to 350"""
-        return self.chat_overlay_width or 350
+    def get_chat_overlay_width(self) -> Optional[int]:
+        """Get chat overlay width (None means calculate from stream dimensions)"""
+        return self.chat_overlay_width
     
-    def get_chat_overlay_height(self) -> int:
-        """Get chat overlay height with default fallback to 400"""
-        return self.chat_overlay_height or 400
+    def get_chat_overlay_height(self) -> Optional[int]:
+        """Get chat overlay height (None means calculate from stream dimensions)"""
+        return self.chat_overlay_height
     
 
     

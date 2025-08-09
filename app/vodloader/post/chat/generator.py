@@ -294,7 +294,6 @@ class ChatVideoGenerator:
             # Log key configuration values for debugging
             logger.debug(
                 f'Configuration for channel {channel_id}: '
-                f'position={config.get_chat_position()}, '
                 f'font_size={config.get_chat_font_size()}, '
                 f'keep_overlay={config.get_keep_chat_overlay()}'
             )
