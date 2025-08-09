@@ -237,17 +237,21 @@ async def composite_videos(
         # Apply overlay filter with calculated position
         # The overlay filter composites the overlay video on top of the original
         # format=auto ensures proper alpha channel handling for transparency
-        output_stream = ffmpeg.overlay(
-            original_input,
+        video_stream = ffmpeg.overlay(
+            original_input['v'],  # Explicitly use video stream
             overlay_input,
             x=overlay_x,
             y=overlay_y,
             format='auto'  # Automatically handle alpha channel for transparency
         )
         
+        # Preserve audio from original video
+        audio_stream = original_input['a']
+        
         # Configure output with quality preservation
         output_stream = ffmpeg.output(
-            output_stream,
+            video_stream,
+            audio_stream,
             str(output_path),
             vcodec='libx264',  # Use H.264 codec for compatibility
             acodec='copy',     # Copy audio stream without re-encoding
