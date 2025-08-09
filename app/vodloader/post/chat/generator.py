@@ -354,33 +354,45 @@ class ChatVideoGenerator:
             
             logger.debug(f'Found video stream with codec: {video_stream.get("codec_name", "unknown")}')
             
-            # Extract frame rate with detailed logging
+            # Extract frame rate with detailed logging using robust extraction
             frame_rate = None
+            
+            # Try r_frame_rate first (more accurate for constant frame rate)
             if 'r_frame_rate' in video_stream and video_stream['r_frame_rate']:
                 try:
                     r_frame_rate = video_stream['r_frame_rate']
                     if isinstance(r_frame_rate, str) and '/' in r_frame_rate:
-                        num, den = map(int, r_frame_rate.split('/'))
-                        if den != 0:
+                        num, den = map(float, r_frame_rate.split('/'))  # Use float for better precision
+                        if den > 0:
                             frame_rate = num / den
-                            logger.debug(f'Extracted frame rate from r_frame_rate: {frame_rate}')
+                            logger.debug(f'Extracted frame rate from r_frame_rate: {frame_rate:.3f}fps')
+                    elif isinstance(r_frame_rate, (int, float)):
+                        frame_rate = float(r_frame_rate)
+                        logger.debug(f'Extracted frame rate from r_frame_rate (numeric): {frame_rate:.3f}fps')
                 except (ValueError, ZeroDivisionError) as e:
                     logger.debug(f'Could not parse r_frame_rate "{video_stream["r_frame_rate"]}": {e}')
             
+            # Fallback to avg_frame_rate if r_frame_rate failed
             if not frame_rate and 'avg_frame_rate' in video_stream and video_stream['avg_frame_rate']:
                 try:
                     avg_frame_rate = video_stream['avg_frame_rate']
                     if isinstance(avg_frame_rate, str) and '/' in avg_frame_rate:
-                        num, den = map(int, avg_frame_rate.split('/'))
-                        if den != 0:
+                        num, den = map(float, avg_frame_rate.split('/'))  # Use float for better precision
+                        if den > 0:
                             frame_rate = num / den
-                            logger.debug(f'Extracted frame rate from avg_frame_rate: {frame_rate}')
+                            logger.debug(f'Extracted frame rate from avg_frame_rate: {frame_rate:.3f}fps')
+                    elif isinstance(avg_frame_rate, (int, float)):
+                        frame_rate = float(avg_frame_rate)
+                        logger.debug(f'Extracted frame rate from avg_frame_rate (numeric): {frame_rate:.3f}fps')
                 except (ValueError, ZeroDivisionError) as e:
                     logger.debug(f'Could not parse avg_frame_rate "{video_stream["avg_frame_rate"]}": {e}')
             
+            # Final validation and fallback
             if not frame_rate or frame_rate <= 0:
                 frame_rate = 30.0  # Default fallback
                 logger.warning(f'Could not determine valid frame rate for video {video.id}, using default {frame_rate}fps')
+            else:
+                logger.info(f'Successfully extracted frame rate for video {video.id}: {frame_rate:.3f}fps')
             
             # Extract dimensions
             width = video_stream.get('width', 0)

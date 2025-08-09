@@ -173,19 +173,21 @@ async def composite_videos(
             f"codec: {overlay_info['codec']}"
         )
         
-        # Verify frame rate compatibility
+        # Check for frame rate compatibility and handle mismatches
         frame_rate_tolerance = 0.1  # Allow small differences due to floating point precision
         frame_rate_diff = abs(original_info['frame_rate'] - overlay_info['frame_rate'])
         
-        if frame_rate_diff > frame_rate_tolerance:
-            error_msg = (
-                f"Frame rate mismatch: original={original_info['frame_rate']:.2f}fps, "
-                f"overlay={overlay_info['frame_rate']:.2f}fps (diff: {frame_rate_diff:.2f}fps)"
-            )
-            logger.error(error_msg)
-            raise FrameRateMismatchError(error_msg)
+        # If frame rates don't match, we'll resample the overlay to match the original
+        resample_overlay = frame_rate_diff > frame_rate_tolerance
         
-        logger.debug(f"Frame rates compatible (diff: {frame_rate_diff:.3f}fps)")
+        if resample_overlay:
+            logger.info(
+                f"Frame rate mismatch detected: original={original_info['frame_rate']:.2f}fps, "
+                f"overlay={overlay_info['frame_rate']:.2f}fps (diff: {frame_rate_diff:.2f}fps). "
+                f"Will resample overlay to match original frame rate."
+            )
+        else:
+            logger.debug(f"Frame rates compatible (diff: {frame_rate_diff:.3f}fps)")
         
         # Verify duration compatibility (warning only)
         duration_diff = abs(original_info['duration'] - overlay_info['duration'])
@@ -226,6 +228,11 @@ async def composite_videos(
         logger.debug("Creating FFmpeg streams")
         original_input = ffmpeg.input(str(original_path))
         overlay_input = ffmpeg.input(str(overlay_path))
+        
+        # Resample overlay frame rate if needed to match original
+        if resample_overlay:
+            logger.debug(f"Resampling overlay from {overlay_info['frame_rate']:.2f}fps to {original_info['frame_rate']:.2f}fps")
+            overlay_input = ffmpeg.filter(overlay_input, 'fps', fps=original_info['frame_rate'])
         
         # Apply overlay filter with calculated position
         # The overlay filter composites the overlay video on top of the original
