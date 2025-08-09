@@ -140,8 +140,7 @@ class TemplateManager:
             '--chat-text-shadow-color': config.get('text_shadow_color', '#000000'),
             '--chat-text-shadow-size': f"{config.get('text_shadow_size', 1)}px",
             '--chat-overlay-width': f"{config.get('overlay_width', 350)}px",
-            '--chat-overlay-height': f"{config.get('overlay_height', 400)}px",
-            '--chat-padding': f"{config.get('padding', 20)}px"
+            '--chat-overlay-height': f"{config.get('overlay_height', 400)}px"
         }
         
         css_rules = [":root {"]
@@ -184,10 +183,6 @@ class TemplateManager:
             # Create configuration object with proper defaults
             js_config = {
                 'messageDuration': config.get('message_duration', 30.0),
-                'overlayWidth': config.get('overlay_width', 350),
-                'overlayHeight': config.get('overlay_height', 400),
-                'position': config.get('position', 'top-left'),
-                'padding': config.get('padding', 20),
                 'frameRate': config.get('frame_rate', 30.0),
                 'videoDuration': config.get('video_duration', 0),
                 'showTimestamps': config.get('show_timestamps', False)
@@ -347,6 +342,16 @@ class TemplateManager:
             html_content = html_content.replace(
                 '/* Dynamic CSS variables will be injected here */',
                 self._extract_css_variables_from_content(css_content)
+            )
+            
+            # Replace viewport with dynamic dimensions
+            overlay_width = config.get('overlay_width', 350)
+            overlay_height = config.get('overlay_height', 400)
+            dynamic_viewport = f'width={overlay_width}, height={overlay_height}, initial-scale=1.0, user-scalable=no'
+            html_content = re.sub(
+                r'content="width=\d+, height=\d+, initial-scale=1\.0, user-scalable=no"',
+                f'content="{dynamic_viewport}"',
+                html_content
             )
             
             # Replace configuration placeholder

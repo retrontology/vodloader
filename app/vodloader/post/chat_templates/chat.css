@@ -9,6 +9,8 @@
     --chat-text-color: #ffffff;
     --chat-text-shadow-color: #000000;
     --chat-text-shadow-size: 1px;
+    --chat-overlay-width: 350px;
+    --chat-overlay-height: 400px;
 }
 
 /* Import Google Fonts for default font */
@@ -29,13 +31,17 @@ body {
     font-weight: var(--chat-font-weight);
     color: var(--chat-text-color);
     overflow: hidden;
+    width: var(--chat-overlay-width);
+    height: var(--chat-overlay-height);
+    margin: 0;
+    padding: 0;
 }
 
-/* Chat container - fixed positioning for overlay */
+/* Chat container - static positioning within viewport */
 #chat-container {
-    position: fixed;
-    width: 350px;
-    height: 400px;
+    position: absolute;
+    width: var(--chat-overlay-width);
+    height: var(--chat-overlay-height);
     top: 20px;
     right: 20px;
     background: transparent;

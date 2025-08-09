@@ -197,9 +197,9 @@ async def composite_videos(
                 f"overlay={overlay_info['duration']:.1f}s (diff: {duration_diff:.1f}s)"
             )
         
-        # Calculate overlay position
-        position = config.get_chat_position()
-        padding = config.get_chat_padding()
+        # Calculate overlay position (hardcoded to top-right with 20px padding)
+        position = "top-right"
+        padding = 20
         
         overlay_x, overlay_y = calculate_overlay_position(
             original_info['width'],

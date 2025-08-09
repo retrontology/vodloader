@@ -19,8 +19,7 @@ class ChannelConfig(BaseModel):
             chat_text_shadow_size INT DEFAULT NULL,
             chat_overlay_width INT DEFAULT NULL,
             chat_overlay_height INT DEFAULT NULL,
-            chat_position VARCHAR(20) DEFAULT NULL,
-            chat_padding INT DEFAULT NULL,
+
             chat_message_duration FLOAT DEFAULT NULL,
             keep_chat_overlay BOOL DEFAULT TRUE,
             PRIMARY KEY (id),
@@ -42,8 +41,6 @@ class ChannelConfig(BaseModel):
     chat_text_shadow_size: Optional[int]
     chat_overlay_width: Optional[int]
     chat_overlay_height: Optional[int]
-    chat_position: Optional[str]
-    chat_padding: Optional[int]
     chat_message_duration: Optional[float]
     keep_chat_overlay: Optional[bool]
 
@@ -61,8 +58,7 @@ class ChannelConfig(BaseModel):
         chat_text_shadow_size: Optional[int] = None,
         chat_overlay_width: Optional[int] = None,
         chat_overlay_height: Optional[int] = None,
-        chat_position: Optional[str] = None,
-        chat_padding: Optional[int] = None,
+
         chat_message_duration: Optional[float] = None,
         keep_chat_overlay: Optional[bool] = None,
     ) -> None:
@@ -79,8 +75,7 @@ class ChannelConfig(BaseModel):
         self.chat_text_shadow_size = chat_text_shadow_size
         self.chat_overlay_width = chat_overlay_width
         self.chat_overlay_height = chat_overlay_height
-        self.chat_position = chat_position
-        self.chat_padding = chat_padding
+
         self.chat_message_duration = chat_message_duration
         self.keep_chat_overlay = keep_chat_overlay
 
@@ -113,21 +108,15 @@ class ChannelConfig(BaseModel):
         """Get chat text shadow size with default fallback to 1"""
         return self.chat_text_shadow_size or 1
     
-    def get_chat_overlay_width(self) -> Optional[int]:
-        """Get chat overlay width (None means calculate from video dimensions)"""
-        return self.chat_overlay_width
+    def get_chat_overlay_width(self) -> int:
+        """Get chat overlay width with default fallback to 350"""
+        return self.chat_overlay_width or 350
     
-    def get_chat_overlay_height(self) -> Optional[int]:
-        """Get chat overlay height (None means calculate from video dimensions)"""
-        return self.chat_overlay_height
+    def get_chat_overlay_height(self) -> int:
+        """Get chat overlay height with default fallback to 400"""
+        return self.chat_overlay_height or 400
     
-    def get_chat_position(self) -> str:
-        """Get chat position with default fallback to top-left"""
-        return self.chat_position or "top-left"
-    
-    def get_chat_padding(self) -> int:
-        """Get chat padding with default fallback to 20"""
-        return self.chat_padding or 20
+
     
     def get_chat_message_duration(self) -> float:
         """Get chat message duration with default fallback to 30.0 seconds"""
