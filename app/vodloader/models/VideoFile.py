@@ -4,7 +4,6 @@ from typing import Self, List, Dict, Any
 from vodloader.database import *
 from vodloader.util import *
 from vodloader.models import EndableModel, TwitchStream, TwitchChannel, OrderDirection, NOT_NULL
-from vodloader.ffmpeg.adapters import legacy_ffmpeg
 
 
 class VideoFile(EndableModel):
@@ -86,16 +85,4 @@ class VideoFile(EndableModel):
         return next
 
 
-    def probe(self) -> Dict[str, Any]:
-        path = self.transcode_path if self.transcode_path else self.path
-        info = legacy_ffmpeg.probe(path)
-        for stream in info['streams']:
-            # Keep frame rates as strings for proper parsing in downstream code
-            # The original string format like "25/1" is more reliable than converting to generators
-            if 'duration' in stream:
-                stream['duration'] = float(stream['duration'])
-            if 'start_time' in stream:
-                stream['start_time'] = float(stream['start_time'])
-            if 'time_base' in stream:
-                stream['time_base'] = (int(x) for x in stream['time_base'].split('/'))
-        return info 
+

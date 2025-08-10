@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from vodloader.ffmpeg import probe_video
+from vodloader.ffmpeg.adapters import legacy_ffmpeg
 
 from vodloader.models import VideoFile, Message, ChannelConfig
 from .browser_manager import BrowserManager, BrowserManagerError, browser_context
@@ -327,8 +328,8 @@ class ChatVideoGenerator:
             file_size_mb = video.path.stat().st_size / (1024 * 1024)
             logger.debug(f'Video file size: {file_size_mb:.1f}MB')
             
-            # Use the existing probe method from VideoFile
-            probe_data = video.probe()
+            # Use async probe to avoid event loop conflicts
+            probe_data = await legacy_ffmpeg.async_probe(video.path if not video.transcode_path else video.transcode_path)
             
             if not probe_data or 'streams' not in probe_data:
                 raise VideoMetadataError(f'Invalid probe data for video {video.id}')

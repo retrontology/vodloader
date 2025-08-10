@@ -84,8 +84,9 @@ class ChatRenderer:
             VideoMetadataError: If metadata extraction fails
         """
         try:
-            # Use the existing probe method from VideoFile
-            probe_info = video_file.probe()
+            # Use async probe to avoid event loop conflicts
+            from vodloader.ffmpeg.adapters import legacy_ffmpeg
+            probe_info = await legacy_ffmpeg.async_probe(video_file.path if not video_file.transcode_path else video_file.transcode_path)
             
             if not probe_info or 'streams' not in probe_info:
                 raise VideoMetadataError("No stream information found in video")
