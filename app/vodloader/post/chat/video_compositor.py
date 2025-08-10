@@ -235,19 +235,23 @@ async def composite_videos(
             overlay_input = ffmpeg.filter(overlay_input, 'fps', fps=original_info['frame_rate'])
         
         # Apply overlay filter with calculated position and proper transparency handling
-        # First ensure the overlay has proper alpha channel support
-        overlay_with_alpha = ffmpeg.filter(overlay_input, 'format', pix_fmts='yuva420p')
+        logger.debug(f"Overlay codec: {overlay_info['codec']}")
         
-        # Apply overlay filter with calculated position
-        # The overlay filter composites the overlay video on top of the original
+        # Ensure the overlay has proper alpha channel handling
+        # Convert overlay to RGBA format to preserve transparency
+        overlay_rgba = ffmpeg.filter(overlay_input['v'], 'format', pix_fmts='rgba')
+        
+        # Apply overlay with alpha blending
         video_stream = ffmpeg.overlay(
-            original_input['v'],  # Explicitly use video stream
-            overlay_with_alpha,
+            original_input['v'],
+            overlay_rgba,
             x=overlay_x,
             y=overlay_y,
-            format='auto',  # Automatically handle alpha channel for transparency
-            eof_action='pass'  # Continue main video if overlay ends first
+            format='rgb',  # Use RGB format for proper alpha blending
+            eof_action='pass'
         )
+        
+        logger.debug("Overlay filter applied with RGBA transparency support")
         
         # Preserve audio from original video
         audio_stream = original_input['a']
@@ -260,7 +264,7 @@ async def composite_videos(
             vcodec='libx264',  # Use H.264 codec for compatibility
             acodec='copy',     # Copy audio stream without re-encoding
             preset='medium',   # Balance between speed and compression
-            crf=18,           # High quality (lower CRF = higher quality)
+            crf=12,           # Archival quality (lower CRF = higher quality)
             pix_fmt='yuv420p' # Ensure compatibility with most players
         )
         
