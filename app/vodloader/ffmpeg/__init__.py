@@ -10,6 +10,9 @@ from .core import (
     transcode_video,
     StreamingComposer,
     FFmpegError,
+    ProbeError,
+    TranscodeError,
+    CompositionError,
     VideoInfo
 )
 
@@ -24,6 +27,9 @@ __all__ = [
     'transcode_video', 
     'StreamingComposer',
     'FFmpegError',
+    'ProbeError',
+    'TranscodeError',
+    'CompositionError',
     'VideoInfo',
     'calculate_overlay_position',
     'parse_frame_rate',

@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Dict, Tuple, Optional, AsyncGenerator
 
 from vodloader.models.ChannelConfig import ChannelConfig
-from vodloader.ffmpeg import probe_video, StreamingComposer, calculate_overlay_position, VideoInfo
+from vodloader.ffmpeg import probe_video, StreamingComposer, calculate_overlay_position, VideoInfo, CompositionError
 from playwright.async_api import Page
 
 logger = logging.getLogger('vodloader.post.chat.video_compositor')
