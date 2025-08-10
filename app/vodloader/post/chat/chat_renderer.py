@@ -350,7 +350,6 @@ class ChatRenderer:
             
             # Calculate frame parameters
             total_frames = int(duration * frame_rate)
-            frame_duration_ms = 1000 / frame_rate
             
             logger.info(
                 f"Starting video recording: {total_frames} frames at {frame_rate}fps "
@@ -361,84 +360,21 @@ class ChatRenderer:
             if total_frames > 300000:  # More than ~2.7 hours at 30fps
                 logger.warning(f"Very large frame count: {total_frames} frames")
             
-            # Create temporary directory for frames
-            with tempfile.TemporaryDirectory() as temp_dir:
-                temp_path = Path(temp_dir)
-                frame_paths = []
-                failed_frames = 0
-                
-                # Record frames with progress monitoring
-                for frame_num in range(total_frames):
-                    timestamp = frame_num / frame_rate
-                    
-                    try:
-                        # Render chat at this timestamp
-                        await page.evaluate(f"window.renderChatAtTimestamp({timestamp});")
-                        
-                        # Wait for rendering to complete
-                        await page.wait_for_timeout(50)  # Small delay for DOM updates
-                        
-                        # Capture frame
-                        frame_path = temp_path / f"frame_{frame_num:06d}.png"
-                        await page.screenshot(
-                            path=frame_path,
-                            full_page=True,
-                            omit_background=True  # Transparent background
-                        )
-                        
-                        # Debug: Log first few frames to verify transparency
-                        if frame_num < 3:
-                            logger.debug(f"Captured frame {frame_num} with omit_background=True: {frame_path}")
-                        
-                        # Verify frame was created
-                        if not frame_path.exists() or frame_path.stat().st_size == 0:
-                            failed_frames += 1
-                            logger.warning(f"Frame {frame_num} was not created or is empty")
-                            continue
-                        
-                        frame_paths.append(frame_path)
-                        
-                    except Exception as frame_error:
-                        failed_frames += 1
-                        logger.warning(f"Failed to capture frame {frame_num}: {frame_error}")
-                        continue
-                    
-                    # Log progress periodically
-                    if total_frames > 100 and frame_num % (total_frames // 10) == 0:
-                        progress = (frame_num / total_frames) * 100
-                        elapsed = time.time() - render_start_time
-                        estimated_total = elapsed / (frame_num + 1) * total_frames
-                        remaining = estimated_total - elapsed
-                        
-                        logger.info(
-                            f"Recording progress: {progress:.1f}% ({frame_num}/{total_frames} frames, "
-                            f"~{remaining:.0f}s remaining)"
-                        )
-                
-                # Check if we have enough frames
-                if not frame_paths:
-                    raise ChatRendererError("No frames were successfully captured")
-                
-                if failed_frames > 0:
-                    logger.warning(f"Failed to capture {failed_frames} out of {total_frames} frames")
-                
-                logger.info(f"Frame capture complete: {len(frame_paths)} frames captured, encoding video...")
-                
-                # Encode frames to video with transparent background
-                await self._encode_frames_to_video(frame_paths, output_path, frame_rate, overlay_width, overlay_height)
-                
-                # Verify output file
-                if not output_path.exists():
-                    raise ChatRendererError(f"Output video file was not created: {output_path}")
-                
-                output_size_mb = output_path.stat().st_size / (1024 * 1024)
-                render_duration = time.time() - render_start_time
-                
-                logger.info(
-                    f"Chat video rendered successfully: {output_path} "
-                    f"({output_size_mb:.1f}MB) in {render_duration:.1f}s"
-                )
-                
+            # Stream frames directly to video encoder
+            await self._stream_frames_to_video(page, output_path, frame_rate, overlay_width, overlay_height, total_frames, render_start_time)
+            
+            # Verify output file
+            if not output_path.exists():
+                raise ChatRendererError(f"Output video file was not created: {output_path}")
+            
+            output_size_mb = output_path.stat().st_size / (1024 * 1024)
+            render_duration = time.time() - render_start_time
+            
+            logger.info(
+                f"Chat video rendered successfully: {output_path} "
+                f"({output_size_mb:.1f}MB) in {render_duration:.1f}s"
+            )
+            
         except ChatRendererError:
             # Re-raise renderer errors as-is
             raise
@@ -465,54 +401,119 @@ class ChatRenderer:
         """
         return self.template_manager.get_cache_info()
     
-    async def _encode_frames_to_video(
+    async def _stream_frames_to_video(
         self, 
-        frame_paths: List[Path], 
+        page: Page,
         output_path: Path, 
         frame_rate: float,
         width: int,
-        height: int
+        height: int,
+        total_frames: int,
+        render_start_time: float
     ) -> None:
         """
-        Encode captured frames to video with transparent background.
+        Stream frames directly to video encoder without storing on disk.
         
         Args:
-            frame_paths: List of frame image paths
+            page: Playwright page instance for capturing frames
             output_path: Output video path
             frame_rate: Target frame rate
             width: Video width
             height: Video height
+            total_frames: Total number of frames to generate
+            render_start_time: Start time for progress tracking
         """
         try:
-            # Create frame list file for ffmpeg
-            frame_list_path = output_path.parent / f"{output_path.stem}_frames.txt"
+            # Create FFmpeg process with stdin pipe for streaming frames
+            ffmpeg_cmd = [
+                'ffmpeg',
+                '-y',  # Overwrite output file
+                '-f', 'image2pipe',  # Input format: image stream
+                '-vcodec', 'png',    # Input codec: PNG (preserves transparency)
+                '-r', str(frame_rate),  # Input frame rate
+                '-i', '-',           # Read from stdin
+                '-vcodec', 'png',    # Output codec: PNG (preserves transparency)
+                '-r', str(frame_rate),  # Output frame rate
+                '-s', f'{width}x{height}',  # Output resolution
+                str(output_path)
+            ]
             
-            with open(frame_list_path, 'w') as f:
-                for frame_path in frame_paths:
-                    f.write(f"file '{frame_path.absolute()}'\n")
-                    f.write(f"duration {1/frame_rate}\n")
-                # Add last frame again for proper duration
-                if frame_paths:
-                    f.write(f"file '{frame_paths[-1].absolute()}'\n")
+            logger.debug(f"Starting FFmpeg process: {' '.join(ffmpeg_cmd)}")
             
-            # Use ffmpeg to create video with transparent background
-            input_stream = ffmpeg.input(str(frame_list_path), format='concat', safe=0)
-            
-            output_stream = ffmpeg.output(
-                input_stream,
-                str(output_path),
-                vcodec='png',         # PNG codec preserves transparency better
-                r=frame_rate,         # Frame rate
-                s=f'{width}x{height}', # Resolution
-            )
-            
-            # Run ffmpeg and wait for completion
+            # Start FFmpeg process
             process = await asyncio.create_subprocess_exec(
-                *ffmpeg.compile(output_stream, overwrite_output=True),
+                *ffmpeg_cmd,
+                stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
             
+            failed_frames = 0
+            
+            try:
+                # Stream frames directly to FFmpeg
+                for frame_num in range(total_frames):
+                    timestamp = frame_num / frame_rate
+                    
+                    try:
+                        # Render chat at this timestamp
+                        await page.evaluate(f"window.renderChatAtTimestamp({timestamp});")
+                        
+                        # Wait for rendering to complete
+                        await page.wait_for_timeout(50)  # Small delay for DOM updates
+                        
+                        # Capture frame as bytes (no disk I/O)
+                        frame_bytes = await page.screenshot(
+                            full_page=True,
+                            omit_background=True,  # Transparent background
+                            type='png'  # PNG format preserves transparency
+                        )
+                        
+                        # Stream frame directly to FFmpeg
+                        if process.stdin:
+                            process.stdin.write(frame_bytes)
+                            await process.stdin.drain()
+                        
+                        # Debug: Log first few frames
+                        if frame_num < 3:
+                            logger.debug(f"Streamed frame {frame_num} ({len(frame_bytes)} bytes) to FFmpeg")
+                        
+                    except Exception as frame_error:
+                        failed_frames += 1
+                        logger.warning(f"Failed to capture/stream frame {frame_num}: {frame_error}")
+                        continue
+                    
+                    # Log progress periodically
+                    if total_frames > 100 and frame_num % (total_frames // 10) == 0:
+                        progress = (frame_num / total_frames) * 100
+                        elapsed = time.time() - render_start_time
+                        estimated_total = elapsed / (frame_num + 1) * total_frames
+                        remaining = estimated_total - elapsed
+                        
+                        logger.info(
+                            f"Streaming progress: {progress:.1f}% ({frame_num}/{total_frames} frames, "
+                            f"~{remaining:.0f}s remaining)"
+                        )
+                
+                # Close stdin to signal end of input
+                if process.stdin:
+                    process.stdin.close()
+                    await process.stdin.wait_closed()
+                
+                logger.info(f"Frame streaming complete: {total_frames - failed_frames}/{total_frames} frames streamed")
+                
+            except Exception as streaming_error:
+                # Terminate FFmpeg process if streaming fails
+                if process.returncode is None:
+                    process.terminate()
+                    try:
+                        await asyncio.wait_for(process.wait(), timeout=5.0)
+                    except asyncio.TimeoutError:
+                        process.kill()
+                        await process.wait()
+                raise streaming_error
+            
+            # Wait for FFmpeg to finish processing
             stdout, stderr = await process.communicate()
             
             if process.returncode != 0:
@@ -520,13 +521,12 @@ class ChatRenderer:
                 logger.error(f"FFmpeg failed with return code {process.returncode}: {error_msg}")
                 raise ChatRendererError(f"Video encoding failed: {error_msg}")
             
-            logger.debug("FFmpeg encoding completed successfully")
+            if failed_frames > 0:
+                logger.warning(f"Failed to stream {failed_frames} out of {total_frames} frames")
             
-            # Clean up frame list file
-            frame_list_path.unlink(missing_ok=True)
-            
-            logger.info(f"Video encoding complete: {output_path}")
+            logger.debug("FFmpeg streaming encoding completed successfully")
+            logger.info(f"Video streaming complete: {output_path}")
             
         except Exception as e:
-            logger.error(f"Failed to encode video: {e}")
-            raise ChatRendererError(f"Video encoding failed: {e}") from e
+            logger.error(f"Failed to stream frames to video: {e}")
+            raise ChatRendererError(f"Video streaming failed: {e}") from e
