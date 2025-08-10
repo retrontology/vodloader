@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple, AsyncGenerator
 
-import ffmpeg
+from vodloader.ffmpeg import probe_video
 from playwright.async_api import Page
 
 from vodloader.models import Message, ChannelConfig, VideoFile

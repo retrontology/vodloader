@@ -1,7 +1,7 @@
 import io
-import ffmpeg
 import subprocess
 from googleapiclient.http import MediaIoBaseUpload
+from vodloader.ffmpeg.adapters import legacy_ffmpeg
 
 DEFAULT_CHUNK_SIZE=188
 MAX_LENGTH=60*(60*12-15)
@@ -19,12 +19,17 @@ class MediaSplitUpload(MediaIoBaseUpload):
     ):
         self.start = DEFAULT_LENGTH * (part - 1) - 60 * (part - 1)
         self.length = DEFAULT_LENGTH
-        args = (
-            ffmpeg
-            .input(file, ss=self.start, t=self.length)
-            .output('pipe:', format='mpegts', vcodec='copy', acodec='copy')
-            .compile()
-        )
+        # Build ffmpeg command for streaming upload
+        args = [
+            'ffmpeg',
+            '-ss', str(self.start),
+            '-t', str(self.length),
+            '-i', file,
+            '-f', 'mpegts',
+            '-vcodec', 'copy',
+            '-acodec', 'copy',
+            'pipe:'
+        ]
         body = subprocess.Popen(args, stdout=subprocess.PIPE)
         super().__init__(
             body, mimetype, chunksize=chunksize, resumable=resumable

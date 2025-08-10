@@ -7,13 +7,13 @@ This module handles basic video transcoding operations including:
 - File cleanup operations
 """
 
-import ffmpeg
 import asyncio
 import logging
 from pathlib import Path
 from typing import Optional
 
 from vodloader.models import VideoFile
+from vodloader.ffmpeg import transcode_video, TranscodeError
 
 logger = logging.getLogger('vodloader.post.transcoding')
 
@@ -80,22 +80,23 @@ async def transcode(video: VideoFile) -> Path:
 
     transcode_path = video.path.parent.joinpath(f'{video.path.stem}.mp4')
     
-    # Run ffmpeg in executor to avoid blocking
-    loop = asyncio.get_event_loop()
-    
-    def run_ffmpeg():
-        stream = ffmpeg.input(str(video.path))
-        stream = ffmpeg.output(stream, str(transcode_path), vcodec='copy')
-        stream = ffmpeg.overwrite_output(stream)
-        ffmpeg.run(stream, quiet=True)
-    
-    await loop.run_in_executor(None, run_ffmpeg)
-    
-    video.transcode_path = transcode_path
-    await video.save()
-    
-    logger.info(f'Successfully transcoded {video.path} to {transcode_path}')
-    return video.transcode_path
+    try:
+        await transcode_video(
+            input_path=video.path,
+            output_path=transcode_path,
+            video_codec='copy',
+            audio_codec='copy'
+        )
+        
+        video.transcode_path = transcode_path
+        await video.save()
+        
+        logger.info(f'Successfully transcoded {video.path} to {transcode_path}')
+        return video.transcode_path
+        
+    except TranscodeError as e:
+        logger.error(f'Failed to transcode {video.path}: {e}')
+        raise
 
 
 async def transcode_listener():

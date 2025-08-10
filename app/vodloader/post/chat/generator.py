@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
-import ffmpeg
+from vodloader.ffmpeg import probe_video
 
 from vodloader.models import VideoFile, Message, ChannelConfig
 from .browser_manager import BrowserManager, BrowserManagerError, browser_context
@@ -397,18 +397,10 @@ class ChatVideoGenerator:
             if not frame_rate or frame_rate <= 0:
                 logger.warning(f'Standard frame rate extraction failed, trying direct ffprobe for video {video.id}')
                 try:
-                    # Use the same logic as video_compositor for consistency
-                    direct_probe = ffmpeg.probe(str(video.path))
-                    for stream in direct_probe['streams']:
-                        if stream['codec_type'] == 'video':
-                            # Try r_frame_rate from direct probe
-                            r_frame_rate_str = stream.get('r_frame_rate', '30/1')
-                            if '/' in r_frame_rate_str:
-                                num, den = r_frame_rate_str.split('/')
-                                if float(den) > 0:
-                                    frame_rate = float(num) / float(den)
-                                    logger.info(f'Extracted frame rate via direct ffprobe: {frame_rate:.3f}fps ({r_frame_rate_str})')
-                                    break
+                    # Use unified ffmpeg interface for consistency
+                    video_info = await probe_video(video.path)
+                    frame_rate = video_info.frame_rate
+                    logger.info(f'Extracted frame rate via unified probe: {frame_rate:.3f}fps')
                 except Exception as e:
                     logger.debug(f'Direct ffprobe also failed: {e}')
             
