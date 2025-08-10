@@ -234,15 +234,19 @@ async def composite_videos(
             logger.debug(f"Resampling overlay from {overlay_info['frame_rate']:.2f}fps to {original_info['frame_rate']:.2f}fps")
             overlay_input = ffmpeg.filter(overlay_input, 'fps', fps=original_info['frame_rate'])
         
+        # Apply overlay filter with calculated position and proper transparency handling
+        # First ensure the overlay has proper alpha channel support
+        overlay_with_alpha = ffmpeg.filter(overlay_input, 'format', pix_fmts='yuva420p')
+        
         # Apply overlay filter with calculated position
         # The overlay filter composites the overlay video on top of the original
-        # format=auto ensures proper alpha channel handling for transparency
         video_stream = ffmpeg.overlay(
             original_input['v'],  # Explicitly use video stream
-            overlay_input,
+            overlay_with_alpha,
             x=overlay_x,
             y=overlay_y,
-            format='auto'  # Automatically handle alpha channel for transparency
+            format='auto',  # Automatically handle alpha channel for transparency
+            eof_action='pass'  # Continue main video if overlay ends first
         )
         
         # Preserve audio from original video
