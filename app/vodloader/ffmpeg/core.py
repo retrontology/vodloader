@@ -123,7 +123,8 @@ async def transcode_video(
     audio_codec: str = 'copy',
     preset: Optional[str] = None,
     crf: Optional[int] = None,
-    additional_args: Optional[List[str]] = None
+    additional_args: Optional[List[str]] = None,
+    cancellation_event: Optional[asyncio.Event] = None
 ) -> Path:
     """
     Transcode video using ffmpeg-python for simple operations.
@@ -136,17 +137,27 @@ async def transcode_video(
         preset: Encoding preset
         crf: Constant rate factor for quality
         additional_args: Additional ffmpeg arguments
+        cancellation_event: Event to signal cancellation
         
     Returns:
         Path to transcoded file
         
     Raises:
         TranscodeError: If transcoding fails
+        asyncio.CancelledError: If operation is cancelled
     """
     try:
+        # Check for cancellation before starting
+        if cancellation_event and cancellation_event.is_set():
+            raise asyncio.CancelledError("Transcoding cancelled before starting")
+        
         loop = asyncio.get_event_loop()
         
         def _transcode():
+            # Check for cancellation in the executor
+            if cancellation_event and cancellation_event.is_set():
+                raise asyncio.CancelledError("Transcoding cancelled")
+                
             stream = ffmpeg.input(str(input_path))
             
             # Build output arguments
@@ -173,7 +184,34 @@ async def transcode_video(
             
             ffmpeg.run(stream, quiet=True)
         
-        await loop.run_in_executor(None, _transcode)
+        # Run with cancellation support
+        if cancellation_event:
+            # Create a task that can be cancelled
+            transcode_task = loop.run_in_executor(None, _transcode)
+            
+            # Wait for either completion or cancellation
+            done, pending = await asyncio.wait(
+                [transcode_task, asyncio.create_task(cancellation_event.wait())],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            
+            # Cancel pending tasks
+            for task in pending:
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+            
+            # Check if cancellation was requested
+            if cancellation_event.is_set():
+                logger.info(f"Transcoding cancelled for {input_path}")
+                raise asyncio.CancelledError("Transcoding cancelled")
+            
+            # Get the result from the completed transcode task
+            await transcode_task
+        else:
+            await loop.run_in_executor(None, _transcode)
         
         output_path = Path(output_path)
         if not output_path.exists():
@@ -182,6 +220,17 @@ async def transcode_video(
         logger.info(f"Successfully transcoded {input_path} -> {output_path}")
         return output_path
         
+    except asyncio.CancelledError:
+        logger.info(f"Transcoding cancelled for {input_path}")
+        # Clean up partial output file if it exists
+        output_path = Path(output_path)
+        if output_path.exists():
+            try:
+                output_path.unlink()
+                logger.info(f"Cleaned up partial transcode file: {output_path}")
+            except Exception as cleanup_error:
+                logger.error(f"Failed to cleanup partial transcode file: {cleanup_error}")
+        raise
     except Exception as e:
         raise TranscodeError(f"Failed to transcode {input_path}: {e}") from e
 
@@ -207,7 +256,8 @@ class StreamingComposer:
         video_codec: str = 'libx264',
         audio_codec: str = 'copy',
         preset: str = 'medium',
-        crf: int = 12
+        crf: int = 12,
+        cancellation_event: Optional[asyncio.Event] = None
     ) -> Path:
         """
         Compose video with streaming overlay frames.
@@ -224,14 +274,20 @@ class StreamingComposer:
             audio_codec: Audio codec for output
             preset: Encoding preset
             crf: Constant rate factor
+            cancellation_event: Event to signal cancellation
             
         Returns:
             Path to composed video
             
         Raises:
             CompositionError: If composition fails
+            asyncio.CancelledError: If operation is cancelled
         """
         import time
+        
+        # Check for cancellation before starting
+        if cancellation_event and cancellation_event.is_set():
+            raise asyncio.CancelledError("Composition cancelled before starting")
         
         self._composition_start_time = time.time()
         
@@ -270,11 +326,38 @@ class StreamingComposer:
                 stderr=asyncio.subprocess.PIPE
             )
             
-            # Stream frames
-            await self._stream_frames(frame_generator, total_frames)
+            # Stream frames with cancellation support
+            await self._stream_frames(frame_generator, total_frames, cancellation_event)
             
-            # Wait for completion
-            stdout, stderr = await self.process.communicate()
+            # Wait for completion with cancellation support
+            if cancellation_event:
+                # Create tasks for both process completion and cancellation
+                process_task = asyncio.create_task(self.process.communicate())
+                cancellation_task = asyncio.create_task(cancellation_event.wait())
+                
+                done, pending = await asyncio.wait(
+                    [process_task, cancellation_task],
+                    return_when=asyncio.FIRST_COMPLETED
+                )
+                
+                # Cancel pending tasks
+                for task in pending:
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+                
+                # Check if cancellation was requested
+                if cancellation_event.is_set():
+                    logger.info("Composition cancelled during processing")
+                    await self._cleanup_process()
+                    raise asyncio.CancelledError("Composition cancelled")
+                
+                # Get the result from the completed process task
+                stdout, stderr = await process_task
+            else:
+                stdout, stderr = await self.process.communicate()
             
             if self.process.returncode != 0:
                 error_msg = stderr.decode() if stderr else "Unknown error"
@@ -291,6 +374,18 @@ class StreamingComposer:
             logger.info(f"Composition completed: {size_mb:.1f}MB in {duration:.1f}s")
             return output_path
             
+        except asyncio.CancelledError:
+            logger.info("Composition cancelled")
+            await self._cleanup_process()
+            # Clean up partial output file
+            output_path = Path(output_path)
+            if output_path.exists():
+                try:
+                    output_path.unlink()
+                    logger.info(f"Cleaned up partial composition file: {output_path}")
+                except Exception as cleanup_error:
+                    logger.error(f"Failed to cleanup partial composition file: {cleanup_error}")
+            raise
         except Exception as e:
             await self._cleanup_process()
             raise CompositionError(f"Streaming composition failed: {e}") from e
@@ -300,15 +395,21 @@ class StreamingComposer:
     async def _stream_frames(
         self,
         frame_generator: AsyncGenerator[bytes, None],
-        total_frames: int
+        total_frames: int,
+        cancellation_event: Optional[asyncio.Event] = None
     ) -> None:
-        """Stream frames to ffmpeg process."""
+        """Stream frames to ffmpeg process with cancellation support."""
         import time
         
         frame_count = 0
         
         try:
             async for frame_bytes in frame_generator:
+                # Check for cancellation during frame streaming
+                if cancellation_event and cancellation_event.is_set():
+                    logger.info(f"Frame streaming cancelled after {frame_count} frames")
+                    raise asyncio.CancelledError("Frame streaming cancelled")
+                
                 if self.process and self.process.stdin:
                     self.process.stdin.write(frame_bytes)
                     await self.process.stdin.drain()
@@ -326,6 +427,9 @@ class StreamingComposer:
             
             logger.info(f"Streamed {frame_count} frames to composition")
             
+        except asyncio.CancelledError:
+            logger.info(f"Frame streaming cancelled after {frame_count} frames")
+            raise
         except Exception as e:
             logger.error(f"Error streaming frames: {e}")
             raise

@@ -9,8 +9,8 @@ from hypercorn.asyncio import serve
 from vodloader.models import TwitchChannel, VideoFile, initialize_models
 from vodloader.api import create_api
 from vodloader.twitch import twitch, webhook
-from vodloader.vodloader import subscribe
-from vodloader.post.transcoding import transcode_listener, transcode_queue, queue_trancodes
+from vodloader.vodloader import subscribe, cancel_all_downloads
+from vodloader.post.transcoding import transcode_listener, transcode_queue, queue_trancodes, cancel_transcoding
 from vodloader import config
 from vodloader.chat import bot
 
@@ -153,7 +153,21 @@ async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
     """Cleanup all services gracefully"""
     logger.info('Shutting down services...')
     
-    # Stop chat bot first to prevent reconnection attempts
+    # Cancel all active downloads first
+    logger.info("Cancelling active stream downloads...")
+    try:
+        await cancel_all_downloads()
+    except Exception as e:
+        logger.error(f"Error cancelling downloads: {e}")
+    
+    # Cancel transcoding operations
+    logger.info("Cancelling transcoding operations...")
+    try:
+        await cancel_transcoding()
+    except Exception as e:
+        logger.error(f"Error cancelling transcoding: {e}")
+    
+    # Stop chat bot to prevent reconnection attempts
     logger.info("Stopping chat bot...")
     try:
         await bot.stop()
@@ -172,7 +186,7 @@ async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
         try:
             await asyncio.wait_for(
                 asyncio.gather(*tasks_to_cancel, return_exceptions=True),
-                timeout=10.0
+                timeout=15.0  # Increased timeout to allow for cleanup
             )
         except asyncio.TimeoutError:
             logger.warning("Some tasks did not complete cancellation within timeout")

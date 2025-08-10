@@ -17,8 +17,9 @@ from vodloader.ffmpeg import transcode_video, TranscodeError
 
 logger = logging.getLogger('vodloader.post.transcoding')
 
-# Global transcoding queue
+# Global transcoding queue and cancellation event
 transcode_queue = asyncio.Queue()
+_transcoding_cancellation_event = asyncio.Event()
 
 
 class VideoAlreadyTranscoded(Exception):
@@ -56,12 +57,13 @@ async def remove_original(video: VideoFile) -> None:
     logger.info(f'The original stream file at {path} has been deleted')
 
 
-async def transcode(video: VideoFile) -> Path:
+async def transcode(video: VideoFile, cancellation_event: Optional[asyncio.Event] = None) -> Path:
     """
     Transcode a video file to MP4 format.
     
     Args:
         video: The video file to transcode
+        cancellation_event: Event to signal cancellation
         
     Returns:
         Path to the transcoded file
@@ -69,12 +71,17 @@ async def transcode(video: VideoFile) -> Path:
     Raises:
         VideoFileNotEnded: If the video hasn't ended yet
         VideoAlreadyTranscoded: If the video is already transcoded
+        asyncio.CancelledError: If operation is cancelled
     """
     if not video.ended_at:
         raise VideoFileNotEnded("Cannot transcode video that hasn't ended")
     
     if video.transcode_path:
         raise VideoAlreadyTranscoded("Video is already transcoded")
+    
+    # Check for cancellation before starting
+    if cancellation_event and cancellation_event.is_set():
+        raise asyncio.CancelledError("Transcoding cancelled before starting")
     
     logger.info(f'Transcoding {video.path}')
 
@@ -85,7 +92,8 @@ async def transcode(video: VideoFile) -> Path:
             input_path=video.path,
             output_path=transcode_path,
             video_codec='copy',
-            audio_codec='copy'
+            audio_codec='copy',
+            cancellation_event=cancellation_event
         )
         
         video.transcode_path = transcode_path
@@ -94,6 +102,9 @@ async def transcode(video: VideoFile) -> Path:
         logger.info(f'Successfully transcoded {video.path} to {transcode_path}')
         return video.transcode_path
         
+    except asyncio.CancelledError:
+        logger.info(f'Transcoding cancelled for {video.path}')
+        raise
     except TranscodeError as e:
         logger.error(f'Failed to transcode {video.path}: {e}')
         raise
@@ -133,16 +144,24 @@ async def transcode_listener():
                 try:
                     logger.info(f"Processing video {video.id} for transcoding")
                     
+                    # Check for cancellation before processing
+                    if _transcoding_cancellation_event.is_set():
+                        logger.info("Transcoding cancelled, skipping video processing")
+                        break
+                    
                     # Try to generate chat video first (includes transcoding)
-                    result = await generate_chat_video(video)
+                    result = await generate_chat_video(video, _transcoding_cancellation_event)
                     if result is not None:
                         logger.info(f"Successfully generated chat video for {video.id}")
                     else:
                         # No messages found, fall back to regular transcoding
                         logger.info(f"No chat messages found for video {video.id}, performing regular transcode")
-                        await transcode(video)
+                        await transcode(video, _transcoding_cancellation_event)
                         logger.info(f"Successfully transcoded video {video.id}")
                         
+                except asyncio.CancelledError:
+                    logger.info(f"Transcoding cancelled for video {video.id}")
+                    break
                 except Exception as e:
                     logger.error(f"Error processing video {video.id}: {e}")
                 finally:
@@ -234,3 +253,15 @@ async def clear_queue():
         except asyncio.QueueEmpty:
             break
     logger.info("Transcode queue cleared")
+
+
+async def cancel_transcoding():
+    """Signal all transcoding operations to cancel"""
+    logger.info("Signalling transcoding cancellation...")
+    _transcoding_cancellation_event.set()
+
+
+async def reset_transcoding_cancellation():
+    """Reset the transcoding cancellation event (for testing or restart)"""
+    logger.info("Resetting transcoding cancellation event")
+    _transcoding_cancellation_event.clear()

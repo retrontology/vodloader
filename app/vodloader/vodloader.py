@@ -20,6 +20,25 @@ CUTOFF = timedelta(hours=8)
 logger: logging.Logger = logging.getLogger('vodloader')
 
 
+async def cancel_all_downloads():
+    """Cancel all active stream downloads"""
+    if not _active_downloads:
+        logger.info("No active downloads to cancel")
+        return
+    
+    logger.info(f"Cancelling {len(_active_downloads)} active downloads...")
+    
+    # Signal all downloads to stop
+    for channel_id, cancellation_event in _active_downloads.items():
+        logger.info(f"Signalling cancellation for channel {channel_id}")
+        cancellation_event.set()
+    
+    # Give downloads time to cleanup gracefully
+    await asyncio.sleep(2)
+    
+    logger.info("All downloads signalled for cancellation")
+
+
 # Subscribe to a Twitch Channel's Webhooks
 async def subscribe(channel: TwitchChannel):
 
@@ -105,6 +124,9 @@ async def _on_update(event: ChannelUpdateEvent):
     await update.save()
 
 
+# Global dictionary to track active downloads and their cancellation events
+_active_downloads = {}
+
 # Function to download stream from a Twitch Channel
 async def _download_stream(channel: TwitchChannel):
 
@@ -128,20 +150,36 @@ async def _download_stream(channel: TwitchChannel):
 
     logger.info(f'Downloading stream from {channel.name} to {path}')
 
-    # Use the async download function directly
-    end_time = await _download_async(channel, twitch_stream, path)
+    # Create cancellation event for this download
+    cancellation_event = asyncio.Event()
+    _active_downloads[channel.id] = cancellation_event
 
-    await twitch_stream.end(end_time)
-
-    logger.info(f'Finished downloading stream from {channel.name} to {path}')
+    try:
+        # Use the async download function with cancellation support
+        end_time = await _download_async(channel, twitch_stream, path, cancellation_event)
+        await twitch_stream.end(end_time)
+        logger.info(f'Finished downloading stream from {channel.name} to {path}')
+    except asyncio.CancelledError:
+        logger.info(f'Download cancelled for {channel.name}')
+        # Mark stream as ended even if cancelled
+        await twitch_stream.end(datetime.now(timezone.utc))
+        raise
+    finally:
+        # Clean up the cancellation event
+        _active_downloads.pop(channel.id, None)
 
 
 # Internal async function for downloading stream
-def _write_video_chunk(video_path, buffer, data, start):
+def _write_video_chunk(video_path, buffer, data, start, cancellation_event):
     """Write video chunks to file and check for cutoff"""
     with open(video_path, 'wb') as file:
         # Loop for writing video stream data to file
         while data:
+            # Check for cancellation signal
+            if cancellation_event and cancellation_event.is_set():
+                logger.info(f'Cancellation requested during video chunk writing for {video_path}')
+                return False, None  # Signal cancellation
+                
             file.write(data)
             data = buffer.read(CHUNK_SIZE)
             
@@ -152,8 +190,8 @@ def _write_video_chunk(video_path, buffer, data, start):
         return False, data  # Signal that stream ended, return remaining data
 
 
-async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, path: Path):
-    """Async wrapper for the download process"""
+async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, path: Path, cancellation_event=None):
+    """Async wrapper for the download process with cancellation support"""
     
     buffer = None
     video_file = None
@@ -167,6 +205,11 @@ async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, p
         
         # First loop for iterating through video files
         while data:
+            # Check for cancellation before starting new video file
+            if cancellation_event and cancellation_event.is_set():
+                logger.info(f"Download cancelled for {channel.name} before starting part {part}")
+                break
+                
             # Create video file
             start = buffer.worker.playlist_sequence_last
             video_path = path.joinpath(
@@ -203,13 +246,23 @@ async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, p
             
             try:
                 should_continue, data = await loop.run_in_executor(
-                    None, _write_video_chunk, video_path, buffer, data, start
+                    None, _write_video_chunk, video_path, buffer, data, start, cancellation_event
                 )
+                
+                # Check if cancellation was requested during chunk writing
+                if should_continue is False and data is None:
+                    logger.info(f"Download cancelled for {channel.name} during chunk writing")
+                    break
+                    
             except asyncio.CancelledError:
                 logger.info(f"Download cancelled for {channel.name}")
                 # Cleanup partial file if needed
                 if video_path.exists():
                     logger.info(f"Cleaning up partial file: {video_path}")
+                    try:
+                        video_path.unlink()
+                    except Exception as cleanup_error:
+                        logger.error(f"Failed to cleanup partial file {video_path}: {cleanup_error}")
                 raise  # Re-raise to properly handle cancellation
             
             if should_continue:
