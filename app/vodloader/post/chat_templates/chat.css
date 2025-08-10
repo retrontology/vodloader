@@ -37,13 +37,13 @@ body {
     padding: 0;
 }
 
-/* Chat container - static positioning within viewport */
+/* Chat container - fills entire overlay area */
 #chat-container {
     position: absolute;
     width: var(--chat-overlay-width);
     height: var(--chat-overlay-height);
-    top: 20px;
-    right: 20px;
+    top: 0;
+    left: 0;
     background: transparent;
 }
 
