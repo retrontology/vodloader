@@ -121,7 +121,7 @@ def calculate_overlay_position(
         x = original_width - overlay_width - padding
         y = (original_height - overlay_height) // 2
     else:
-        # Default to top-right if position is invalid
+        # Default to top-left if position is invalid
         logger.warning(f"Invalid position '{position}', defaulting to top-left")
         x = padding
         y = padding
