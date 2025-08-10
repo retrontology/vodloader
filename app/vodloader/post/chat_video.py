@@ -45,7 +45,7 @@ async def generate_chat_video(video: VideoFile, cancellation_event: Optional[asy
     if _has_chat_implementation:
         try:
             # Call the actual implementation with cancellation support
-            return await _generate_chat_video(video, cancellation_event)
+            return await _generate_chat_video(video, cancellation_event=cancellation_event)
         except asyncio.CancelledError:
             logger.info(f"Chat video generation cancelled for video {video.id}")
             raise
