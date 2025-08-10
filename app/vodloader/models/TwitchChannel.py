@@ -23,7 +23,6 @@ class TwitchChannel(BaseModel):
             login VARCHAR(25) NOT NULL UNIQUE,
             name VARCHAR(25) NOT NULL UNIQUE,
             active BOOL NOT NULL DEFAULT 0,
-            quality VARCHAR(8),
             webhook_online VARCHAR(64),
             webhook_offline VARCHAR(64),
             webhook_update VARCHAR(64),
@@ -36,7 +35,6 @@ class TwitchChannel(BaseModel):
     login: str
     name: str
     active: bool
-    quality: str
     webhook_online: str
     webhook_offline: str
     webhook_update: str
@@ -48,7 +46,6 @@ class TwitchChannel(BaseModel):
             login: str,
             name: str,
             active: bool = True,
-            quality: str = 'best',
             webhook_online: str = None,
             webhook_offline: str = None,
             webhook_update: str = None,
@@ -59,7 +56,6 @@ class TwitchChannel(BaseModel):
         self.login = login
         self.name = name
         self.active = active
-        self.quality = quality
         self.webhook_online = webhook_online
         self.webhook_offline = webhook_offline
         self.webhook_update = webhook_update
@@ -67,7 +63,7 @@ class TwitchChannel(BaseModel):
     
     # Factory for making a TwitchChannel just from a Channel name
     @classmethod
-    async def from_name(cls, name, quality="best") -> Self|None:
+    async def from_name(cls, name) -> Self|None:
 
         channel = await first(twitch.get_users(logins=[name]))
 
@@ -78,8 +74,29 @@ class TwitchChannel(BaseModel):
             id = channel.id,
             login = channel.login,
             name = channel.display_name,
-            quality = quality,
         )
+
+    @classmethod
+    async def create_with_config(cls, name: str, quality: str = 'best', delete_original_video: bool = False) -> Self|None:
+        """Create a TwitchChannel with its associated ChannelConfig"""
+        channel = await cls.from_name(name)
+        
+        if not channel:
+            return None
+        
+        # Save the channel first
+        await channel.save()
+        
+        # Create the config
+        from vodloader.models.ChannelConfig import ChannelConfig
+        config = ChannelConfig(
+            id=channel.id,
+            quality=quality,
+            delete_original_video=delete_original_video
+        )
+        await config.save()
+        
+        return channel
 
 
     async def activate(self):
@@ -92,9 +109,19 @@ class TwitchChannel(BaseModel):
         await self.save()
 
 
-    def get_video_stream(self, quality=None, token=None) -> TwitchHLSStream:
-        if quality == None:
-            quality = self.quality
+    async def get_config(self):
+        """Get the channel configuration"""
+        from vodloader.models.ChannelConfig import ChannelConfig
+        return await ChannelConfig.get_by_id(self.id)
+
+    async def get_video_stream(self, quality=None, token=None) -> TwitchHLSStream:
+        if quality is None:
+            try:
+                config = await self.get_config()
+                quality = config.quality
+            except:
+                # Fallback to default quality if config doesn't exist
+                quality = 'best'
         session = streamlink.Streamlink(options={
             'retry-max': 0,
             'retry-open': 5,
@@ -123,7 +150,7 @@ class TwitchChannel(BaseModel):
 
 
     async def is_live(self):
-        live = False
+        user_id = self.id
         if type(user_id) is int:
             user_id = f'{user_id}'
         data = await first(twitch.get_streams(user_id=user_id))

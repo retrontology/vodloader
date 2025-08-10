@@ -13,9 +13,14 @@ dependencies = [
     "ffmpeg-python==0.2.0",
     "hypercorn==0.17.3",
     "quart==0.19.6",
-    "irc==20.5.0",
     "google-api-python-client==2.141.0",
     "Flask[async]==3.0.3",
+    "opencv-contrib-python==4.11.0.86",
+    "numpy==2.2.6",
+    "pillow==11.2.1",
+    "matplotlib==3.10.3",
+    "playwright==1.48.0",
+    "psutil==6.1.0"
 ]
 dynamic = [
  "version",

@@ -2,8 +2,8 @@ from datetime import datetime
 from typing import Self, List, Dict, Tuple
 from vodloader.database import *
 from vodloader.util import *
-from vodloader.models import BaseModel, TwitchStream, TwitchChannel
-from irc.client import Event
+from vodloader.models import BaseModel, TwitchChannel, VideoFile
+from typing import Any
 
 
 class Message(BaseModel):
@@ -91,7 +91,7 @@ class Message(BaseModel):
 
 
     @classmethod
-    def from_event(cls, event: Event) -> Self:
+    def from_event(cls, event: Any) -> Self:
         
         tags = parse_tags(event)
 
@@ -118,7 +118,7 @@ class Message(BaseModel):
         )
     
     @classmethod
-    async def from_stream(cls, stream_id: int) -> List[Self]:
+    async def for_video(cls, video: VideoFile) -> List[Self]:
 
         db = await get_db()
         connection = await db.connect()
@@ -128,23 +128,20 @@ class Message(BaseModel):
             SELECT {cls.table_name}.*
             FROM {cls.table_name},
              (SELECT started_at, ended_at, channel
-             FROM {TwitchStream.table_name}
+             FROM {video.table_name}
              WHERE id = {db.char}) AS stream
             WHERE {cls.table_name}.timestamp BETWEEN stream.started_at and stream.ended_at
             AND {cls.table_name}.channel = stream.channel
             ORDER BY timestamp ASC;
             """,
-            (stream_id, )
+            (video.id, )
         )
         args_list = await cursor.fetchall()
+        messages = [cls(*args) for args in args_list]
         await cursor.close()
         closer = connection.close()
         if closer: await closer
-
-        if args_list:
-            return list(cls(*args) for args in args_list)
-        else:
-            return None
+        return messages
     
     def parse_badges(self) -> List[str] | None:
         if self.badges == None:

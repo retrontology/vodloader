@@ -8,6 +8,7 @@ from vodloader.models import *
 from vodloader import config
 from vodloader.twitch import webhook
 from twitchAPI.object.eventsub import StreamOnlineEvent, StreamOfflineEvent, ChannelUpdateEvent
+from vodloader.post.transcoding import transcode_queue
 
 
 CHUNK_SIZE = 8192
@@ -127,33 +128,45 @@ async def _download_stream(channel: TwitchChannel):
 
     logger.info(f'Downloading stream from {channel.name} to {path}')
 
-    loop = asyncio.get_event_loop()
-    download_function = partial(_download, channel=channel, twitch_stream=twitch_stream, path=path)
-    end_time = await loop.run_in_executor(None, download_function)
+    # Use the async download function directly
+    end_time = await _download_async(channel, twitch_stream, path)
 
     await twitch_stream.end(end_time)
 
     logger.info(f'Finished downloading stream from {channel.name} to {path}')
 
 
-# Internal function for downloading stream in executor
-def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
+# Internal async function for downloading stream
+def _write_video_chunk(video_path, buffer, data, start):
+    """Write video chunks to file and check for cutoff"""
+    with open(video_path, 'wb') as file:
+        # Loop for writing video stream data to file
+        while data:
+            file.write(data)
+            data = buffer.read(CHUNK_SIZE)
+            
+            # Check if the video has exceeded the cutoff and trigger next file if it does
+            if buffer.worker.playlist_sequence_last - start > CUTOFF:
+                logger.info(f'Video file {video_path} has reached the cutoff. Handing stream over to next file...')
+                return True, data  # Signal to break to next file, return remaining data
+        return False, data  # Signal that stream ended, return remaining data
 
-    # Get the event loop for the executor
-    loop = asyncio.new_event_loop()
 
+async def _download_async(channel: TwitchChannel, twitch_stream: TwitchStream, path: Path):
+    """Async wrapper for the download process"""
+    
+    buffer = None
+    video_file = None
+    
     try:
-
-        # Intialize the first variables for the recording loops
+        # Initialize the first variables for the recording loops
         part = 1
-        video_stream = channel.get_video_stream()
+        video_stream = await channel.get_video_stream()
         buffer = video_stream.open()
         data = buffer.read(CHUNK_SIZE)
         
-
         # First loop for iterating through video files
         while data:
-
             # Create video file
             start = buffer.worker.playlist_sequence_last
             video_path = path.joinpath(
@@ -165,43 +178,70 @@ def _download(channel: TwitchChannel, twitch_stream: TwitchStream, path:Path):
                     ext=VIDEO_EXTENSION
                 )
             )
+            try:
+                config = await channel.get_config()
+                quality = config.quality
+            except:
+                # Fallback to default quality if config doesn't exist
+                logger.warning(f'No config found for channel {channel.login}, using default quality')
+                quality = 'best'
+            
             video_file = VideoFile(
                 id=uuid4().__str__(),
                 stream=twitch_stream.id,
                 channel=channel.id,
-                quality=channel.quality,
+                quality=quality,
                 path=video_path,
                 started_at=datetime.now(timezone.utc),
             )
-            loop.run_until_complete(video_file.save())
+            await video_file.save()
 
             logger.info(f'Writing stream from {channel.name} to {video_path}')
 
-            with open(video_path, 'wb') as file:
-                
-                # Second loop for writing video stream data to file
-                while data:
-                    file.write(data)
-                    data = buffer.read(CHUNK_SIZE)
-                    
-                    # Check if the video has exceeded the cutoff and trigger next file if it does
-                    if buffer.worker.playlist_sequence_last - start > CUTOFF:
-                        logger.info(f'Video file {video_path} has reached the cutoff. Handing stream over to next file...')
-                        loop.run_until_complete(video_file.end())
-                        part = part + 1
-                        break
-
+            # Write video chunks with proper cancellation support
+            loop = asyncio.get_event_loop()
             
+            try:
+                should_continue, data = await loop.run_in_executor(
+                    None, _write_video_chunk, video_path, buffer, data, start
+                )
+            except asyncio.CancelledError:
+                logger.info(f"Download cancelled for {channel.name}")
+                # Cleanup partial file if needed
+                if video_path.exists():
+                    logger.info(f"Cleaning up partial file: {video_path}")
+                raise  # Re-raise to properly handle cancellation
+            
+            if should_continue:
+                await video_file.end()
+                await transcode_queue.put(video_file)
+                part = part + 1
+            else:
+                # Stream ended, break out of main loop
+                break
+                
+    except asyncio.CancelledError:
+        logger.info(f"Download cancelled for {channel.name}")
+        raise  # Re-raise to properly handle cancellation
     except Exception as e:
-        logger.error(e)
+        logger.error(f"Error during download for {channel.name}: {e}")
+    finally:
+        # Cleanup resources
+        if buffer:
+            try:
+                buffer.close()
+            except Exception as e:
+                logger.error(f"Error closing buffer: {e}")
+        
+        # End the last video being written to if it exists
+        if 'video_file' in locals() and video_file:
+            try:
+                end_time = datetime.now(timezone.utc)
+                await video_file.end(end_time)
+                await transcode_queue.put(video_file)
+            except Exception as e:
+                logger.error(f"Error finalizing video file: {e}")
 
-    # End the last video being written to
-    end_time = datetime.now(timezone.utc)
-    loop.run_until_complete(video_file.end(end_time))
+    return datetime.now(timezone.utc)
 
-    # Cleanup the buffer and loop
-    buffer.close()
-    loop.stop()
-    loop.close()
 
-    return end_time

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Self, List
 from vodloader.database import *
 from vodloader.util import *
-from vodloader.models import EndableModel, TwitchChannel, Message
+from vodloader.models import EndableModel, TwitchChannel
 
 
 class TwitchStream(EndableModel):
@@ -49,8 +49,3 @@ class TwitchStream(EndableModel):
         self.category_id = int(category_id)
         self.started_at = started_at
         self.ended_at = ended_at
-    
-
-    async def get_messages(self) -> List[Self]:
-        messages = await Message.from_stream(self.id)
-        return messages

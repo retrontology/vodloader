@@ -148,14 +148,21 @@ class BaseModel():
 
         where_clause = 'WHERE'
         values = []
+        first_iteration = True
         for key in kwargs:
+
+            if not first_iteration:
+                where_clause += ' AND'
+
             if kwargs[key] == None:
                 where_clause += f' {key} IS NULL'
-            if kwargs[key] == NOT_NULL:
+            elif kwargs[key] == NOT_NULL:
                 where_clause += f' {key} IS NOT NULL'
             else:
                 where_clause += f' {key}={db.char}'
                 values.append(kwargs[key])
+
+            first_iteration = False
         
         if order_by:
             order_clause = f'ORDER BY {order_by} {order}'

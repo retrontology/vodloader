@@ -2,15 +2,17 @@ import argparse
 import os
 import logging, logging.handlers
 import asyncio
+import signal
+import sys
 from hypercorn.config import Config as HypercornConfig
 from hypercorn.asyncio import serve
 from vodloader.models import TwitchChannel, VideoFile, initialize_models
 from vodloader.api import create_api
 from vodloader.twitch import twitch, webhook
 from vodloader.vodloader import subscribe
-from vodloader.chat import bot
+from vodloader.post.transcoding import transcode_listener, transcode_queue, queue_trancodes
 from vodloader import config
-from threading import Thread
+from vodloader.chat import bot
 
 
 def parse_args():
@@ -47,65 +49,162 @@ def setup_logger(level=logging.INFO, path='logs'):
     stream_handler.setLevel(level)
     logger.handlers.append(file_handler)
     logger.handlers.append(stream_handler)
+    
     return logging.getLogger('vodloader')
 
 
-async def main():
+async def start_chat_bot(logger):
+    """Start chat bot as an async task"""
+    try:
+        await bot.start()
+    except Exception as e:
+        logger.error(f"Failed to start chat bot: {e}")
+        return None
 
+
+async def main():
     # Initialize args
     args = parse_args()
     logger = setup_logger(args.debug)
-    loop = asyncio.get_event_loop()
 
-    # Initialize DB
-    await initialize_models()
-
-    # Intialize Twitch Connections
-    await twitch.authenticate_app([])
-    webhook.start()
-    await webhook.unsubscribe_all()
-
-    # Start chat bot
-    chatbot_task = Thread(target=bot.start, daemon=True)
-    chatbot_task.start()
-    while not bot.connection.connected:
-        await asyncio.sleep(1)
-
-    # Subscribe to all active channel webhooks
-    channels = await TwitchChannel.get_many(active=True)
-    for channel in channels:
-        bot.join_channel(channel)
-        await subscribe(channel)
-
-    # Run API
-    hypercorn_config = HypercornConfig()
-    hypercorn_config.bind = [f"{config.API_HOST}:{config.API_PORT}"]
-    api = create_api()
-    api_task = loop.create_task(serve(api, hypercorn_config))
-
-    # Run Transcode Task
-    transcode_task = loop.create_task(transcode_loop())
+    # Create shutdown event
+    shutdown_event = asyncio.Event()
     
-    # Await everything
-    await api_task
-    await transcode_task
+    # Signal handler for graceful shutdown
+    def signal_handler(signum, frame):
+        logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+        shutdown_event.set()
+    
+    # Register signal handlers for both SIGINT (Ctrl+C) and SIGTERM (systemd)
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    # Store tasks for cleanup
+    api_task = None
+    transcode_task = None
+    chatbot_task = None
+    
+    try:
+        # Initialize DB
+        await initialize_models()
 
-    # Cleanup
-    bot.die()
-    bot.disconnect()
-    await webhook.unsubscribe_all()
-    await webhook.stop()
-    await twitch.close()
+        # Initialize Twitch Connections
+        await twitch.authenticate_app([])
+        webhook.start()
+        await webhook.unsubscribe_all()
+
+        # Start chat bot as async task
+        chatbot_task = asyncio.create_task(start_chat_bot(logger))
+        
+        # Give chat bot time to connect
+        await asyncio.sleep(2)
+
+        # Subscribe to all active channel webhooks
+        channels = await TwitchChannel.get_many(active=True)
+        tasks = []
+        
+        for channel in channels:
+            # Join channel with bot and subscribe to webhooks
+            tasks.append(bot.join_channel(channel))
+            tasks.append(subscribe(channel))
+        
+        # Subscribe to all channels concurrently
+        if tasks:
+            await asyncio.gather(*tasks)
+
+        # Setup API
+        hypercorn_config = HypercornConfig()
+        hypercorn_config.bind = [f"{config.API_HOST}:{config.API_PORT}"]
+        hypercorn_config.graceful_timeout = 5  # Allow 5 seconds for graceful shutdown
+        api = create_api()
+
+        # Create all async tasks
+        api_task = asyncio.create_task(serve(api, hypercorn_config))
+        transcode_task = asyncio.create_task(transcode_listener())
+
+        # Queue existing videos for transcoding
+        await queue_trancodes()
+        
+        logger.info("All services started successfully. Press Ctrl+C to stop.")
+        
+        # Wait for shutdown signal or task completion
+        done, pending = await asyncio.wait(
+            [
+                asyncio.create_task(shutdown_event.wait()),
+                api_task,
+                transcode_task,
+                chatbot_task
+            ],
+            return_when=asyncio.FIRST_COMPLETED
+        )
+        
+        # Check if any tasks completed with exceptions
+        for task in done:
+            if not task.cancelled() and task.exception():
+                logger.error(f"Task failed with exception: {task.exception()}")
+                
+    except Exception as e:
+        logger.error(f"Unexpected error in main: {e}")
+    finally:
+        await cleanup_services(logger, api_task, transcode_task, chatbot_task)
 
 
-async def transcode_loop():
-    while True:
-        video = await VideoFile.get_next_transcode()
-        if video:
-            await video.transcode()
-        else:
-            await asyncio.sleep(60)
+async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
+    """Cleanup all services gracefully"""
+    logger.info('Shutting down services...')
+    
+    # Stop chat bot first to prevent reconnection attempts
+    logger.info("Stopping chat bot...")
+    try:
+        await bot.stop()
+    except Exception as e:
+        logger.error(f"Error stopping chat bot: {e}")
+    
+    # Cancel tasks gracefully with timeout
+    tasks_to_cancel = [task for task in [api_task, transcode_task, chatbot_task] if task and not task.done()]
+    
+    if tasks_to_cancel:
+        logger.info(f"Cancelling {len(tasks_to_cancel)} running tasks...")
+        for task in tasks_to_cancel:
+            task.cancel()
+        
+        # Wait for tasks to complete cancellation with timeout
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(*tasks_to_cancel, return_exceptions=True),
+                timeout=10.0
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Some tasks did not complete cancellation within timeout")
+    
+    # Cleanup webhooks
+    logger.info("Unsubscribing from webhooks...")
+    try:
+        await webhook.unsubscribe_all()
+    except Exception as e:
+        logger.error(f"Error unsubscribing from webhooks: {e}")
+    
+    # Stop webhook server
+    logger.info("Stopping webhook server...")
+    try:
+        await webhook.stop()
+    except Exception as e:
+        logger.error(f"Error stopping webhook server: {e}")
+    
+    # Close Twitch connection
+    logger.info("Closing Twitch connection...")
+    try:
+        await twitch.close()
+    except Exception as e:
+        logger.error(f"Error closing Twitch connection: {e}")
+    
+    logger.info("Shutdown complete")
+
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except Exception as e:
+        print(f"Fatal error: {e}")
+        sys.exit(1)

@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Self, List
+from typing import Self, List, Dict, Any
 from vodloader.database import *
 from vodloader.util import *
 from vodloader.models import EndableModel, TwitchStream, TwitchChannel, OrderDirection, NOT_NULL
@@ -8,6 +8,7 @@ import ffmpeg
 
 
 class VideoFile(EndableModel):
+
 
     table_name = 'video_file'
     table_command = f"""
@@ -62,14 +63,17 @@ class VideoFile(EndableModel):
         self.part = part
         self.transcode_path = Path(transcode_path).resolve() if transcode_path else None
 
+
     @classmethod
     async def get_nontranscoded(cls) -> List[Self]:
         results = await cls.get_many(
             transcode_path=None,
+            ended_at=NOT_NULL,
             order_by='started_at',
             order=OrderDirection.ASC
         )
         return results
+
 
     @classmethod
     async def get_next_transcode(cls) -> Self:
@@ -80,42 +84,18 @@ class VideoFile(EndableModel):
             order=OrderDirection.ASC
         )
         return next
-    
-    async def remove_original(self):
-        
-        if not self.path:
-            raise VideoAlreadyRemoved
-        
-        path = self.path
-        self.path.unlink()
-        self.path = None
-        await self.save()
-        self.logger.info(f'The original stream file at {path.__str__()} has been deleted')
-    
-    async def transcode(self):
 
-        if not self.ended_at:
-            raise VideoFileNotEnded
-        
-        if self.transcode_path:
-            raise VideoAlreadyTranscoded
-        
-        self.logger.info(f'Transcoding {self.path}')
-        loop = asyncio.get_event_loop()
-        self.transcode_path = await loop.run_in_executor(None, self._transcode)
-        await self.save()
-        self.logger.info(f'Finished transcoding {self.path} to {self.transcode_path}')
-        await self.remove_original()
-        
 
-    def _transcode(self) -> Path:
-        transcode_path = self.path.parent.joinpath(f'{self.path.stem}.mp4')
-        stream = ffmpeg.input(self.path.__str__())
-        stream = ffmpeg.output(stream, transcode_path.__str__(), vcodec='copy')
-        stream = ffmpeg.overwrite_output(stream)
-        ffmpeg.run(stream, quiet=True)
-        return transcode_path
-
-class VideoFileNotEnded(Exception): pass
-class VideoAlreadyTranscoded(Exception): pass
-class VideoAlreadyRemoved(Exception): pass
+    def probe(self) -> Dict[str, Any]:
+        path = self.transcode_path if self.transcode_path else self.path
+        info = ffmpeg.probe(path)
+        for stream in info['streams']:
+            # Keep frame rates as strings for proper parsing in downstream code
+            # The original string format like "25/1" is more reliable than converting to generators
+            if 'duration' in stream:
+                stream['duration'] = float(stream['duration'])
+            if 'start_time' in stream:
+                stream['start_time'] = float(stream['start_time'])
+            if 'time_base' in stream:
+                stream['time_base'] = (int(x) for x in stream['time_base'].split('/'))
+        return info 
