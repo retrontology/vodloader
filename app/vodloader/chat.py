@@ -291,37 +291,34 @@ class AsyncTwitchBot:
         self.running = True
         reconnect_delay = self._reconnect_delay
         
-        while self.running:
-            try:
-                self.logger.info('Attempting to connect to Twitch IRC...')
-                if await self.connect():
-                    reconnect_delay = self._reconnect_delay  # Reset delay on successful connection
-                    await self._listen()
-                else:
-                    self.logger.error('Failed to connect to Twitch IRC')
-                    
-                if self.running:  # Only reconnect if we're supposed to be running
-                    self.logger.info(f'Reconnecting in {reconnect_delay} seconds...')
-                    try:
+        try:
+            while self.running:
+                try:
+                    self.logger.info('Attempting to connect to Twitch IRC...')
+                    if await self.connect():
+                        reconnect_delay = self._reconnect_delay  # Reset delay on successful connection
+                        await self._listen()
+                    else:
+                        self.logger.error('Failed to connect to Twitch IRC')
+                        
+                    if self.running:  # Only reconnect if we're supposed to be running
+                        self.logger.info(f'Reconnecting in {reconnect_delay} seconds...')
                         await asyncio.sleep(reconnect_delay)
-                    except asyncio.CancelledError:
-                        self.logger.info('Reconnect sleep cancelled')
-                        break
-                    reconnect_delay = min(reconnect_delay * 2, self._max_reconnect_delay)
-                    
-            except asyncio.CancelledError:
-                self.logger.info('Bot start task cancelled')
-                break
-            except Exception as e:
-                self.logger.error(f'Unexpected error in bot start: {e}')
-                if self.running:
-                    try:
+                        reconnect_delay = min(reconnect_delay * 2, self._max_reconnect_delay)
+                        
+                except Exception as e:
+                    self.logger.error(f'Unexpected error in bot start: {e}')
+                    if self.running:
                         await asyncio.sleep(reconnect_delay)
-                    except asyncio.CancelledError:
-                        break
+                        
+                finally:
+                    await self._disconnect_async()
                     
-            finally:
-                await self._disconnect_async()
+        except asyncio.CancelledError:
+            self.logger.info('Bot start task cancelled - stopping gracefully')
+            self.running = False
+        finally:
+            await self._disconnect_async()
 
     async def stop(self):
         """Stop the bot gracefully"""

@@ -153,6 +153,13 @@ async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
     """Cleanup all services gracefully"""
     logger.info('Shutting down services...')
     
+    # Stop chat bot first to prevent reconnection attempts
+    logger.info("Stopping chat bot...")
+    try:
+        await bot.stop()
+    except Exception as e:
+        logger.error(f"Error stopping chat bot: {e}")
+    
     # Cancel tasks gracefully with timeout
     tasks_to_cancel = [task for task in [api_task, transcode_task, chatbot_task] if task and not task.done()]
     
@@ -183,12 +190,6 @@ async def cleanup_services(logger, api_task, transcode_task, chatbot_task):
         await webhook.stop()
     except Exception as e:
         logger.error(f"Error stopping webhook server: {e}")
-
-    # Cleanup chat bot
-    try:
-        await bot.stop()
-    except Exception as e:
-        logger.error(f"Error cleaning up chat bot: {e}")
     
     # Close Twitch connection
     logger.info("Closing Twitch connection...")
