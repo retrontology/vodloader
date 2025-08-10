@@ -386,6 +386,10 @@ class ChatRenderer:
                             omit_background=True  # Transparent background
                         )
                         
+                        # Debug: Log first few frames to verify transparency
+                        if frame_num < 3:
+                            logger.debug(f"Captured frame {frame_num} with omit_background=True: {frame_path}")
+                        
                         # Verify frame was created
                         if not frame_path.exists() or frame_path.stat().st_size == 0:
                             failed_frames += 1
@@ -497,15 +501,9 @@ class ChatRenderer:
             output_stream = ffmpeg.output(
                 input_stream,
                 str(output_path),
-                vcodec='libvpx-vp9',  # VP9 codec supports transparency
-                pix_fmt='yuva420p',   # Pixel format with alpha channel
+                vcodec='png',         # PNG codec preserves transparency better
                 r=frame_rate,         # Frame rate
                 s=f'{width}x{height}', # Resolution
-                **{
-                    'crf': '30',      # Quality setting (lower = better quality)
-                    'b:v': '0',       # Use CRF mode
-                    'auto-alt-ref': '0',  # Disable alt-ref frames for compatibility
-                }
             )
             
             # Run ffmpeg and wait for completion

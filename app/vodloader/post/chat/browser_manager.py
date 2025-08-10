@@ -176,6 +176,12 @@ class BrowserManager:
                 
                 // Disable smooth scrolling
                 document.documentElement.style.scrollBehavior = 'auto';
+                
+                // Ensure transparent background
+                document.addEventListener('DOMContentLoaded', () => {
+                    document.body.style.background = 'transparent';
+                    document.documentElement.style.background = 'transparent';
+                });
             """)
             
             logger.debug(f"Page created with viewport {overlay_width}x{overlay_height}")

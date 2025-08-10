@@ -237,21 +237,17 @@ async def composite_videos(
         # Apply overlay filter with calculated position and proper transparency handling
         logger.debug(f"Overlay codec: {overlay_info['codec']}")
         
-        # Ensure the overlay has proper alpha channel handling
-        # Convert overlay to RGBA format to preserve transparency
-        overlay_rgba = ffmpeg.filter(overlay_input['v'], 'format', pix_fmts='rgba')
-        
-        # Apply overlay with alpha blending
+        # PNG codec preserves alpha channel perfectly
+        # Apply overlay directly - PNG maintains transparency
         video_stream = ffmpeg.overlay(
             original_input['v'],
-            overlay_rgba,
+            overlay_input['v'],
             x=overlay_x,
             y=overlay_y,
-            format='rgb',  # Use RGB format for proper alpha blending
             eof_action='pass'
         )
         
-        logger.debug("Overlay filter applied with RGBA transparency support")
+        logger.debug("Overlay filter applied with PNG transparency support")
         
         # Preserve audio from original video
         audio_stream = original_input['a']
