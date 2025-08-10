@@ -74,7 +74,11 @@ class ChatVideoGenerator:
     
     async def generate(self, video: VideoFile) -> Optional[Path]:
         """
-        Generate a chat overlay video by coordinating the entire process.
+        Generate a chat overlay video using streaming composition (no intermediate files).
+        
+        This method eliminates the intermediate chat overlay video file by streaming
+        frames directly from the browser to the video compositor, significantly
+        reducing disk I/O and storage requirements.
         
         Args:
             video: The video file to process
@@ -98,7 +102,7 @@ class ChatVideoGenerator:
         
         try:
             # Step 1: Retrieve and filter messages for video time range
-            logger.info(f'Step 1/8: Retrieving messages for video {video.id}')
+            logger.info(f'Step 1/5: Retrieving messages for video {video.id}')
             messages = await self._get_messages_for_video(video)
             if not messages:
                 logger.info(f'No messages found for video {video.id} - skipping chat overlay generation')
@@ -107,36 +111,24 @@ class ChatVideoGenerator:
             logger.info(f'Found {len(messages)} messages for video {video.id}')
             
             # Step 2: Load configuration with default value handling
-            logger.info(f'Step 2/8: Loading configuration for channel {video.channel}')
+            logger.info(f'Step 2/5: Loading configuration for channel {video.channel}')
             config = await self._load_configuration(video.channel)
             
             # Step 3: Extract video metadata for frame rate matching
-            logger.info(f'Step 3/8: Extracting video metadata from {video.path}')
+            logger.info(f'Step 3/5: Extracting video metadata from {video.path}')
             video_info = await self._extract_video_metadata(video)
             logger.info(
                 f'Video metadata: {video_info["width"]}x{video_info["height"]} '
                 f'@ {video_info["frame_rate"]}fps, duration: {video_info["duration"]:.1f}s'
             )
             
-            # Step 4: Generate file paths for processing
-            logger.info(f'Step 4/8: Generating output file paths')
-            chat_video_path, composite_video_path = self._generate_file_paths(video)
+            # Step 4: Stream chat overlay directly to compositor
+            logger.info(f'Step 4/5: Streaming chat overlay composition')
+            composite_video_path = await self._generate_streaming_composition(messages, config, video_info, video)
             
-            # Step 5: Generate chat overlay video using browser automation
-            logger.info(f'Step 5/8: Generating chat overlay video at {chat_video_path}')
-            await self._generate_chat_overlay(messages, config, video_info, chat_video_path)
-            
-            # Step 6: Composite original video with chat overlay
-            logger.info(f'Step 6/8: Compositing videos to create {composite_video_path}')
-            await self._composite_videos(video, chat_video_path, composite_video_path, config)
-            
-            # Step 7: Update database with composite video path
-            logger.info(f'Step 7/8: Updating database record for video {video.id}')
+            # Step 5: Update database with composite video path
+            logger.info(f'Step 5/5: Updating database record for video {video.id}')
             await self._update_database_record(video, composite_video_path)
-            
-            # Step 8: Handle file retention based on configuration
-            logger.info(f'Step 8/8: Handling file retention for video {video.id}')
-            await self._handle_file_retention(video, chat_video_path, config)
             
             # Log successful completion with timing and file size information
             elapsed_time = time.time() - self._start_time
@@ -482,64 +474,75 @@ class ChatVideoGenerator:
                 original_error=e
             ) from e
     
-    def _generate_file_paths(self, video: VideoFile) -> tuple[Path, Path]:
+    def _generate_output_file_path(self, video: VideoFile) -> Path:
         """
-        Generate file paths for chat overlay and composite videos.
+        Generate file path for composite video.
         
         Args:
-            video: Video file to generate paths for
+            video: Video file to generate path for
             
         Returns:
-            Tuple of (chat_video_path, composite_video_path)
+            Path for the final composite video
         """
-        # Generate paths in same directory as original video
+        # Generate path in same directory as original video
         base_path = video.path.parent
         stem = video.path.stem
-        
-        # Chat overlay video (transparent background)
-        chat_video_path = base_path / f'{stem}_chat_overlay.mp4'
         
         # Final composite video
         composite_video_path = base_path / f'{stem}_with_chat.mp4'
         
-        logger.debug(f'Generated file paths for video {video.id}: chat={chat_video_path}, composite={composite_video_path}')
-        return chat_video_path, composite_video_path
+        logger.debug(f'Generated output file path for video {video.id}: {composite_video_path}')
+        return composite_video_path
     
-    async def _generate_chat_overlay(
+    async def _generate_streaming_composition(
         self, 
         messages: List[Message], 
         config: ChannelConfig, 
         video_info: Dict[str, Any], 
-        output_path: Path
-    ) -> None:
+        video: VideoFile
+    ) -> Path:
         """
-        Generate chat overlay video using browser automation.
+        Generate chat overlay and composite video using streaming approach.
         
         Args:
             messages: List of messages to render
             config: Channel configuration
             video_info: Video metadata dictionary
-            output_path: Path to save chat overlay video
+            video: Original video file
+            
+        Returns:
+            Path to the generated composite video
             
         Raises:
-            ChatOverlayError: If chat overlay generation fails
+            ChatOverlayError: If streaming composition fails
         """
+        # Generate output path
+        output_path = self._generate_output_file_path(video)
+        
         try:
             # Register output path as temporary file for cleanup
             self._add_temp_file(output_path)
             
-            # Log overlay generation start with parameters
+            # Log streaming composition start with parameters
             overlay_width = config.get_chat_overlay_width() or int(video_info['width'] * 0.2)
             overlay_height = config.get_chat_overlay_height() or int(video_info['height'] * 0.4)
+            total_frames = int(video_info['duration'] * video_info['frame_rate'])
             
             logger.info(
-                f'Starting chat overlay generation: {len(messages)} messages, '
+                f'Starting streaming composition: {len(messages)} messages, '
                 f'{overlay_width}x{overlay_height} overlay, '
-                f'{video_info["frame_rate"]}fps, {video_info["duration"]:.1f}s duration'
+                f'{video_info["frame_rate"]}fps, {total_frames} frames'
             )
             
             # Monitor memory before starting browser
             await self._monitor_memory_usage()
+            
+            # Verify streaming composition requirements
+            logger.debug('Verifying composition requirements')
+            await verify_composition_requirements(
+                original_path=video.path,
+                output_path=output_path
+            )
             
             # Use browser context manager for resource management
             browser_config = {
@@ -548,165 +551,70 @@ class ChatVideoGenerator:
             }
             
             async with browser_context(browser_config) as (browser, page):
-                # Store browser process info for monitoring
-                try:
-                    # Attempt to get browser process ID for monitoring
-                    if hasattr(browser, '_connection') and hasattr(browser._connection, '_transport'):
-                        # This is browser-specific and may not always work
-                        pass
-                except Exception:
-                    logger.debug('Could not retrieve browser process ID for monitoring')
-                
                 # Monitor memory during browser operations
                 await self._monitor_memory_usage()
                 
-                # Create chat renderer
+                # Create chat renderer and prepare page
                 logger.debug('Creating ChatRenderer instance')
                 renderer = ChatRenderer(messages, config, video_info)
                 
-                # Monitor memory before video rendering
+                # Prepare page for streaming
+                await renderer.prepare_for_streaming(page)
+                
+                # Monitor memory before streaming composition
                 await self._monitor_memory_usage()
                 
-                # Render chat to video file with progress monitoring
-                logger.info(f'Starting video rendering to {output_path}')
-                render_start_time = time.time()
+                # Start streaming composition
+                logger.info(f'Starting streaming composition to {output_path}')
+                composition_start_time = time.time()
                 
-                await renderer.render_to_video(page, output_path)
+                # Generate frame stream and pass to compositor
+                frame_generator = renderer.generate_frame_stream(page)
                 
-                render_duration = time.time() - render_start_time
+                await composite_videos(
+                    original_path=video.path,
+                    page=page,
+                    output_path=output_path,
+                    config=config,
+                    frame_generator=frame_generator,
+                    total_frames=total_frames
+                )
+                
+                composition_duration = time.time() - composition_start_time
                 
                 # Verify output file was created and has reasonable size
                 if not output_path.exists():
                     raise ChatOverlayError(
-                        f'Chat overlay video was not created at {output_path}',
+                        f'Composite video was not created at {output_path}',
                         video_id=self._video_id
                     )
                 
                 output_size_mb = output_path.stat().st_size / (1024 * 1024)
-                if output_size_mb < 0.1:  # Less than 100KB is suspicious
-                    logger.warning(f'Chat overlay video is very small: {output_size_mb:.2f}MB')
+                if output_size_mb < 1.0:  # Less than 1MB is suspicious for a composite video
+                    logger.warning(f'Composite video is very small: {output_size_mb:.2f}MB')
                 
                 logger.info(
-                    f'Successfully generated chat overlay video at {output_path} '
-                    f'({output_size_mb:.1f}MB) in {render_duration:.1f}s'
+                    f'Successfully generated composite video at {output_path} '
+                    f'({output_size_mb:.1f}MB) in {composition_duration:.1f}s'
                 )
                 
                 # Remove from temp files since it was successful
                 if output_path in self._temp_files:
                     self._temp_files.remove(output_path)
+                
+                return output_path
                     
-        except (BrowserManagerError, ChatRendererError) as e:
-            logger.error(f'Error generating chat overlay for video {self._video_id}: {e}')
+        except (BrowserManagerError, ChatRendererError, VideoCompositionError) as e:
+            logger.error(f'Error generating composition for video {self._video_id}: {e}')
             raise ChatOverlayError(
-                f'Chat overlay generation failed: {e}',
+                f'Composition failed: {e}',
                 video_id=self._video_id,
                 original_error=e
             ) from e
         except Exception as e:
-            logger.error(f'Unexpected error generating chat overlay for video {self._video_id}: {e}')
+            logger.error(f'Unexpected error generating composition for video {self._video_id}: {e}')
             raise ChatOverlayError(
-                f'Unexpected error during chat overlay generation: {e}',
-                video_id=self._video_id,
-                original_error=e
-            ) from e
-    
-    async def _composite_videos(
-        self, 
-        video: VideoFile, 
-        chat_video_path: Path, 
-        composite_video_path: Path, 
-        config: ChannelConfig
-    ) -> None:
-        """
-        Composite original video with chat overlay.
-        
-        Args:
-            video: Original video file
-            chat_video_path: Path to chat overlay video
-            composite_video_path: Path to save composite video
-            config: Channel configuration
-            
-        Raises:
-            ChatOverlayError: If video composition fails
-        """
-        try:
-            # Register composite video as temp file for cleanup on failure
-            self._add_temp_file(composite_video_path)
-            
-            # Log composition start with file sizes
-            original_size_mb = video.path.stat().st_size / (1024 * 1024)
-            overlay_size_mb = chat_video_path.stat().st_size / (1024 * 1024)
-            
-            logger.info(
-                f'Starting video composition: '
-                f'original={video.path} ({original_size_mb:.1f}MB), '
-                f'overlay={chat_video_path} ({overlay_size_mb:.1f}MB)'
-            )
-            
-            # Monitor memory before composition
-            await self._monitor_memory_usage()
-            
-            # Verify composition requirements before attempting
-            logger.debug('Verifying composition requirements')
-            await verify_composition_requirements(
-                original_path=video.path,
-                overlay_path=chat_video_path,
-                output_path=composite_video_path
-            )
-            
-            # Log composition parameters
-            position = config.get_chat_position()
-            padding = config.get_chat_padding()
-            logger.debug(f'Composition settings: position={position}, padding={padding}px')
-            
-            # Use video compositor to combine videos
-            composition_start_time = time.time()
-            
-            await composite_videos(
-                original_path=video.path,
-                overlay_path=chat_video_path,
-                output_path=composite_video_path,
-                config=config
-            )
-            
-            composition_duration = time.time() - composition_start_time
-            
-            # Verify output and log results
-            if not composite_video_path.exists():
-                raise ChatOverlayError(
-                    f'Composite video was not created at {composite_video_path}',
-                    video_id=self._video_id
-                )
-            
-            composite_size_mb = composite_video_path.stat().st_size / (1024 * 1024)
-            
-            # Sanity check: composite should be at least as large as original
-            if composite_size_mb < original_size_mb * 0.8:
-                logger.warning(
-                    f'Composite video ({composite_size_mb:.1f}MB) is significantly smaller '
-                    f'than original ({original_size_mb:.1f}MB)'
-                )
-            
-            logger.info(
-                f'Successfully composited videos to {composite_video_path} '
-                f'({composite_size_mb:.1f}MB) in {composition_duration:.1f}s'
-            )
-            
-            # Remove from temp files since composition was successful
-            if composite_video_path in self._temp_files:
-                self._temp_files.remove(composite_video_path)
-            
-        except VideoCompositionError as e:
-            logger.error(f'Error compositing videos for video {self._video_id}: {e}')
-            raise ChatOverlayError(
-                f'Video composition failed: {e}',
-                video_id=self._video_id,
-                original_error=e
-            ) from e
-        except Exception as e:
-            logger.error(f'Unexpected error compositing videos for video {self._video_id}: {e}')
-            raise ChatOverlayError(
-                f'Unexpected error during video composition: {e}',
+                f'Unexpected error during composition: {e}',
                 video_id=self._video_id,
                 original_error=e
             ) from e
@@ -756,143 +664,6 @@ class ChatVideoGenerator:
                 video_id=video.id,
                 original_error=e
             ) from e
-    
-    async def _handle_file_retention(
-        self, 
-        video: VideoFile, 
-        chat_video_path: Path, 
-        config: ChannelConfig
-    ) -> None:
-        """
-        Handle file retention based on configuration settings.
-        
-        This method implements file cleanup logic based on ChannelConfig retention settings:
-        - Removes chat overlay file if keep_chat_overlay is False
-        - Removes original video file if delete_original_video is True
-        - Updates database when original file is removed
-        
-        Args:
-            video: Original video file
-            chat_video_path: Path to chat overlay video
-            config: Channel configuration
-            
-        Note:
-            This method handles cleanup but does not raise exceptions
-            to avoid failing the entire process due to cleanup issues.
-        """
-        retention_actions = []
-        
-        try:
-            # Log retention configuration
-            keep_overlay = config.get_keep_chat_overlay()
-            delete_original = config.delete_original_video
-            
-            logger.info(
-                f'File retention for video {video.id}: '
-                f'keep_overlay={keep_overlay}, delete_original={delete_original}'
-            )
-            
-            # Handle chat overlay file retention
-            if not keep_overlay:
-                if chat_video_path.exists():
-                    try:
-                        overlay_size_mb = chat_video_path.stat().st_size / (1024 * 1024)
-                        chat_video_path.unlink()
-                        retention_actions.append(f'Removed chat overlay file ({overlay_size_mb:.1f}MB)')
-                        logger.info(f'Removed chat overlay file {chat_video_path} per configuration')
-                    except Exception as e:
-                        logger.error(f'Failed to remove chat overlay file {chat_video_path}: {e}')
-                else:
-                    logger.debug(f'Chat overlay file {chat_video_path} does not exist, skipping removal')
-            else:
-                logger.debug(f'Keeping chat overlay file {chat_video_path} per configuration')
-            
-            # Handle original video file retention
-            if delete_original:
-                if video.path and video.path.exists():
-                    try:
-                        original_size_mb = video.path.stat().st_size / (1024 * 1024)
-                        original_path = video.path  # Store for logging
-                        
-                        # Remove the file
-                        video.path.unlink()
-                        retention_actions.append(f'Removed original video file ({original_size_mb:.1f}MB)')
-                        logger.info(f'Removed original video file {original_path} per configuration')
-                        
-                        # Update database to reflect file removal
-                        await self._update_original_file_path(video, None)
-                        logger.debug(f'Updated database to reflect original file removal for video {video.id}')
-                        
-                    except Exception as e:
-                        logger.error(f'Failed to remove original video file {video.path}: {e}')
-                else:
-                    logger.debug(f'Original video file does not exist or path is None, skipping removal')
-            else:
-                logger.debug(f'Keeping original video file {video.path} per configuration')
-            
-            # Log summary of retention actions
-            if retention_actions:
-                logger.info(f'File retention completed for video {video.id}: {"; ".join(retention_actions)}')
-            else:
-                logger.debug(f'No file retention actions needed for video {video.id}')
-            
-        except Exception as e:
-            # Log error with context but don't raise - file retention issues shouldn't fail the entire process
-            logger.error(
-                f'Error handling file retention for video {video.id}: {e} '
-                f'(keep_overlay={config.get_keep_chat_overlay()}, '
-                f'delete_original={config.delete_original_video})'
-            )
-            
-            # Log what actions were attempted
-            if retention_actions:
-                logger.info(f'Partial retention actions completed: {"; ".join(retention_actions)}')
-            
-            # Don't raise the exception to avoid failing the entire process
-    
-    async def _update_original_file_path(self, video: VideoFile, new_path: Optional[Path]) -> None:
-        """
-        Update the original file path in the database.
-        
-        This method directly updates the database to set the path field to NULL
-        when the original file is removed, avoiding issues with the model's save method.
-        
-        Args:
-            video: Video file to update
-            new_path: New path value (None to set to NULL in database)
-            
-        Raises:
-            Exception: If database update fails
-        """
-        from vodloader.database import get_db
-        
-        try:
-            db = await get_db()
-            connection = await db.connect()
-            cursor = await connection.cursor()
-            
-            # Update the path field directly in the database
-            path_value = str(new_path) if new_path else None
-            
-            await cursor.execute(
-                f"UPDATE {video.table_name} SET path = {db.char} WHERE id = {db.char}",
-                [path_value, video.id]
-            )
-            
-            await connection.commit()
-            await cursor.close()
-            closer = connection.close()
-            if closer:
-                await closer
-            
-            # Update the model instance to reflect the change
-            video.path = new_path
-            
-            logger.debug(f'Successfully updated path in database for video {video.id}: {path_value}')
-            
-        except Exception as e:
-            logger.error(f'Failed to update original file path in database for video {video.id}: {e}')
-            raise
     
     def _get_system_info(self) -> Dict[str, Any]:
         """
