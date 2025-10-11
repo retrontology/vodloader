@@ -47,37 +47,41 @@ class BaseModel():
         if closer: await closer
 
     async def save(self):
+        try:
+            values = []
+            attributes = self._get_extra_attributes()
+            for attribute in attributes:
+                value = self.__getattribute__(attribute)
+                match value:
+                    case Path():
+                        value = value.__str__()
+                    case _:
+                         pass
+                values.append(value)
+            values.extend(values)
 
-        values = []
-        attributes = self._get_extra_attributes()
-        for attribute in attributes:
-            value = self.__getattribute__(attribute)
-            match value:
-                case Path():
-                    value = value.__str__()
-                case _:
-                     pass
-            values.append(value)
-        values.extend(values)
-
-        db = await get_db()
-        connection = await db.connect()
-        cursor = await connection.cursor()
-        await cursor.execute(
-            f"""
-            INSERT INTO {self.table_name} 
-            ({', '.join(attributes)})
-            VALUES
-            ({', '.join([db.char for x in attributes])})
-            {db.duplicate('id')}
-            {', '.join([f'{x}={db.char}' for x in attributes])};
-            """,
-            values
-        )
-        await connection.commit()
-        await cursor.close()
-        closer = connection.close()
-        if closer: await closer
+            db = await get_db()
+            connection = await db.connect()
+            cursor = await connection.cursor()
+            await cursor.execute(
+                f"""
+                INSERT INTO {self.table_name} 
+                ({', '.join(attributes)})
+                VALUES
+                ({', '.join([db.char for x in attributes])})
+                {db.duplicate('id')}
+                {', '.join([f'{x}={db.char}' for x in attributes])};
+                """,
+                values
+            )
+            await connection.commit()
+            await cursor.close()
+            closer = connection.close()
+            if closer: await closer
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f'Failed to save {self.__class__.__name__}: {e}')
+            raise
 
     @classmethod
     async def get(

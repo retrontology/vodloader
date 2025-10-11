@@ -20,7 +20,8 @@ class AsyncTwitchBot:
         self.password = self.gen_password()
         self.reader: Optional[asyncio.StreamReader] = None
         self.writer: Optional[asyncio.StreamWriter] = None
-        self.channels: Set[str] = set()
+        self.channels: Set[str] = set()  # Currently joined channels
+        self.target_channels: Set[str] = set()  # Channels we should be in
         self.running = False
         self._reconnect_delay = 5
         self._max_reconnect_delay = 300
@@ -65,6 +66,12 @@ class AsyncTwitchBot:
             await self._send_raw('CAP REQ :twitch.tv/tags')
             await self._send_raw('CAP REQ :twitch.tv/commands')
             
+            # Wait a moment for capabilities to be acknowledged
+            await asyncio.sleep(1)
+            
+            # Rejoin all target channels
+            await self._rejoin_target_channels()
+            
             self.logger.info('Connected to Twitch IRC server')
             return True
             
@@ -89,6 +96,7 @@ class AsyncTwitchBot:
                 self.logger.error(f'Error closing writer: {e}')
         self.reader = None
         self.writer = None
+        # Clear currently joined channels but keep target channels for reconnection
         self.channels.clear()
 
     async def _send_raw(self, message: str):
@@ -107,14 +115,35 @@ class AsyncTwitchBot:
     async def join_channel(self, channel: TwitchChannel) -> None:
         """Join a Twitch channel"""
         channel_name = f'#{channel.login.lower()}'
-        if channel_name not in self.channels:
+        
+        # Add to target channels (persistent)
+        self.target_channels.add(channel_name)
+        
+        # Join if we have an active connection and not already joined
+        if self.writer and channel_name not in self.channels:
             await self._send_raw(f'JOIN {channel_name}')
 
     async def leave_channel(self, channel: TwitchChannel) -> None:
         """Leave a Twitch channel"""
         channel_name = f'#{channel.login.lower()}'
-        if channel_name in self.channels:
+        
+        # Remove from target channels (persistent)
+        self.target_channels.discard(channel_name)
+        
+        # Leave if we have an active connection and currently joined
+        if self.writer and channel_name in self.channels:
             await self._send_raw(f'PART {channel_name}')
+
+    async def _rejoin_target_channels(self) -> None:
+        """Rejoin all channels we should be connected to"""
+        for channel_name in self.target_channels:
+            try:
+                await self._send_raw(f'JOIN {channel_name}')
+                self.logger.info(f'Rejoining {channel_name}')
+                # Small delay between joins to avoid rate limiting
+                await asyncio.sleep(0.1)
+            except Exception as e:
+                self.logger.error(f'Failed to rejoin {channel_name}: {e}')
 
     def _parse_irc_message(self, raw_message: str) -> dict:
         """Parse IRC message into components"""
@@ -214,15 +243,19 @@ class AsyncTwitchBot:
         if not parsed_message['parameters']:
             return
             
-        mock_event = MockEvent(
-            tags=[{'key': k, 'value': v} for k, v in parsed_message['tags'].items()],
-            source=parsed_message['source'],
-            target=parsed_message['parameters'][0],
-            arguments=parsed_message['parameters'][1:] if len(parsed_message['parameters']) > 1 else ['']
-        )
-        
-        message = Message.from_event(mock_event)
-        await message.save()
+        try:
+            mock_event = MockEvent(
+                tags=[{'key': k, 'value': v} for k, v in parsed_message['tags'].items()],
+                source=parsed_message['source'],
+                target=parsed_message['parameters'][0],
+                arguments=parsed_message['parameters'][1:] if len(parsed_message['parameters']) > 1 else ['']
+            )
+            
+            message = Message.from_event(mock_event)
+            await message.save()
+            self.logger.debug(f'Saved message from {message.display_name}: {message.content[:50]}...')
+        except Exception as e:
+            self.logger.error(f'Failed to save message: {e}')
 
     async def _handle_clearchat(self, parsed_message: dict):
         """Handle CLEARCHAT command"""
@@ -256,10 +289,15 @@ class AsyncTwitchBot:
 
     async def _listen(self):
         """Listen for IRC messages"""
+        last_ping = asyncio.get_event_loop().time()
+        last_channel_check = asyncio.get_event_loop().time()
+        ping_interval = 240  # Send ping every 4 minutes
+        channel_check_interval = 300  # Check channels every 5 minutes
+        
         while self.running and self.reader:
             try:
                 # Use asyncio.wait_for to add timeout to readline
-                line = await asyncio.wait_for(self.reader.readline(), timeout=300.0)  # 5 minute timeout
+                line = await asyncio.wait_for(self.reader.readline(), timeout=30.0)  # 30 second timeout
                 
                 if not line:
                     self.logger.warning('Connection lost - no data received')
@@ -277,8 +315,27 @@ class AsyncTwitchBot:
                         await self._handle_message(parsed_message)
                         
             except asyncio.TimeoutError:
-                self.logger.warning('No data received for 5 minutes, connection may be stale')
-                break
+                # Send periodic ping to keep connection alive and check channel status
+                current_time = asyncio.get_event_loop().time()
+                
+                if current_time - last_ping > ping_interval:
+                    try:
+                        await self._send_raw('PING :tmi.twitch.tv')
+                        last_ping = current_time
+                        self.logger.debug('Sent keepalive ping')
+                    except Exception as e:
+                        self.logger.error(f'Failed to send keepalive ping: {e}')
+                        break
+                
+                # Periodically check if we're in all target channels
+                if current_time - last_channel_check > channel_check_interval:
+                    missing_channels = self.target_channels - self.channels
+                    if missing_channels:
+                        self.logger.warning(f'Not joined to expected channels: {missing_channels}. Attempting to rejoin...')
+                        await self._rejoin_target_channels()
+                    last_channel_check = current_time
+                
+                continue  # Continue listening instead of breaking
             except asyncio.CancelledError:
                 self.logger.info('Listen task cancelled')
                 break
@@ -326,6 +383,16 @@ class AsyncTwitchBot:
         self.running = False
         await self._disconnect_async()
         self.logger.info('Twitch IRC bot stopped')
+
+    def get_channel_status(self) -> dict:
+        """Get current channel connection status"""
+        return {
+            'target_channels': list(self.target_channels),
+            'joined_channels': list(self.channels),
+            'missing_channels': list(self.target_channels - self.channels),
+            'connected': self.writer is not None,
+            'running': self.running
+        }
 
 
 
