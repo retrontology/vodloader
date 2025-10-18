@@ -12,7 +12,7 @@ import tempfile
 import psutil
 import time
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
@@ -199,9 +199,19 @@ class ChatVideoGenerator:
             
             # Filter messages to video time range for additional safety
             if video.started_at and video.ended_at:
+                # Ensure timezone compatibility for datetime comparison
+                video_start = video.started_at
+                video_end = video.ended_at
+                
+                # If video timestamps are naive, make them UTC timezone-aware for comparison
+                if video_start.tzinfo is None:
+                    video_start = video_start.replace(tzinfo=timezone.utc)
+                if video_end.tzinfo is None:
+                    video_end = video_end.replace(tzinfo=timezone.utc)
+                
                 filtered_messages = [
                     msg for msg in valid_messages
-                    if video.started_at <= msg.timestamp <= video.ended_at
+                    if video_start <= msg.timestamp <= video_end
                 ]
                 
                 out_of_range_count = len(valid_messages) - len(filtered_messages)
