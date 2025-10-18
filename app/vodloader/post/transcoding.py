@@ -92,6 +92,7 @@ async def transcode(video: VideoFile, cancellation_event: Optional[asyncio.Event
             input_path=video.path,
             output_path=transcode_path,
             video_codec='copy',
+            audio_codec='aac',
             cancellation_event=cancellation_event
         )
         
