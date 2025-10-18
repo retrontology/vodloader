@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Self, List, Dict, Tuple
 from vodloader.database import *
 from vodloader.util import *
@@ -84,7 +84,12 @@ class Message(BaseModel):
         self.moderator = moderator
         self.returning_chatter = returning_chatter
         self.subscriber = subscriber
+        
+        # Ensure timestamp is timezone-aware (assume UTC if naive)
+        if isinstance(timestamp, datetime) and timestamp.tzinfo is None:
+            timestamp = timestamp.replace(tzinfo=timezone.utc)
         self.timestamp = timestamp
+        
         self.turbo = turbo
         self.user_id = user_id
         self.user_type = user_type
@@ -137,7 +142,10 @@ class Message(BaseModel):
             (video.id, )
         )
         args_list = await cursor.fetchall()
+        
+        # Create messages (constructor handles timezone conversion)
         messages = [cls(*args) for args in args_list]
+        
         await cursor.close()
         closer = connection.close()
         if closer: await closer
@@ -171,3 +179,5 @@ class Message(BaseModel):
                 index.append((int(start), int(end)))
             emotes[int(number)] = index.copy()
         return emotes
+
+
