@@ -254,7 +254,7 @@ class StreamingComposer:
         total_frames: int,
         original_info: VideoInfo,
         video_codec: str = 'libx264',
-        audio_codec: str = 'copy',
+        audio_codec: str = 'aac',
         preset: str = 'medium',
         crf: int = 12,
         cancellation_event: Optional[asyncio.Event] = None
