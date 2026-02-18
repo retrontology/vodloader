@@ -2,11 +2,13 @@ services:
   vodloader:
     build: ./app
     env_file: .env
+    restart: unless-stopped
     volumes:
       - ./database:/opt/vodloader/database
       - /mnt/media/Capture/vodloader:/opt/vodloader/videos
   nginx:
     build: ./nginx
+    restart: unless-stopped
     ports:
       - 8000:80
 
