@@ -55,8 +55,8 @@ def calculate_overlay_position(
     if position in positions:
         x, y = positions[position]
     else:
-        logger.warning(f"Invalid position '{position}', defaulting to top-left")
-        x, y = positions['top-left']
+        logger.warning(f"Invalid position '{position}', defaulting to top-right")
+        x, y = positions['top-right']
     
     # Ensure coordinates are within bounds
     x = max(0, min(x, original_width - overlay_width))
