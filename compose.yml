@@ -1,0 +1,13 @@
+services:
+  vodloader:
+    build: ./app
+    volumes:
+      - database_volume:/opt/vodloader/database
+      - video_volume:/opt/vodloader/videos
+  nginx:
+    build: ./nginx
+    ports:
+      - 8000:80
+volumes:
+  database_volume:
+  video_volume:
