@@ -3,12 +3,11 @@ services:
     build: ./app
     env_file: .env
     volumes:
-      - database_volume:/opt/vodloader/database
-      - video_volume:/opt/vodloader/videos
+      - ./database:/opt/vodloader/database
+      - /mnt/media/Capture/vodloader:/opt/vodloader/videos
   nginx:
     build: ./nginx
     ports:
       - 8000:80
-volumes:
-  database_volume:
-  video_volume:
+
+
