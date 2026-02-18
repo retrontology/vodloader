@@ -1,5 +1,6 @@
 services:
   vodloader:
+    container_name: vodloader
     build: ./app
     env_file: .env
     restart: unless-stopped
@@ -7,6 +8,7 @@ services:
       - ./database:/opt/vodloader/database
       - /mnt/media/Capture/vodloader:/opt/vodloader/videos
   nginx:
+    container_name: vodloader-nginx
     build: ./nginx
     restart: unless-stopped
     ports:
