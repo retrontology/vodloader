@@ -1,6 +1,7 @@
 services:
   vodloader:
     build: ./app
+    env_file: .env
     volumes:
       - database_volume:/opt/vodloader/database
       - video_volume:/opt/vodloader/videos
