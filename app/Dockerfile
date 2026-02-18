@@ -7,8 +7,7 @@ RUN mkdir -p /opt/vodloader/src
 WORKDIR /opt/vodloader
 
 COPY vodloader/ /opt/vodloader/vodloader/
-COPY pyproject.toml /opt/vodloader/pyproject.toml
-COPY __about__.py /opt/vodloader/__about__.py
+COPY __about__.py pyproject.toml README.md /opt/vodloader/
 
 RUN python -m pip install -e .
 
