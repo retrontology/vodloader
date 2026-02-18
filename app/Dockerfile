@@ -7,7 +7,6 @@ RUN mkdir -p /opt/vodloader/src
 WORKDIR /opt/vodloader
 
 COPY vodloader/ /opt/vodloader/vodloader/
-COPY .env /opt/vodloader/.env
 COPY pyproject.toml /opt/vodloader/pyproject.toml
 COPY __about__.py /opt/vodloader/__about__.py
 
