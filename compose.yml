@@ -1,13 +1,26 @@
+# NVIDIA GPU: requires nvidia-container-toolkit on the host (see README).
+
 services:
   vodloader:
+    container_name: vodloader
     build: ./app
+    env_file: .env
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     volumes:
-      - database_volume:/opt/vodloader/database
-      - video_volume:/opt/vodloader/videos
+      - ./database:/opt/vodloader/database
+      - /mnt/media/Capture/vodloader:/opt/vodloader/videos
+    ipc: host
+    init: true
   nginx:
+    container_name: vodloader-nginx
     build: ./nginx
+    restart: unless-stopped
     ports:
       - 8000:80
-volumes:
-  database_volume:
-  video_volume:
