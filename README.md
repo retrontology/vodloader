@@ -15,6 +15,10 @@ Captures Twitch streams (upload to YouTube not implemented yet). Runs as a Docke
 
 The API and web UI are served on **port 8000** (nginx). See [app/README.md](app/README.md#api) for API endpoint documentation. Database and captured videos are stored in `./database` and the mounted videos volume respectively.
 
+### NVIDIA GPU
+
+The stack is configured to pass all NVIDIA GPUs into the vodloader container (`deploy.resources.reservations.devices`). Install [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) on the host so Docker can use the GPU. The vodloader service also uses `ipc: host` and `init: true` (recommended for Playwright Chromium). The app currently uses software encoding (libx264); to use hardware encoding (e.g. `h264_nvenc`) you would need to configure the transcoding pipeline accordingly.
+
 ## Repository layout
 
 | Path | Description |
