@@ -125,7 +125,7 @@ async def transcode_listener():
     logger.info("Starting transcode listener")
     
     # Import here to avoid circular imports
-    from .chat_video import generate_chat_video
+    from .chat import generate_chat_video
     
     consecutive_errors = 0
     max_consecutive_errors = 10
