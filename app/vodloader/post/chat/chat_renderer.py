@@ -371,10 +371,7 @@ class ChatRenderer:
                 try:
                     # Render chat at this timestamp
                     await page.evaluate(f"window.renderChatAtTimestamp({timestamp});")
-                    
-                    # Wait for rendering to complete
-                    await page.wait_for_timeout(50)
-                    
+
                     # Capture frame as bytes
                     frame_bytes = await page.screenshot(
                         full_page=True,
