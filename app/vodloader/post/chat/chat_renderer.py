@@ -84,48 +84,21 @@ class ChatRenderer:
             VideoMetadataError: If metadata extraction fails
         """
         try:
-            # Use async probe to avoid event loop conflicts
-            from vodloader.ffmpeg.adapters import legacy_ffmpeg
-            probe_info = await legacy_ffmpeg.async_probe(video_file.path if not video_file.transcode_path else video_file.transcode_path)
-            
-            if not probe_info or 'streams' not in probe_info:
-                raise VideoMetadataError("No stream information found in video")
-            
-            # Find the video stream
-            video_stream = None
-            for stream in probe_info['streams']:
-                if stream.get('codec_type') == 'video':
-                    video_stream = stream
-                    break
-            
-            if not video_stream:
-                raise VideoMetadataError("No video stream found in file")
-            
-            # Extract frame rate
-            frame_rate = cls._extract_frame_rate(video_stream)
-            
-            # Extract other metadata
-            duration = float(video_stream.get('duration', 0))
-            width = int(video_stream.get('width', 0))
-            height = int(video_stream.get('height', 0))
-            
-            if duration <= 0:
-                # Try to get duration from format info
-                if 'format' in probe_info and 'duration' in probe_info['format']:
-                    duration = float(probe_info['format']['duration'])
-            
+            target_path = video_file.path if not video_file.transcode_path else video_file.transcode_path
+            video_info = await probe_video(target_path)
             metadata = {
-                'frame_rate': frame_rate,
-                'duration': duration,
-                'width': width,
-                'height': height,
-                'codec': video_stream.get('codec_name', 'unknown'),
-                'pixel_format': video_stream.get('pix_fmt', 'unknown')
+                'frame_rate': video_info.frame_rate,
+                'duration': video_info.duration,
+                'width': video_info.width,
+                'height': video_info.height,
+                'codec': video_info.codec,
+                'pixel_format': 'unknown',
             }
-            
-            logger.info(f"Extracted video metadata: {frame_rate}fps, {duration}s, {width}x{height}")
+            logger.info(
+                f"Extracted video metadata: {video_info.frame_rate}fps, "
+                f"{video_info.duration}s, {video_info.width}x{video_info.height}"
+            )
             return metadata
-            
         except Exception as e:
             logger.error(f"Failed to extract video metadata: {e}")
             raise VideoMetadataError(f"Video metadata extraction failed: {e}") from e
@@ -398,10 +371,7 @@ class ChatRenderer:
                 try:
                     # Render chat at this timestamp
                     await page.evaluate(f"window.renderChatAtTimestamp({timestamp});")
-                    
-                    # Wait for rendering to complete
-                    await page.wait_for_timeout(50)
-                    
+
                     # Capture frame as bytes
                     frame_bytes = await page.screenshot(
                         full_page=True,

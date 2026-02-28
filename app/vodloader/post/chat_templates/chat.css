@@ -79,7 +79,6 @@ body {
     text-shadow: var(--chat-text-shadow-size) var(--chat-text-shadow-size) 0 var(--chat-text-shadow-color);
     opacity: 1;
     transform: translateY(0);
-    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
 }
 
 /* Message fade-in animation */
@@ -91,12 +90,6 @@ body {
 .chat-message.entered {
     opacity: 1;
     transform: translateY(0);
-}
-
-/* Message fade-out animation */
-.chat-message.exiting {
-    opacity: 0;
-    transform: translateY(-10px);
 }
 
 /* Username styling with Twitch colors */
@@ -168,31 +161,6 @@ body {
 /* High contrast mode for better readability */
 .high-contrast .chat-message {
     text-shadow: 2px 2px 0 #000000, -1px -1px 0 #000000, 1px -1px 0 #000000, -1px 1px 0 #000000;
-}
-
-/* Animation keyframes for smooth message transitions */
-@keyframes slideInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes slideOutUp {
-    from {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
-    to {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
 }
 
 /* Smooth scrolling behavior */

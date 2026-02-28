@@ -161,12 +161,8 @@ class ChatOverlay {
             element: messageElement,
             data: messageData
         });
-
-        // Trigger enter animation
-        requestAnimationFrame(() => {
-            messageElement.classList.remove('entering');
-            messageElement.classList.add('entered');
-        });
+        messageElement.classList.remove('entering');
+        messageElement.classList.add('entered');
     }
 
     /**
@@ -177,17 +173,10 @@ class ChatOverlay {
         if (!messageInfo) return;
 
         const element = messageInfo.element;
-
-        // Trigger exit animation
-        element.classList.add('exiting');
-
-        // Remove from DOM after animation
-        setTimeout(() => {
-            if (element.parentNode) {
-                element.parentNode.removeChild(element);
-            }
-            this.visibleMessages.delete(messageId);
-        }, 300); // Match CSS transition duration
+        if (element.parentNode) {
+            element.parentNode.removeChild(element);
+        }
+        this.visibleMessages.delete(messageId);
     }
 
 

@@ -4,6 +4,7 @@ Chat configuration API endpoints.
 
 from quart import Blueprint
 from vodloader.models import TwitchChannel
+from vodloader.models.ChannelConfig import ChannelConfig
 
 from .auth import require_auth
 from .utils import parse_json_body
@@ -133,22 +134,22 @@ async def reset_chat_config(channel_name: str):
             "message": "Channel does not exist in database"
         }, HTTP_NOT_FOUND
     
-    # Reset all chat configuration fields to None (which will use defaults)
+    # Reset all chat configuration fields to canonical defaults
     config = await channel.get_config()
     
-    config.chat_font_family = None
-    config.chat_font_size = None
-    config.chat_font_style = None
-    config.chat_font_weight = None
-    config.chat_text_color = None
-    config.chat_text_shadow_color = None
-    config.chat_text_shadow_size = None
+    config.chat_font_family = ChannelConfig.DEFAULT_CHAT_FONT_FAMILY
+    config.chat_font_size = ChannelConfig.DEFAULT_CHAT_FONT_SIZE
+    config.chat_font_style = ChannelConfig.DEFAULT_CHAT_FONT_STYLE
+    config.chat_font_weight = ChannelConfig.DEFAULT_CHAT_FONT_WEIGHT
+    config.chat_text_color = ChannelConfig.DEFAULT_CHAT_TEXT_COLOR
+    config.chat_text_shadow_color = ChannelConfig.DEFAULT_CHAT_TEXT_SHADOW_COLOR
+    config.chat_text_shadow_size = ChannelConfig.DEFAULT_CHAT_TEXT_SHADOW_SIZE
     config.chat_overlay_width = None
     config.chat_overlay_height = None
-    config.chat_position = None
-    config.chat_padding = None
-    config.chat_message_duration = None
-    config.keep_chat_overlay = None
+    config.chat_position = ChannelConfig.DEFAULT_CHAT_POSITION
+    config.chat_padding = ChannelConfig.DEFAULT_CHAT_PADDING
+    config.chat_message_duration = ChannelConfig.DEFAULT_CHAT_MESSAGE_DURATION
+    config.keep_chat_overlay = ChannelConfig.DEFAULT_KEEP_CHAT_OVERLAY
     
     await config.save()
     

@@ -6,6 +6,7 @@ import ffmpeg
 import asyncio
 import subprocess
 import logging
+from functools import lru_cache
 from pathlib import Path
 from typing import Dict, Any, Optional, List, AsyncGenerator, Union
 from dataclasses import dataclass
@@ -31,6 +32,89 @@ class TranscodeError(FFmpegError):
 class CompositionError(FFmpegError):
     """Raised when video composition fails."""
     pass
+
+
+def _is_ffmpeg_encoder_available(encoder_name: str) -> bool:
+    """Check whether a specific ffmpeg encoder is available."""
+    try:
+        result = subprocess.run(
+            ['ffmpeg', '-hide_banner', '-encoders'],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+    except FileNotFoundError:
+        logger.warning("ffmpeg binary not found while checking encoders")
+        return False
+    except Exception as e:
+        logger.warning(f"Failed to check ffmpeg encoders: {e}")
+        return False
+
+    output = f"{result.stdout}\n{result.stderr}"
+    for line in output.splitlines():
+        parts = line.strip().split()
+        if len(parts) >= 2 and parts[1] == encoder_name:
+            return True
+
+    return False
+
+
+def _is_ffmpeg_nvenc_usable() -> bool:
+    """
+    Verify NVENC works at runtime, not just that encoder is listed.
+
+    Some environments (especially containers) expose `hevc_nvenc` in
+    `ffmpeg -encoders` but fail at encode time due to missing GPU runtime.
+    """
+    if not _is_ffmpeg_encoder_available('hevc_nvenc'):
+        return False
+
+    test_cmd = [
+        'ffmpeg',
+        '-hide_banner',
+        '-loglevel', 'error',
+        '-f', 'lavfi',
+        # Use a conservative valid frame size for broad NVENC compatibility.
+        '-i', 'color=size=640x360:rate=1:color=black',
+        '-frames:v', '1',
+        '-an',
+        '-c:v', 'hevc_nvenc',
+        '-f', 'null',
+        '-'
+    ]
+
+    try:
+        result = subprocess.run(
+            test_cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=15
+        )
+    except Exception as e:
+        logger.warning(f"Failed NVENC runtime check: {e}")
+        return False
+
+    if result.returncode == 0:
+        return True
+
+    error_output = (result.stderr or result.stdout or "").strip()
+    if error_output:
+        logger.warning(f"NVENC encoder detected but unusable, falling back to CPU: {error_output}")
+    else:
+        logger.warning("NVENC encoder detected but unusable, falling back to CPU")
+    return False
+
+
+@lru_cache(maxsize=1)
+def _select_chat_h265_encoder() -> str:
+    """Select preferred H.265 encoder for chat composition."""
+    if _is_ffmpeg_nvenc_usable():
+        logger.info("Using hardware H.265 encoder for chat composition: hevc_nvenc")
+        return 'hevc_nvenc'
+
+    logger.info("Using CPU H.265 encoder for chat composition: libx265")
+    return 'libx265'
 
 
 @dataclass
@@ -253,7 +337,7 @@ class StreamingComposer:
         frame_generator: AsyncGenerator[bytes, None],
         total_frames: int,
         original_info: VideoInfo,
-        video_codec: str = 'libx264',
+        video_codec: Optional[str] = None,
         audio_codec: str = 'aac',
         preset: str = 'medium',
         crf: int = 12,
@@ -270,7 +354,7 @@ class StreamingComposer:
             frame_generator: Async generator yielding PNG frame bytes
             total_frames: Total number of frames to process
             original_info: Original video information
-            video_codec: Video codec for output
+            video_codec: Video codec for output (auto-selects H.265 when omitted)
             audio_codec: Audio codec for output
             preset: Encoding preset
             crf: Constant rate factor
@@ -292,6 +376,16 @@ class StreamingComposer:
         self._composition_start_time = time.time()
         
         try:
+            selected_video_codec = video_codec or _select_chat_h265_encoder()
+
+            # Build codec-specific quality arguments
+            video_quality_args: List[str]
+            if selected_video_codec.endswith('_nvenc'):
+                # NVENC uses CQ instead of CRF.
+                video_quality_args = ['-cq', str(crf)]
+            else:
+                video_quality_args = ['-crf', str(crf)]
+
             # Build ffmpeg command
             cmd = [
                 'ffmpeg', '-y',
@@ -308,11 +402,11 @@ class StreamingComposer:
                 '-map', '[v]',
                 '-map', '0:a' if original_info.has_audio else '0:v',
                 # Output settings
-                '-vcodec', video_codec,
+                '-vcodec', selected_video_codec,
                 '-acodec', audio_codec,
                 '-preset', preset,
-                '-crf', str(crf),
                 '-pix_fmt', 'yuv420p',
+                *video_quality_args,
                 str(output_path)
             ]
             

@@ -1,7 +1,6 @@
 import io
 import subprocess
 from googleapiclient.http import MediaIoBaseUpload
-from vodloader.ffmpeg.adapters import legacy_ffmpeg
 
 DEFAULT_CHUNK_SIZE=188
 MAX_LENGTH=60*(60*12-15)

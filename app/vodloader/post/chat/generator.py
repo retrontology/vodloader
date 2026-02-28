@@ -17,7 +17,6 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 
 from vodloader.ffmpeg import probe_video
-from vodloader.ffmpeg.adapters import legacy_ffmpeg
 
 from vodloader.models import VideoFile, Message, ChannelConfig
 from .browser_manager import BrowserManager, BrowserManagerError, browser_context
@@ -73,7 +72,11 @@ class ChatVideoGenerator:
         self._temp_files: List[Path] = []
         self._browser_process_id: Optional[int] = None
     
-    async def generate(self, video: VideoFile) -> Optional[Path]:
+    async def generate(
+        self,
+        video: VideoFile,
+        cancellation_event: Optional[asyncio.Event] = None,
+    ) -> Optional[Path]:
         """
         Generate a chat overlay video using streaming composition (no intermediate files).
         
@@ -83,6 +86,7 @@ class ChatVideoGenerator:
         
         Args:
             video: The video file to process
+            cancellation_event: Event to signal cancellation
             
         Returns:
             Path to the generated composite video, or None if no messages found
@@ -91,6 +95,9 @@ class ChatVideoGenerator:
             ChatOverlayError: For recoverable errors that should be retried
             ChatDataError: For corrupted or invalid chat data
         """
+        if cancellation_event and cancellation_event.is_set():
+            raise asyncio.CancelledError("Chat video generation cancelled before starting")
+
         self._start_time = time.time()
         self._video_id = video.id
         
@@ -338,131 +345,23 @@ class ChatVideoGenerator:
             file_size_mb = video.path.stat().st_size / (1024 * 1024)
             logger.debug(f'Video file size: {file_size_mb:.1f}MB')
             
-            # Use async probe to avoid event loop conflicts
-            probe_data = await legacy_ffmpeg.async_probe(video.path if not video.transcode_path else video.transcode_path)
-            
-            if not probe_data or 'streams' not in probe_data:
-                raise VideoMetadataError(f'Invalid probe data for video {video.id}')
-            
-            # Extract video stream information
-            video_stream = None
-            for stream in probe_data['streams']:
-                if stream['codec_type'] == 'video':
-                    video_stream = stream
-                    break
-            
-            if not video_stream:
-                raise VideoMetadataError(f'No video stream found in file {video.path}')
-            
-            logger.debug(f'Found video stream with codec: {video_stream.get("codec_name", "unknown")}')
-            logger.debug(f'Raw frame rate data - r_frame_rate: {video_stream.get("r_frame_rate")}, avg_frame_rate: {video_stream.get("avg_frame_rate")}')
-            
-            # Extract frame rate with detailed logging using robust extraction
-            frame_rate = None
-            
-            # Try r_frame_rate first (more accurate for constant frame rate)
-            if 'r_frame_rate' in video_stream and video_stream['r_frame_rate']:
-                try:
-                    r_frame_rate = video_stream['r_frame_rate']
-                    logger.debug(f'Processing r_frame_rate: {r_frame_rate} (type: {type(r_frame_rate)})')
-                    
-                    if isinstance(r_frame_rate, str) and '/' in r_frame_rate:
-                        parts = r_frame_rate.split('/')
-                        if len(parts) == 2:
-                            num, den = map(float, parts)
-                            if den > 0:
-                                frame_rate = num / den
-                                logger.info(f'Extracted frame rate from r_frame_rate: {frame_rate:.3f}fps ({r_frame_rate})')
-                    elif isinstance(r_frame_rate, str) and r_frame_rate.replace('.', '').isdigit():
-                        frame_rate = float(r_frame_rate)
-                        logger.info(f'Extracted frame rate from r_frame_rate (string numeric): {frame_rate:.3f}fps')
-                    elif isinstance(r_frame_rate, (int, float)):
-                        frame_rate = float(r_frame_rate)
-                        logger.info(f'Extracted frame rate from r_frame_rate (numeric): {frame_rate:.3f}fps')
-                except (ValueError, ZeroDivisionError, AttributeError) as e:
-                    logger.debug(f'Could not parse r_frame_rate "{video_stream["r_frame_rate"]}": {e}')
-            
-            # Fallback to avg_frame_rate if r_frame_rate failed
-            if not frame_rate and 'avg_frame_rate' in video_stream and video_stream['avg_frame_rate']:
-                try:
-                    avg_frame_rate = video_stream['avg_frame_rate']
-                    logger.debug(f'Processing avg_frame_rate: {avg_frame_rate} (type: {type(avg_frame_rate)})')
-                    
-                    if isinstance(avg_frame_rate, str) and '/' in avg_frame_rate:
-                        parts = avg_frame_rate.split('/')
-                        if len(parts) == 2:
-                            num, den = map(float, parts)
-                            if den > 0:
-                                frame_rate = num / den
-                                logger.info(f'Extracted frame rate from avg_frame_rate: {frame_rate:.3f}fps ({avg_frame_rate})')
-                    elif isinstance(avg_frame_rate, str) and avg_frame_rate.replace('.', '').isdigit():
-                        frame_rate = float(avg_frame_rate)
-                        logger.info(f'Extracted frame rate from avg_frame_rate (string numeric): {frame_rate:.3f}fps')
-                    elif isinstance(avg_frame_rate, (int, float)):
-                        frame_rate = float(avg_frame_rate)
-                        logger.info(f'Extracted frame rate from avg_frame_rate (numeric): {frame_rate:.3f}fps')
-                except (ValueError, ZeroDivisionError, AttributeError) as e:
-                    logger.debug(f'Could not parse avg_frame_rate "{video_stream["avg_frame_rate"]}": {e}')
-            
-            # Final fallback: try direct ffprobe if still no frame rate
-            if not frame_rate or frame_rate <= 0:
-                logger.warning(f'Standard frame rate extraction failed, trying direct ffprobe for video {video.id}')
-                try:
-                    # Use unified ffmpeg interface for consistency
-                    video_info = await probe_video(video.path)
-                    frame_rate = video_info.frame_rate
-                    logger.info(f'Extracted frame rate via unified probe: {frame_rate:.3f}fps')
-                except Exception as e:
-                    logger.debug(f'Direct ffprobe also failed: {e}')
-            
-            # Final validation and fallback
-            if not frame_rate or frame_rate <= 0:
-                frame_rate = 30.0  # Default fallback
-                logger.warning(f'Could not determine valid frame rate for video {video.id}, using default {frame_rate}fps')
-            else:
-                logger.info(f'Successfully extracted frame rate for video {video.id}: {frame_rate:.3f}fps')
-            
-            # Extract dimensions
-            width = video_stream.get('width', 0)
-            height = video_stream.get('height', 0)
-            
-            if width <= 0 or height <= 0:
-                logger.warning(f'Invalid dimensions for video {video.id}: {width}x{height}, using defaults')
-                width = width if width > 0 else 1920
-                height = height if height > 0 else 1080
-            
-            # Extract duration
-            duration = 0.0
-            if 'duration' in video_stream and video_stream['duration']:
-                try:
-                    duration = float(video_stream['duration'])
-                except (ValueError, TypeError):
-                    logger.debug(f'Could not parse stream duration: {video_stream["duration"]}')
-            
-            if duration <= 0 and 'format' in probe_data and 'duration' in probe_data['format']:
-                try:
-                    duration = float(probe_data['format']['duration'])
-                    logger.debug(f'Extracted duration from format info: {duration}s')
-                except (ValueError, TypeError):
-                    logger.debug(f'Could not parse format duration: {probe_data["format"]["duration"]}')
-            
-            if duration <= 0:
-                logger.warning(f'Could not determine duration for video {video.id}')
-            
+            target_path = video.path if not video.transcode_path else video.transcode_path
+            info = await probe_video(target_path)
+
             video_info = {
-                'frame_rate': frame_rate,
-                'width': width,
-                'height': height,
-                'duration': duration,
-                'codec': video_stream.get('codec_name', 'unknown'),
-                'pixel_format': video_stream.get('pix_fmt', 'unknown'),
+                'frame_rate': info.frame_rate if info.frame_rate > 0 else 30.0,
+                'width': info.width if info.width > 0 else 1920,
+                'height': info.height if info.height > 0 else 1080,
+                'duration': info.duration,
+                'codec': info.codec,
+                'pixel_format': 'unknown',
                 'file_size_mb': file_size_mb
             }
             
             logger.info(
                 f'Extracted video metadata for {video.id}: '
-                f'{width}x{height} @ {frame_rate}fps, '
-                f'duration: {duration:.1f}s, codec: {video_info["codec"]}'
+                f'{video_info["width"]}x{video_info["height"]} @ {video_info["frame_rate"]}fps, '
+                f'duration: {video_info["duration"]:.1f}s, codec: {video_info["codec"]}'
             )
             return video_info
             
@@ -834,7 +733,11 @@ class ChatVideoGenerator:
             logger.debug(f'Registered temporary file for cleanup: {file_path}')
 
 
-async def generate_chat_video(video: VideoFile, **kwargs) -> Optional[Path]:
+async def generate_chat_video(
+    video: VideoFile,
+    cancellation_event: Optional[asyncio.Event] = None,
+    **kwargs,
+) -> Optional[Path]:
     """
     Generate a chat overlay video (main entry point).
     
@@ -844,6 +747,7 @@ async def generate_chat_video(video: VideoFile, **kwargs) -> Optional[Path]:
     
     Args:
         video: The video file to process
+        cancellation_event: Event to signal cancellation
         **kwargs: Additional configuration options (currently unused)
         
     Returns:
@@ -856,10 +760,13 @@ async def generate_chat_video(video: VideoFile, **kwargs) -> Optional[Path]:
     # Log the entry point with system context
     logger.info(f'Chat video generation requested for video {video.id} (entry point)')
     
+    if cancellation_event and cancellation_event.is_set():
+        raise asyncio.CancelledError("Chat video generation cancelled before starting")
+
     generator = ChatVideoGenerator()
     
     try:
-        result = await generator.generate(video)
+        result = await generator.generate(video, cancellation_event=cancellation_event)
         
         if result is None:
             logger.info(f'Chat video generation completed with no output for video {video.id} (no messages)')

@@ -6,6 +6,13 @@ services:
     build: ./app
     env_file: .env
     restart: unless-stopped
+    # Non-Swarm Docker Compose GPU request.
+    gpus: all
+    # Compatibility hint for hosts using NVIDIA container runtime.
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,video,utility
     deploy:
       resources:
         reservations:
