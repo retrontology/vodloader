@@ -13,6 +13,7 @@ class ChannelConfig(BaseModel):
     DEFAULT_CHAT_POSITION = "top-left"
     DEFAULT_CHAT_PADDING = 20
     DEFAULT_CHAT_MESSAGE_DURATION = 30.0
+    DEFAULT_ENABLE_CHAT_OVERLAY = False
     DEFAULT_KEEP_CHAT_OVERLAY = True
 
     table_name = 'channel_config'
@@ -33,6 +34,7 @@ class ChannelConfig(BaseModel):
             chat_position VARCHAR(20) DEFAULT NULL,
             chat_padding INT DEFAULT NULL,
             chat_message_duration FLOAT DEFAULT NULL,
+            enable_chat_overlay BOOL DEFAULT FALSE,
             keep_chat_overlay BOOL DEFAULT TRUE,
             PRIMARY KEY (id),
             FOREIGN KEY (id) REFERENCES twitch_channel(id) ON DELETE CASCADE
@@ -56,6 +58,7 @@ class ChannelConfig(BaseModel):
     chat_position: Optional[str]
     chat_padding: Optional[int]
     chat_message_duration: Optional[float]
+    enable_chat_overlay: Optional[bool]
     keep_chat_overlay: Optional[bool]
 
     def __init__(
@@ -75,6 +78,7 @@ class ChannelConfig(BaseModel):
         chat_position: Optional[str] = None,
         chat_padding: Optional[int] = None,
         chat_message_duration: Optional[float] = None,
+        enable_chat_overlay: Optional[bool] = None,
         keep_chat_overlay: Optional[bool] = None,
     ) -> None:
         super().__init__()
@@ -99,9 +103,44 @@ class ChannelConfig(BaseModel):
         self.chat_message_duration = (
             chat_message_duration if chat_message_duration is not None else self.DEFAULT_CHAT_MESSAGE_DURATION
         )
+        self.enable_chat_overlay = (
+            enable_chat_overlay if enable_chat_overlay is not None else self.DEFAULT_ENABLE_CHAT_OVERLAY
+        )
         self.keep_chat_overlay = (
             keep_chat_overlay if keep_chat_overlay is not None else self.DEFAULT_KEEP_CHAT_OVERLAY
         )
+
+    @classmethod
+    async def initialize(cls):
+        await super().initialize()
+
+        from vodloader import config
+        from vodloader.database import get_db
+
+        db = await get_db()
+        connection = await db.connect()
+        cursor = await connection.cursor()
+
+        try:
+            if config.DB_TYPE.lower() == 'sqlite':
+                await cursor.execute(f'PRAGMA table_info({cls.table_name});')
+                columns = await cursor.fetchall()
+                column_names = {column[1] for column in columns}
+            else:
+                await cursor.execute(f'SHOW COLUMNS FROM {cls.table_name};')
+                columns = await cursor.fetchall()
+                column_names = {column[0] for column in columns}
+
+            if 'enable_chat_overlay' not in column_names:
+                await cursor.execute(
+                    f'ALTER TABLE {cls.table_name} ADD COLUMN enable_chat_overlay BOOL DEFAULT FALSE;'
+                )
+                await connection.commit()
+        finally:
+            await cursor.close()
+            closer = connection.close()
+            if closer:
+                await closer
 
     # Configuration getter methods with default value fallbacks
     def get_chat_font_family(self) -> str:
@@ -153,6 +192,10 @@ class ChannelConfig(BaseModel):
     def get_chat_message_duration(self) -> float:
         """Get chat message duration."""
         return self.chat_message_duration
+
+    def get_enable_chat_overlay(self) -> bool:
+        """Get enable chat overlay setting."""
+        return self.enable_chat_overlay
     
     def get_keep_chat_overlay(self) -> bool:
         """Get keep chat overlay setting."""

@@ -46,6 +46,7 @@ async def get_chat_config(channel_name: str):
         "position": config.get_chat_position(),
         "padding": config.get_chat_padding(),
         "message_duration": config.get_chat_message_duration(),
+        "enable_chat_overlay": config.get_enable_chat_overlay(),
         "keep_chat_overlay": config.get_keep_chat_overlay()
     }
     
@@ -97,6 +98,7 @@ async def update_chat_config(channel_name: str):
         'position': 'chat_position',
         'padding': 'chat_padding',
         'message_duration': 'chat_message_duration',
+        'enable_chat_overlay': 'enable_chat_overlay',
         'keep_chat_overlay': 'keep_chat_overlay'
     }
     
@@ -149,6 +151,7 @@ async def reset_chat_config(channel_name: str):
     config.chat_position = ChannelConfig.DEFAULT_CHAT_POSITION
     config.chat_padding = ChannelConfig.DEFAULT_CHAT_PADDING
     config.chat_message_duration = ChannelConfig.DEFAULT_CHAT_MESSAGE_DURATION
+    config.enable_chat_overlay = ChannelConfig.DEFAULT_ENABLE_CHAT_OVERLAY
     config.keep_chat_overlay = ChannelConfig.DEFAULT_KEEP_CHAT_OVERLAY
     
     await config.save()
@@ -167,6 +170,7 @@ async def reset_chat_config(channel_name: str):
         "position": config.get_chat_position(),
         "padding": config.get_chat_padding(),
         "message_duration": config.get_chat_message_duration(),
+        "enable_chat_overlay": config.get_enable_chat_overlay(),
         "keep_chat_overlay": config.get_keep_chat_overlay()
     }
     

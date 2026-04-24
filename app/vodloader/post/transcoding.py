@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-from vodloader.models import VideoFile
+from vodloader.models import VideoFile, ChannelConfig
 from vodloader.ffmpeg import transcode_video, TranscodeError
 
 logger = logging.getLogger('vodloader.post.transcoding')
@@ -115,8 +115,9 @@ async def transcode_listener():
     Listen for videos to transcode and process them.
     
     This function runs continuously, processing videos from the transcode queue.
-    It will attempt to generate chat videos first, falling back to regular
-    transcoding if no chat messages are found.
+    It will generate chat videos only when chat overlays are enabled for the
+    channel, falling back to regular transcoding when overlays are disabled or
+    when no chat messages are found.
     
     This function is designed to be resilient and will never exit unless
     explicitly cancelled, ensuring the transcoding service stays running
@@ -149,15 +150,24 @@ async def transcode_listener():
                         logger.info("Transcoding cancelled, skipping video processing")
                         break
                     
-                    # Try to generate chat video first (includes transcoding)
-                    result = await generate_chat_video(video, _transcoding_cancellation_event)
-                    if result is not None:
-                        logger.info(f"Successfully generated chat video for {video.id}")
-                    else:
-                        # No messages found, fall back to regular transcoding
-                        logger.info(f"No chat messages found for video {video.id}, performing regular transcode")
+                    config = await ChannelConfig.get(id=video.channel)
+                    if not config or not config.get_enable_chat_overlay():
+                        logger.info(
+                            f"Chat overlay disabled for channel {video.channel}, "
+                            f"performing regular transcode for video {video.id}"
+                        )
                         await transcode(video, _transcoding_cancellation_event)
                         logger.info(f"Successfully transcoded video {video.id}")
+                    else:
+                        # Try to generate chat video first (includes transcoding)
+                        result = await generate_chat_video(video, _transcoding_cancellation_event)
+                        if result is not None:
+                            logger.info(f"Successfully generated chat video for {video.id}")
+                        else:
+                            # No messages found, fall back to regular transcoding
+                            logger.info(f"No chat messages found for video {video.id}, performing regular transcode")
+                            await transcode(video, _transcoding_cancellation_event)
+                            logger.info(f"Successfully transcoded video {video.id}")
                         
                 except asyncio.CancelledError:
                     logger.info(f"Transcoding cancelled for video {video.id}")
