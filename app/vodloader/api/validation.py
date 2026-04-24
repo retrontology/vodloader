@@ -230,6 +230,17 @@ def validate_keep_chat_overlay(value):
     return None, None
 
 
+def validate_enable_chat_overlay(value):
+    """Validate enable_chat_overlay parameter"""
+    if not isinstance(value, bool):
+        return {
+            "status": STATUS_ERROR,
+            "message": "enable_chat_overlay must be a boolean"
+        }, HTTP_BAD_REQUEST
+
+    return None, None
+
+
 def validate_chat_config(data):
     """Validate chat configuration data"""
     validation_map = {
@@ -245,6 +256,7 @@ def validate_chat_config(data):
         'position': validate_chat_position,
         'padding': validate_chat_padding,
         'message_duration': validate_chat_message_duration,
+        'enable_chat_overlay': validate_enable_chat_overlay,
         'keep_chat_overlay': validate_keep_chat_overlay
     }
     

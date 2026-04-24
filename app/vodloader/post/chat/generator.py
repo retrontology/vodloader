@@ -109,18 +109,22 @@ class ChatVideoGenerator:
         )
         
         try:
-            # Step 1: Retrieve and filter messages for video time range
-            logger.info(f'Step 1/5: Retrieving messages for video {video.id}')
+            # Step 1: Load configuration before doing any overlay work
+            logger.info(f'Step 1/5: Loading configuration for channel {video.channel}')
+            config = await self._load_configuration(video.channel)
+
+            if not config.get_enable_chat_overlay():
+                logger.info(f'Chat overlay generation disabled for channel {video.channel}, skipping video {video.id}')
+                return None
+
+            # Step 2: Retrieve and filter messages for video time range
+            logger.info(f'Step 2/5: Retrieving messages for video {video.id}')
             messages = await self._get_messages_for_video(video)
             if not messages:
                 logger.info(f'No messages found for video {video.id} - skipping chat overlay generation')
                 return None
             
             logger.info(f'Found {len(messages)} messages for video {video.id}')
-            
-            # Step 2: Load configuration with default value handling
-            logger.info(f'Step 2/5: Loading configuration for channel {video.channel}')
-            config = await self._load_configuration(video.channel)
             
             # Step 3: Extract video metadata for frame rate matching
             logger.info(f'Step 3/5: Extracting video metadata from {video.path}')
@@ -304,6 +308,7 @@ class ChatVideoGenerator:
             # Log key configuration values for debugging
             logger.debug(
                 f'Configuration for channel {channel_id}: '
+                f'enable_overlay={config.get_enable_chat_overlay()}, '
                 f'font_size={config.get_chat_font_size()}, '
                 f'keep_overlay={config.get_keep_chat_overlay()}'
             )
